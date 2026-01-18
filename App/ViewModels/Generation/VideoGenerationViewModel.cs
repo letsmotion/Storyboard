@@ -136,23 +136,27 @@ public partial class VideoGenerationViewModel : ObservableObject
                             // 生成视频缩略图
                             var thumbnailPath = await TryCreateVideoThumbnailAsync(videoPath, ct);
 
-                            // 保存视频路径
-                            shot.GeneratedVideoPath = videoPath;
-
-                            // 添加到资产列表
-                            var asset = new ShotAssetItem
+                            // 在 UI 线程上更新属性
+                            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
                             {
-                                FilePath = videoPath,
-                                ThumbnailPath = null,
-                                VideoThumbnailPath = thumbnailPath,
-                                Type = ShotAssetType.GeneratedVideo,
-                                CreatedAt = DateTime.Now,
-                                IsSelected = true
-                            };
+                                // 保存视频路径
+                                shot.GeneratedVideoPath = videoPath;
 
-                            shot.VideoAssets.Add(asset);
+                                // 添加到资产列表
+                                var asset = new ShotAssetItem
+                                {
+                                    FilePath = videoPath,
+                                    ThumbnailPath = null,
+                                    VideoThumbnailPath = thumbnailPath,
+                                    Type = ShotAssetType.GeneratedVideo,
+                                    CreatedAt = DateTime.Now,
+                                    IsSelected = true
+                                };
 
-                            GeneratedVideosCount++;
+                                shot.VideoAssets.Add(asset);
+
+                                GeneratedVideosCount++;
+                            });
 
                             _messenger.Send(new VideoGenerationCompletedMessage(shot, true, videoPath));
                             _logger.LogInformation("视频生成成功: Shot {ShotNumber}", shot.ShotNumber);
@@ -171,8 +175,11 @@ public partial class VideoGenerationViewModel : ObservableObject
                     }
                     finally
                     {
-                        // 任务完成后重置生成状态
-                        shot.IsVideoGenerating = false;
+                        // 任务完成后在 UI 线程上重置生成状态
+                        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            shot.IsVideoGenerating = false;
+                        });
                         _logger.LogInformation("视频生成状态已重置: Shot {ShotNumber}", shot.ShotNumber);
                     }
                 });

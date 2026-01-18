@@ -13,7 +13,9 @@
       "Bash(dotnet ef database update:*)",
       "Bash(sqlite3:*)",
       "Bash(dir:*)",
-      "Bash(copy:*)"
+      "Bash(copy:*)",
+      "Bash(.PublishSingleFile.bat)",
+      "Bash(cmd /c \"cd /d d:\\\\project\\\\分镜大师 && echo Y | PublishSingleFile.bat\")"
     ],
     "additionalDirectories": [
       "d:\\project\\分镜大师"
