@@ -36,3 +36,4 @@ Thumbs.db
 appsettings.Development.json
 /Release
 /nul
+/Release-MultiFile
