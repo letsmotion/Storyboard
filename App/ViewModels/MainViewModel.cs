@@ -38,6 +38,7 @@ public partial class MainViewModel : ObservableObject
     public JobQueueViewModel JobQueue { get; }
     public HistoryViewModel History { get; }
     public TimelineViewModel Timeline { get; }
+    // public UpdateNotificationViewModel UpdateNotificationViewModel { get; }
 
     // 全局 UI 状态
     [ObservableProperty]
@@ -76,6 +77,10 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string? _keyMessage;
+
+    // 版本信息
+    [ObservableProperty]
+    private string _versionText = "分镜大师 v1.0.0";
 
     // 创作模式属性
     [ObservableProperty]
@@ -216,6 +221,8 @@ public partial class MainViewModel : ObservableObject
         JobQueueViewModel jobQueue,
         HistoryViewModel history,
         TimelineViewModel timeline,
+        // UpdateNotificationViewModel updateNotificationViewModel,
+        // UpdateService updateService,
         IProjectStore projectStore,
         IMessenger messenger,
         ILogger<MainViewModel> logger)
@@ -231,9 +238,13 @@ public partial class MainViewModel : ObservableObject
         JobQueue = jobQueue;
         History = history;
         Timeline = timeline;
+        // UpdateNotificationViewModel = updateNotificationViewModel;
         _projectStore = projectStore;
         _messenger = messenger;
         _logger = logger;
+
+        // 设置版本号
+        VersionText = $"分镜大师 v1.0.0"; // updateService.GetCurrentVersion();
 
         // 订阅子 ViewModel 的属性变更以更新计算属性
         ProjectManagement.PropertyChanged += (s, e) =>

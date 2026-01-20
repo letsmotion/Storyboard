@@ -2,7 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:m="using:Storyboard.Models"
              xmlns:conv="using:Storyboard.Converters"
-             xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
+             xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
              xmlns:system="clr-namespace:System;assembly=System.Runtime"
              x:Class="Storyboard.Views.ShotEditorView"
              x:DataType="m:ShotItem">
@@ -1254,16 +1254,28 @@
                                         Height="240"
                                         ClipToBounds="True">
                                     <Grid>
-                                        <wv:WebView x:Name="VideoWebView"
-                                                    HorizontalAlignment="Stretch"
-                                                    VerticalAlignment="Stretch" />
+                                        <!-- Video thumbnail preview (shown when video exists but not playing) -->
+                                        <Image Source="{Binding FirstFrameImagePath, Converter={StaticResource PathToBitmapConverter}}"
+                                               Stretch="UniformToFill"
+                                               HorizontalAlignment="Stretch"
+                                               VerticalAlignment="Stretch"
+                                               IsVisible="{Binding VideoOutputPath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
 
-                                        <TextBlock Text="视频播放器"
+                                        <!-- Video player (on top of thumbnail) -->
+                                        <vlc:VideoView x:Name="VideoPlayer"
+                                                       HorizontalAlignment="Stretch"
+                                                       VerticalAlignment="Stretch"
+                                                       Width="{Binding $parent[Border].Bounds.Width}"
+                                                       Height="{Binding $parent[Border].Bounds.Height}" />
+
+                                        <!-- Placeholder when no video -->
+                                        <TextBlock Text="暂无视频"
                                                    Foreground="#52525b"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"
                                                    IsVisible="{Binding VideoOutputPath, Converter={x:Static conv:StringConverters.IsNullOrEmpty}}" />
 
+                                        <!-- Generating overlay -->
                                         <Border Background="#000000cc"
                                                 IsVisible="{Binding IsVideoGenerating}">
                                             <StackPanel HorizontalAlignment="Center"

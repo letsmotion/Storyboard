@@ -35,8 +35,35 @@ public partial class ShotListViewModel : ObservableObject
     private int _completedVideoShotsCount;
 
     public bool HasShots => Shots.Count > 0;
-    public bool HasSelectedShots => Shots.Any(s => s.IsChecked);
-    public string SelectedShotsCountText => $"{Shots.Count(s => s.IsChecked)} 已选择";
+    public bool HasSelectedShots
+    {
+        get
+        {
+            try
+            {
+                return Shots.Any(s => s.IsChecked);
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+        }
+    }
+    public string SelectedShotsCountText
+    {
+        get
+        {
+            try
+            {
+                var count = Shots.Count(s => s.IsChecked);
+                return $"{count} 已选择";
+            }
+            catch (InvalidOperationException)
+            {
+                return "0 已选择";
+            }
+        }
+    }
 
     public ShotListViewModel(
         IMessenger messenger,
@@ -311,11 +338,12 @@ public partial class ShotListViewModel : ObservableObject
 
     private void UpdateSummaryCounts()
     {
-        TotalDuration = Shots.Sum(s => s.Duration);
-        CompletedShotsCount = Shots.Count(s =>
+        var snapshot = Shots.ToList();
+        TotalDuration = snapshot.Sum(s => s.Duration);
+        CompletedShotsCount = snapshot.Count(s =>
             !string.IsNullOrWhiteSpace(s.FirstFrameImagePath) &&
             !string.IsNullOrWhiteSpace(s.LastFrameImagePath));
-        CompletedVideoShotsCount = Shots.Count(s =>
+        CompletedVideoShotsCount = snapshot.Count(s =>
             !string.IsNullOrWhiteSpace(s.GeneratedVideoPath) &&
             System.IO.File.Exists(s.GeneratedVideoPath));
 

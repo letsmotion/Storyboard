@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Storyboard.ViewModels"
+             x:Class="Storyboard.Views.UpdateNotificationView"
+             x:DataType="vm:UpdateNotificationViewModel">
+
+  <!-- 更新通知栏 -->
+  <Border IsVisible="{Binding IsUpdateAvailable}"
+          Background="#2196F3"
+          Padding="16,12"
+          CornerRadius="8"
+          Margin="16">
+
+    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+
+      <!-- 图标 -->
+      <TextBlock Grid.Column="0"
+                 Text="🔔"
+                 FontSize="20"
+                 VerticalAlignment="Center"
+                 Margin="0,0,12,0"/>
+
+      <!-- 消息内容 -->
+      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+        <TextBlock Text="{Binding StatusMessage}"
+                   Foreground="White"
+                   FontWeight="SemiBold"
+                   FontSize="14"/>
+        <TextBlock Text="{Binding CurrentVersion, StringFormat='当前版本: {0}'}"
+                   Foreground="#E3F2FD"
+                   FontSize="12"
+                   Margin="0,4,0,0"/>
+
+        <!-- 下载进度条 -->
+        <ProgressBar IsVisible="{Binding IsDownloading}"
+                     Value="{Binding DownloadProgress}"
+                     Height="4"
+                     Margin="0,8,0,0"
+                     Foreground="White"
+                     Background="#1976D2"/>
+      </StackPanel>
+
+      <!-- 更新按钮 -->
+      <Button Grid.Column="2"
+              Content="立即更新"
+              Command="{Binding DownloadAndInstallCommand}"
+              IsEnabled="{Binding !IsDownloading}"
+              Background="White"
+              Foreground="#2196F3"
+              Padding="16,8"
+              Margin="12,0"
+              CornerRadius="4"
+              FontWeight="SemiBold"/>
+
+      <!-- 关闭按钮 -->
+      <Button Grid.Column="3"
+              Content="✕"
+              Command="{Binding DismissUpdateCommand}"
+              IsEnabled="{Binding !IsDownloading}"
+              Background="Transparent"
+              Foreground="White"
+              Padding="8"
+              CornerRadius="4"
+              FontSize="16"/>
+
+    </Grid>
+  </Border>
+
+</UserControl>

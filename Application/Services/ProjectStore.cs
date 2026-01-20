@@ -239,7 +239,13 @@ public sealed class ProjectStore : IProjectStore
 
         // Replace shots (simple, predictable). Keep it thin, avoid tracking complex diffs.
         if (project.Shots.Count > 0)
+        {
             uow.Shots.RemoveRange(project.Shots);
+            // Save changes to commit deletions before inserting new shots
+            // This prevents unique constraint violations on (ProjectId, ShotNumber)
+            await uow.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            project.Shots.Clear();
+        }
 
         project.Shots = state.Shots
             .OrderBy(s => s.ShotNumber)

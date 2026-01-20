@@ -27,7 +27,7 @@
     </Design.DataContext>
 
     <Grid RowDefinitions="56,*,Auto" Background="#0a0a0a">
-        
+
         <!-- Header -->
         <Border Grid.Row="0" 
                 Background="{StaticResource TitleBarBrush}" 
@@ -288,7 +288,7 @@
                            HorizontalAlignment="Center" />
                 
                 <!-- Right: Version -->
-                <TextBlock Grid.Column="2" 
+                <TextBlock Grid.Column="2"
                            Text="分镜大师 v1.0.0" 
                            Foreground="#71717a"
                            VerticalAlignment="Center" />

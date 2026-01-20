@@ -1,7 +1,6 @@
 ﻿using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using AvaloniaWebView;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -21,6 +20,7 @@ using Storyboard.Infrastructure.Ui;
 using System.IO;
 using System;
 using CommunityToolkit.Mvvm.Messaging;
+using Velopack;
 
 namespace Storyboard;
 
@@ -31,11 +31,13 @@ public partial class App : Avalonia.Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
-        AvaloniaWebViewBuilder.Initialize(_ => { });
     }
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Velopack: 处理应用启动和更新
+        // VelopackApp.Build().Run();
+
         // 配置依赖注入
         var services = new ServiceCollection();
         ConfigureServices(services);
@@ -51,9 +53,36 @@ public partial class App : Avalonia.Application
             {
                 DataContext = Services.GetRequiredService<MainViewModel>()
             };
+
+            // 启动后检查更新（异步执行，不阻塞启动）
+            // _ = CheckForUpdatesAsync();
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private async System.Threading.Tasks.Task CheckForUpdatesAsync()
+    {
+        try
+        {
+            // 延迟 3 秒后检查更新，避免影响启动速度
+            await System.Threading.Tasks.Task.Delay(3000);
+
+            var updateService = Services.GetRequiredService<UpdateService>();
+            var updateInfo = await updateService.CheckForUpdatesAsync();
+
+            if (updateInfo != null)
+            {
+                Log.Information($"发现新版本: {updateInfo.TargetFullRelease.Version}");
+                // 发送更新通知消息
+                var messenger = Services.GetRequiredService<IMessenger>();
+                messenger.Send(new Messages.UpdateAvailableMessage(updateInfo));
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "检查更新时出错");
+        }
     }
 
     private async System.Threading.Tasks.Task ApplyDatabaseMigrations()
@@ -113,6 +142,7 @@ public partial class App : Avalonia.Application
         // ViewModels
         services.AddTransient<MainViewModel>();
         services.AddTransient<ApiKeyViewModel>();
+        // services.AddTransient<UpdateNotificationViewModel>();
 
         // 新的子 ViewModels
         services.AddTransient<ViewModels.Project.ProjectManagementViewModel>();
@@ -144,11 +174,14 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IJobQueueService>(sp =>
             new JobQueueService(sp.GetRequiredService<IUiDispatcher>(), maxConcurrency: 2));
 
+        // Update Service
+        // services.AddSingleton<UpdateService>();
+
         // AI Services
         services.AddSingleton<AI.Prompts.PromptManagementService>();
         services.AddSingleton<AI.Core.IAIServiceProvider, AI.Providers.QwenServiceProvider>();
         services.AddSingleton<AI.Core.IAIServiceProvider, AI.Providers.VolcengineServiceProvider>();
-        
+
         services.AddSingleton<AIServiceManager>();
     }
 }

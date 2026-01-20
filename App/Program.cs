@@ -1,5 +1,4 @@
 using Avalonia;
-using Avalonia.WebView.Desktop;
 using System;
 
 namespace Storyboard;
@@ -14,6 +13,5 @@ class Program
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .WithInterFont()
-            .UseDesktopWebView()
             .LogToTrace();
 }

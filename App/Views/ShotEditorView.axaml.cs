@@ -6,210 +6,919 @@ using Storyboard.Models;
 using System;
 using System.ComponentModel;
 using System.IO;
+using LibVLCSharp.Shared;
+using LibVLCSharp.Avalonia;
+using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.VisualTree;
 
 namespace Storyboard.Views;
 
-public partial class ShotEditorView : UserControl
+public partial class ShotEditorView : UserControl, IDisposable
 {
     private ShotItem? _shot;
-    private bool _viewAttached;
+    private LibVLC? _libVLC;
+    private MediaPlayer? _mediaPlayer;
+    private Media? _currentMedia;
     private string? _currentVideoPath;
-    private string? _pendingVideoPath;
-    private bool _pendingAutoPlay;
+    private bool _isDisposed = false;
+    private bool _isInitialized = false;
+    private bool _viewReady = false;
+    private readonly object _playerLock = new object();
+    private CancellationTokenSource? _loadCancellationTokenSource;
+    private bool _pendingPlay = false;
+    private int _clearing = 0;
+    private bool _rebindDoneForThisMedia = false;
+
+    // 添加静态初始化确保 Core.Initialize() 只调用一次
+    static ShotEditorView()
+    {
+        try
+        {
+            Core.Initialize();
+            System.Diagnostics.Debug.WriteLine("[ShotEditorView] LibVLCSharp core initialized (static)");
+        }
+        catch (InvalidOperationException)
+        {
+            // Core 已经初始化过，忽略这个异常
+            System.Diagnostics.Debug.WriteLine("[ShotEditorView] LibVLCSharp core already initialized");
+        }
+    }
 
     public ShotEditorView()
     {
         InitializeComponent();
-        DataContextChanged += OnDataContextChanged;
+
+        // Monitor DataContext changes
+        this.GetObservable(DataContextProperty).Subscribe(OnDataContextChangedObservable);
+
         AttachedToVisualTree += OnAttachedToVisualTree;
         DetachedFromVisualTree += OnDetachedFromVisualTree;
     }
 
+    private void HookLayoutEvents()
+    {
+        if (VideoPlayer == null) return;
+        VideoPlayer.LayoutUpdated -= OnVideoLayoutUpdated;
+        VideoPlayer.LayoutUpdated += OnVideoLayoutUpdated;
+    }
+
+    private void OnVideoLayoutUpdated(object? sender, EventArgs e)
+    {
+        if (!_pendingPlay) return;
+        if (_mediaPlayer?.Media == null || VideoPlayer == null) return;
+
+        var laidOut = (VideoPlayer as Avalonia.Layout.Layoutable)?.IsArrangeValid == true;
+        var sizeOk = VideoPlayer.Bounds.Width > 0 && VideoPlayer.Bounds.Height > 0;
+
+        if (laidOut && sizeOk && VideoPlayer.IsAttachedToVisualTree() && VideoPlayer.IsVisible)
+        {
+            _pendingPlay = false;
+            lock (_playerLock)
+            {
+                try
+                {
+                    if (_mediaPlayer?.Media != null && !_isDisposed && _viewReady)
+                    {
+                        _mediaPlayer.Play();
+                        System.Diagnostics.Debug.WriteLine("[PlayPending] Layout ready -> Play");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[PlayPending] Play error: {ex.Message}");
+                }
+            }
+        }
+    }
+
     private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
-        _viewAttached = true;
-        EnsurePlayerLoaded();
-        ApplyPending();
-        UpdatePlayerSource(_shot?.GeneratedVideoPath, false);
+        if (_isDisposed) return;
+
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] OnAttachedToVisualTree - view attaching");
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            // 延迟初始化确保UI完全渲染
+            Task.Delay(200).ContinueWith(_ =>
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    _viewReady = true;
+                    System.Diagnostics.Debug.WriteLine("[ShotEditorView] View is now ready");
+
+                    // Hook layout events for pending play
+                    HookLayoutEvents();
+
+                    // If already initialized, just ensure binding
+                    if (_isInitialized)
+                    {
+                        System.Diagnostics.Debug.WriteLine("[ShotEditorView] Player already initialized, ensuring binding");
+                        EnsureVideoViewBinding();
+
+                        // Reload current video if exists
+                        if (_shot?.GeneratedVideoPath != null && File.Exists(_shot.GeneratedVideoPath))
+                        {
+                            Task.Delay(100).ContinueWith(__ =>
+                            {
+                                Dispatcher.UIThread.Post(() =>
+                                    LoadVideo(_shot.GeneratedVideoPath!, false));
+                            });
+                        }
+                    }
+                    else
+                    {
+                        // First time initialization
+                        InitializeVLC();
+                    }
+                });
+            });
+        });
+    }
+
+    private void InitializeVLC()
+    {
+        lock (_playerLock)
+        {
+            if (_isDisposed || _isInitialized) return;
+
+            try
+            {
+                if (VideoPlayer == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("[ShotEditorView] VideoPlayer control not found");
+                    return;
+                }
+
+                System.Diagnostics.Debug.WriteLine("[ShotEditorView] Initializing VLC...");
+
+                // Create LibVLC instance with options to prevent native window
+                _libVLC = new LibVLC(
+                    "--no-video-title-show",
+                    "--input-fast-seek",
+                    "--no-audio",
+                    "--no-xlib",
+                    "--no-snapshot-preview",
+                    "--no-video-deco"  // 防止原生窗口装饰
+                );
+
+                // Create media player - ONLY ONCE
+                _mediaPlayer = new MediaPlayer(_libVLC);
+
+                // 重要：订阅错误事件
+                _mediaPlayer.EncounteredError += (sender, e) =>
+                {
+                    System.Diagnostics.Debug.WriteLine("[ShotEditorView] MediaPlayer encountered error");
+                };
+
+                // CRITICAL: Bind media player to VideoView IMMEDIATELY
+                VideoPlayer.MediaPlayer = _mediaPlayer;
+
+                _isInitialized = true;
+
+                System.Diagnostics.Debug.WriteLine("[ShotEditorView] VLC initialized successfully");
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] VideoPlayer.MediaPlayer bound: {VideoPlayer.MediaPlayer != null}");
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] MediaPlayer instance: {_mediaPlayer.GetHashCode()}");
+
+                // 如果有视频要加载，延迟一点确保播放器准备好
+                if (_shot?.GeneratedVideoPath != null && File.Exists(_shot.GeneratedVideoPath))
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        Task.Delay(300).ContinueWith(_ =>
+                        {
+                            Dispatcher.UIThread.Post(() =>
+                                LoadVideo(_shot.GeneratedVideoPath!, false));
+                        });
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] VLC initialization failed: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Stack trace: {ex.StackTrace}");
+
+                // 清理失败的部分
+                CleanupFailedInitialization();
+            }
+        }
+    }
+
+    private void CleanupFailedInitialization()
+    {
+        try
+        {
+            _mediaPlayer?.Dispose();
+            _mediaPlayer = null;
+
+            _libVLC?.Dispose();
+            _libVLC = null;
+
+            _isInitialized = false;
+        }
+        catch { /* 忽略清理异常 */ }
     }
 
     private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] OnDetachedFromVisualTree called");
+
+        _viewReady = false;
+
         if (_shot != null)
             _shot.PropertyChanged -= OnShotPropertyChanged;
 
-        _viewAttached = false;
-        _currentVideoPath = null;
-        _pendingVideoPath = null;
-        _pendingAutoPlay = false;
+        // CRITICAL: Only stop playback, don't dispose MediaPlayer/LibVLC
+        // They will be reused when view is re-attached
+        if (_mediaPlayer != null)
+        {
+            _mediaPlayer.Stop();
+            _mediaPlayer.Media = null;
+        }
 
-        if (VideoWebView != null)
-            VideoWebView.Url = null;
+        SafeDisposeCurrentMedia();
+        _currentVideoPath = null;
+
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] View detached, playback stopped but player kept alive");
     }
 
-    private void OnDataContextChanged(object? sender, EventArgs e)
+    // 实现 IDisposable
+    public void Dispose()
     {
+        if (_isDisposed) return;
+        _isDisposed = true;
+
+        lock (_playerLock)
+        {
+            try
+            {
+                // 取消任何正在进行的加载
+                _loadCancellationTokenSource?.Cancel();
+
+                // 停止播放
+                _mediaPlayer?.Stop();
+
+                // 先释放 Media
+                SafeDisposeCurrentMedia();
+
+                // 然后释放 MediaPlayer
+                _mediaPlayer?.Dispose();
+                _mediaPlayer = null;
+
+                // 最后释放 LibVLC
+                _libVLC?.Dispose();
+                _libVLC = null;
+
+                _isInitialized = false;
+
+                System.Diagnostics.Debug.WriteLine("[ShotEditorView] VLC resources disposed");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Dispose error: {ex.Message}");
+            }
+        }
+
+        // 移除事件处理程序
+        AttachedToVisualTree -= OnAttachedToVisualTree;
+        DetachedFromVisualTree -= OnDetachedFromVisualTree;
+
         if (_shot != null)
             _shot.PropertyChanged -= OnShotPropertyChanged;
 
-        _shot = DataContext as ShotItem;
+        GC.SuppressFinalize(this);
+    }
 
-        if (_shot != null)
-            _shot.PropertyChanged += OnShotPropertyChanged;
+    private void OnDataContextChangedObservable(object? context)
+    {
+        if (_isDisposed) return;
 
-        UpdatePlayerSource(_shot?.GeneratedVideoPath, false);
+        lock (_playerLock)
+        {
+            try
+            {
+                // 取消任何正在进行的加载
+                _loadCancellationTokenSource?.Cancel();
+                _loadCancellationTokenSource = null;
+
+                if (_shot != null)
+                    _shot.PropertyChanged -= OnShotPropertyChanged;
+
+                var previousShot = _shot;
+                _shot = context as ShotItem;
+
+                if (_shot != null)
+                    _shot.PropertyChanged += OnShotPropertyChanged;
+
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] DataContext changed from Shot #{previousShot?.ShotNumber ?? 0} to Shot #{_shot?.ShotNumber ?? 0}");
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] New shot GeneratedVideoPath: {_shot?.GeneratedVideoPath ?? "null"}");
+
+                // 立即清空当前视频路径
+                _currentVideoPath = null;
+
+                // 如果播放器未初始化，设置标记稍后加载
+                if (!_isInitialized)
+                {
+                    return;
+                }
+
+                // 清除当前播放
+                ClearPlayerImmediate();
+
+                // 加载新视频
+                if (_shot?.GeneratedVideoPath != null && File.Exists(_shot.GeneratedVideoPath))
+                {
+                    // 使用 CancellationToken 防止竞态条件
+                    _loadCancellationTokenSource = new CancellationTokenSource();
+                    var token = _loadCancellationTokenSource.Token;
+
+                    Task.Delay(100).ContinueWith(_ =>
+                    {
+                        if (!token.IsCancellationRequested)
+                        {
+                            Dispatcher.UIThread.Post(() =>
+                            {
+                                if (!token.IsCancellationRequested)
+                                {
+                                    LoadVideo(_shot.GeneratedVideoPath!, false);
+                                }
+                            });
+                        }
+                    }, token);
+                }
+                else
+                {
+                    // 完全清空播放器
+                    ClearPlayerImmediate();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] OnDataContextChangedObservable error: {ex.Message}");
+            }
+        }
+    }
+
+    private void ClearPlayerImmediate()
+    {
+        // CRITICAL: 防止重复调用（幂等性保护）
+        if (Interlocked.Exchange(ref _clearing, 1) == 1)
+        {
+            System.Diagnostics.Debug.WriteLine("[ShotEditorView] ClearPlayerImmediate already in progress, skipping");
+            return;
+        }
+
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("[ShotEditorView] ClearPlayerImmediate called");
+
+            // CRITICAL: 1) 先停，断开 libvlc 内部播放/输出链路（关键）
+            if (_mediaPlayer != null)
+            {
+                _mediaPlayer.Stop();
+                _mediaPlayer.Media = null;
+            }
+
+            // CRITICAL: 2) 再解绑 VideoView，强制它释放旧的宿主输出目标
+            if (VideoPlayer != null)
+            {
+                VideoPlayer.MediaPlayer = null;
+                System.Diagnostics.Debug.WriteLine("[ShotEditorView] VideoPlayer.MediaPlayer unbound");
+            }
+
+            // CRITICAL: 3) 再释放当前 Media 对象
+            SafeDisposeCurrentMedia();
+
+            _currentVideoPath = null;
+
+            System.Diagnostics.Debug.WriteLine("[ShotEditorView] Player cleared completely");
+            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] After Clear: VideoPlayer.MediaPlayer is null? {VideoPlayer?.MediaPlayer is null}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] ClearPlayerImmediate error: {ex.Message}");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _clearing, 0);
+        }
+    }
+
+    private void EnsureVideoViewBinding()
+    {
+        if (VideoPlayer == null || _mediaPlayer == null)
+        {
+            System.Diagnostics.Debug.WriteLine("[ShotEditorView] EnsureVideoViewBinding: VideoPlayer or MediaPlayer is null");
+            return;
+        }
+
+        // CRITICAL: Only rebind if not already bound (真正的 "ensure")
+        if (!ReferenceEquals(VideoPlayer.MediaPlayer, _mediaPlayer))
+        {
+            VideoPlayer.MediaPlayer = _mediaPlayer;
+            System.Diagnostics.Debug.WriteLine("[ShotEditorView] EnsureVideoViewBinding: Bound MediaPlayer to VideoView");
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine("[ShotEditorView] EnsureVideoViewBinding: Already bound");
+        }
     }
 
     private void OnShotPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (_isDisposed || !_isInitialized) return;
+
         if (e.PropertyName == nameof(ShotItem.GeneratedVideoPath))
         {
+            lock (_playerLock)
+            {
+                var videoPath = _shot?.GeneratedVideoPath;
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] GeneratedVideoPath changed: {videoPath}");
+
+                // 取消之前的加载
+                _loadCancellationTokenSource?.Cancel();
+                _loadCancellationTokenSource = new CancellationTokenSource();
+                var token = _loadCancellationTokenSource.Token;
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (!token.IsCancellationRequested)
+                    {
+                        if (videoPath != null && File.Exists(videoPath))
+                        {
+                            LoadVideo(videoPath, false);
+                        }
+                        else
+                        {
+                            ClearPlayerImmediate();
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    private void OnTogglePlayClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_isDisposed || !_isInitialized) return;
+
+        lock (_playerLock)
+        {
             var videoPath = _shot?.GeneratedVideoPath;
-            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] GeneratedVideoPath changed: {videoPath}");
-            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] File exists: {(videoPath != null && File.Exists(videoPath))}");
-            Dispatcher.UIThread.Post(() => UpdatePlayerSource(videoPath, false));
+
+            if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath))
+                return;
+
+            // CRITICAL: Diagnose VideoView state
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"[PlayClick] VideoPlayer is null? {VideoPlayer == null}");
+                System.Diagnostics.Debug.WriteLine($"[PlayClick] VideoPlayer.IsVisible: {VideoPlayer?.IsVisible}");
+                System.Diagnostics.Debug.WriteLine($"[PlayClick] VideoPlayer.Bounds: {VideoPlayer?.Bounds}");
+                System.Diagnostics.Debug.WriteLine($"[PlayClick] VideoPlayer.IsAttachedToVisualTree: {VideoPlayer?.IsAttachedToVisualTree()}");
+                System.Diagnostics.Debug.WriteLine($"[PlayClick] VideoPlayer.MediaPlayer is null? {VideoPlayer?.MediaPlayer == null}");
+                System.Diagnostics.Debug.WriteLine($"[PlayClick] MediaPlayer instance: {_mediaPlayer?.GetHashCode()}");
+                System.Diagnostics.Debug.WriteLine($"[PlayClick] MediaPlayer.Media is null? {_mediaPlayer?.Media == null}");
+
+                if (VideoPlayer?.MediaPlayer != _mediaPlayer)
+                {
+                    System.Diagnostics.Debug.WriteLine("[PlayClick] WARNING: VideoPlayer.MediaPlayer is not bound to our MediaPlayer!");
+                }
+
+                // CRITICAL: Check if Bounds are invalid (X/Y = -1 means not arranged yet)
+                // NOTE: X/Y = -1 is actually NORMAL for VideoView, don't use it as a check
+                if (VideoPlayer?.Bounds.X == -1 || VideoPlayer?.Bounds.Y == -1)
+                {
+                    System.Diagnostics.Debug.WriteLine("[PlayClick] INFO: VideoPlayer has X/Y=-1 (this is normal for VideoView)");
+                }
+
+                // Check actual layout state
+                var layoutable = VideoPlayer as Avalonia.Layout.Layoutable;
+                System.Diagnostics.Debug.WriteLine($"[PlayClick] IsArrangeValid: {layoutable?.IsArrangeValid}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PlayClick] Failed to diagnose: {ex.Message}");
+            }
+
+            var path = Path.GetFullPath(videoPath);
+
+            // 如果不同视频或未加载，加载它
+            if (string.IsNullOrEmpty(_currentVideoPath) ||
+                !string.Equals(_currentVideoPath, path, StringComparison.OrdinalIgnoreCase))
+            {
+                LoadVideo(path, true);
+                return;
+            }
+
+            // 切换播放/暂停
+            _ = TogglePlayPauseAsync();
         }
     }
 
-    private async void OnTogglePlayClicked(object? sender, RoutedEventArgs e)
+    private async Task TogglePlayPauseAsync()
     {
-        var path = NormalizeVideoPath(_shot?.GeneratedVideoPath);
-        if (path == null)
-            return;
-
-        if (!_viewAttached || VideoWebView == null)
+        if (_mediaPlayer == null || _mediaPlayer.Media == null)
         {
-            _pendingVideoPath = path;
-            _pendingAutoPlay = true;
+            System.Diagnostics.Debug.WriteLine("[TogglePlayPause] No media loaded");
             return;
         }
 
-        if (!string.Equals(_currentVideoPath, path, StringComparison.OrdinalIgnoreCase))
+        if (_mediaPlayer.IsPlaying)
         {
-            UpdatePlayerSource(path, true);
-            return;
+            _mediaPlayer.Pause();
+            System.Diagnostics.Debug.WriteLine("[TogglePlayPause] Paused");
         }
-
-        if (await TryTogglePlayAsync())
-            return;
-
-        UpdatePlayerSource(path, true);
+        else
+        {
+            // Use PlaySafeEmbed to ensure embedded output
+            await PlaySafeEmbedAsync();
+        }
     }
 
-    private void EnsurePlayerLoaded()
+    private async Task PlaySafeEmbedAsync()
     {
-        if (!_viewAttached || VideoWebView == null)
-            return;
-
-        var uri = BuildPlayerUri(null, false);
-        if (uri == null)
-            return;
-
-        if (VideoWebView.Url == null)
-            VideoWebView.Url = uri;
-    }
-
-    private void ApplyPending()
-    {
-        if (_pendingVideoPath == null && !_pendingAutoPlay)
-            return;
-
-        var path = _pendingVideoPath;
-        var autoplay = _pendingAutoPlay;
-
-        _pendingVideoPath = null;
-        _pendingAutoPlay = false;
-
-        UpdatePlayerSource(path, autoplay);
-    }
-
-    private void UpdatePlayerSource(string? videoPath, bool autoplay)
-    {
-        System.Diagnostics.Debug.WriteLine($"[ShotEditorView] UpdatePlayerSource called: videoPath={videoPath}, autoplay={autoplay}");
-        System.Diagnostics.Debug.WriteLine($"[ShotEditorView] _viewAttached={_viewAttached}, VideoWebView={VideoWebView != null}");
-
-        if (!_viewAttached || VideoWebView == null)
+        if (VideoPlayer == null || _mediaPlayer?.Media == null)
         {
-            _pendingVideoPath = videoPath;
-            _pendingAutoPlay = autoplay;
-            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] View not attached, pending video path set");
+            System.Diagnostics.Debug.WriteLine("[PlaySafeEmbed] Cannot play - player/media/view is null");
             return;
         }
 
-        var normalizedPath = NormalizeVideoPath(videoPath);
-        System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Normalized path: {normalizedPath}");
+        // 不依赖 X/Y（X/Y=-1 对 VideoView 是正常的）
+        var laidOut = (VideoPlayer as Avalonia.Layout.Layoutable)?.IsArrangeValid == true;
+        var sizeOk = VideoPlayer.Bounds.Width > 0 && VideoPlayer.Bounds.Height > 0;
 
-        if (!autoplay && string.Equals(_currentVideoPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+        if (!VideoPlayer.IsAttachedToVisualTree() || !VideoPlayer.IsVisible || !laidOut || !sizeOk)
         {
-            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Path unchanged, skipping update");
+            System.Diagnostics.Debug.WriteLine($"[PlaySafeEmbed] Not ready: attached={VideoPlayer.IsAttachedToVisualTree()}, visible={VideoPlayer.IsVisible}, arrange={laidOut}, bounds={VideoPlayer.Bounds}");
+
+            // Not ready, set pending and wait for layout
+            _pendingPlay = true;
+            HookLayoutEvents();
+            System.Diagnostics.Debug.WriteLine($"[PlaySafeEmbed] Not ready -> pending");
             return;
         }
 
-        var uri = BuildPlayerUri(normalizedPath, autoplay);
-        System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Built URI: {uri}");
-
-        if (uri == null)
+        // CRITICAL: 保险重绑 - 每个"当前 media"只做一次，避免每次点播放都闪动/重置
+        if (!_rebindDoneForThisMedia)
         {
-            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] URI is null, cannot update player");
-            return;
+            _rebindDoneForThisMedia = true;
+
+            System.Diagnostics.Debug.WriteLine("[PlaySafeEmbed] Performing rebind to refresh embed output");
+
+            // 断开再绑定，触发 VideoView 把嵌入式输出目标重新交给 libvlc
+            VideoPlayer.MediaPlayer = null;
+            await Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Render);
+
+            VideoPlayer.MediaPlayer = _mediaPlayer;
+            await Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Render);
+
+            System.Diagnostics.Debug.WriteLine("[PlaySafeEmbed] Rebind done (embed output refreshed)");
         }
 
-        _currentVideoPath = normalizedPath;
-        VideoWebView.Url = uri;
-        System.Diagnostics.Debug.WriteLine($"[ShotEditorView] WebView URL updated successfully");
+        lock (_playerLock)
+        {
+            try
+            {
+                if (_mediaPlayer?.Media != null && !_isDisposed && _viewReady)
+                {
+                    _mediaPlayer.Play();
+                    System.Diagnostics.Debug.WriteLine("[PlaySafeEmbed] Play()");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PlaySafeEmbed] Play error: {ex.Message}");
+            }
+        }
     }
 
-    private async Task<bool> TryTogglePlayAsync()
+    private void LoadVideo(string videoPath, bool autoplay)
     {
-        if (VideoWebView == null)
-            return false;
+        if (_isDisposed || !_isInitialized || !_viewReady)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Cannot load video - disposed:{_isDisposed}, initialized:{_isInitialized}, viewReady:{_viewReady}");
+            return;
+        }
 
+        // CRITICAL: Ensure we're on UI thread
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            System.Diagnostics.Debug.WriteLine("[ShotEditorView] LoadVideo called from non-UI thread, dispatching to UI thread");
+            Dispatcher.UIThread.Post(() => LoadVideo(videoPath, autoplay));
+            return;
+        }
+
+        lock (_playerLock)
+        {
+            try
+            {
+                if (_mediaPlayer == null || _libVLC == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("[ShotEditorView] Media player not initialized");
+                    return;
+                }
+
+                if (VideoPlayer == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("[ShotEditorView] VideoPlayer control not available");
+                    return;
+                }
+
+                // CRITICAL: Ensure binding BEFORE any operation
+                EnsureVideoViewBinding();
+
+                // 验证文件
+                if (!IsPlayableFile(videoPath))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ShotEditorView] File not playable: {videoPath}");
+                    return;
+                }
+
+                var normalizedPath = Path.GetFullPath(videoPath);
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Loading video: {normalizedPath}");
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] MediaPlayer instance: {_mediaPlayer.GetHashCode()}");
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Thread: {Environment.CurrentManagedThreadId}, IsUIThread: {Dispatcher.UIThread.CheckAccess()}");
+
+                // 停止当前播放
+                _mediaPlayer.Stop();
+
+                // CRITICAL: Clear Media reference before disposing
+                _mediaPlayer.Media = null;
+
+                // 等待一小段时间确保完全停止
+                Thread.Sleep(50);
+
+                // CRITICAL: 安全释放当前媒体
+                SafeDisposeCurrentMedia();
+
+                // 再次确保绑定（防止在 Stop/Dispose 过程中断开）
+                EnsureVideoViewBinding();
+
+                // 创建新媒体 - 不使用 using，持有引用
+                _currentMedia = new Media(_libVLC, normalizedPath, FromType.FromPath);
+
+                // 设置媒体到播放器
+                _mediaPlayer.Media = _currentMedia;
+
+                _currentVideoPath = normalizedPath;
+
+                // CRITICAL: 重置 rebind 标记，每个新 media 都需要做一次保险重绑
+                _rebindDoneForThisMedia = false;
+
+                if (autoplay)
+                {
+                    // CRITICAL: Use PlaySafeEmbed to wait for layout completion and ensure embedded output
+                    _ = PlaySafeEmbedAsync();
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("[ShotEditorView] Video loaded (paused)");
+                }
+            }
+            catch (AccessViolationException ave)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] AccessViolationException in LoadVideo: {ave.Message}");
+                HandleAccessViolation();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] LoadVideo failed: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Stack trace: {ex.StackTrace}");
+
+                // 出错时清理
+                SafeDisposeCurrentMedia();
+                _currentVideoPath = null;
+            }
+        }
+    }
+
+    private void SafeDisposeCurrentMedia()
+    {
         try
         {
-            await VideoWebView.ExecuteScriptAsync("window.togglePlay && window.togglePlay()");
+            if (_currentMedia != null)
+            {
+                System.Diagnostics.Debug.WriteLine("[ShotEditorView] SafeDisposeCurrentMedia: disposing media");
+
+                // 先分离（如果还没分离）
+                if (_mediaPlayer != null && _mediaPlayer.Media == _currentMedia)
+                {
+                    _mediaPlayer.Stop();
+
+                    // 等待一小段时间
+                    Thread.Sleep(30);
+
+                    // 清空引用
+                    _mediaPlayer.Media = null;
+                }
+
+                // 然后释放
+                _currentMedia.Dispose();
+                _currentMedia = null;
+
+                System.Diagnostics.Debug.WriteLine("[ShotEditorView] Current media safely disposed");
+            }
+        }
+        catch (AccessViolationException ave)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] AccessViolationException in SafeDisposeCurrentMedia: {ave.Message}");
+            // 继续清理其他资源
+            _currentMedia = null;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] SafeDisposeCurrentMedia error: {ex.Message}");
+            _currentMedia = null;
+        }
+    }
+
+    private async Task PlaySafeAsync()
+    {
+        if (_mediaPlayer == null || _mediaPlayer.Media == null || VideoPlayer == null)
+        {
+            System.Diagnostics.Debug.WriteLine("[PlaySafe] Cannot play - player/media/view is null");
+            return;
+        }
+
+        // 给 2~3 帧 Render 时间（很多时候 1 帧不够）
+        for (int i = 0; i < 3; i++)
+            await Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Render);
+
+        // 等待布局完成 (不要检查 X/Y，它们可能一直是 -1)
+        for (int i = 0; i < 120; i++) // ~2s
+        {
+            var v = VideoPlayer;
+
+            // CRITICAL: X/Y 不可靠，不要拿它当"是否布局完成"的依据
+            var laidOut = (v is Avalonia.Layout.Layoutable l && l.IsArrangeValid);
+            var sizeOk = v.Bounds.Width > 0 && v.Bounds.Height > 0;
+            var attached = v.IsAttachedToVisualTree();
+            var visible = v.IsVisible;
+
+            if (attached && visible && laidOut && sizeOk)
+            {
+                lock (_playerLock)
+                {
+                    try
+                    {
+                        // 再次检查所有条件
+                        if (_mediaPlayer?.Media != null &&
+                            !_isDisposed &&
+                            _viewReady &&
+                            VideoPlayer?.MediaPlayer == _mediaPlayer)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[PlaySafe] OK arrangeValid={laidOut} bounds={v.Bounds}, starting playback");
+                            _mediaPlayer.Play();
+                            System.Diagnostics.Debug.WriteLine("[PlaySafe] Video playing");
+                            return;
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine("[PlaySafe] Conditions not met, skipping play");
+                            return;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[PlaySafe] Play error: {ex.Message}");
+                        return;
+                    }
+                }
+            }
+
+            await Task.Delay(16);
+        }
+
+        var finalLayoutable = VideoPlayer as Avalonia.Layout.Layoutable;
+        System.Diagnostics.Debug.WriteLine($"[PlaySafe] Abort: not ready after 2s. attached={VideoPlayer.IsAttachedToVisualTree}, visible={VideoPlayer.IsVisible}, arrangeValid={finalLayoutable?.IsArrangeValid}, bounds={VideoPlayer.Bounds}");
+    }
+
+    private void HandleAccessViolation()
+    {
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] Handling AccessViolation - resetting player");
+
+        lock (_playerLock)
+        {
+            try
+            {
+                // 标记为未初始化，防止在重置期间使用
+                _isInitialized = false;
+
+                // 完全重置
+                _mediaPlayer?.Stop();
+                _currentMedia = null;
+                _currentVideoPath = null;
+
+                // 延迟重新初始化
+                Task.Delay(500).ContinueWith(_ =>
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        lock (_playerLock)
+                        {
+                            try
+                            {
+                                if (!_isDisposed && _viewReady && VideoPlayer != null)
+                                {
+                                    System.Diagnostics.Debug.WriteLine("[ShotEditorView] Recreating MediaPlayer after AccessViolation");
+
+                                    // 清理旧的
+                                    if (_mediaPlayer != null)
+                                    {
+                                        try
+                                        {
+                                            _mediaPlayer.Stop();
+                                            _mediaPlayer.Media = null;
+                                            _mediaPlayer.Dispose();
+                                        }
+                                        catch { /* 忽略清理异常 */ }
+                                    }
+
+                                    if (_libVLC != null)
+                                    {
+                                        try
+                                        {
+                                            _libVLC.Dispose();
+                                        }
+                                        catch { /* 忽略清理异常 */ }
+                                    }
+
+                                    // 重新创建
+                                    _libVLC = new LibVLC(
+                                        "--no-video-title-show",
+                                        "--no-snapshot-preview",
+                                        "--no-video-deco"
+                                    );
+                                    _mediaPlayer = new MediaPlayer(_libVLC);
+
+                                    // CRITICAL: 立即绑定到 VideoView
+                                    VideoPlayer.MediaPlayer = _mediaPlayer;
+
+                                    _isInitialized = true;
+
+                                    System.Diagnostics.Debug.WriteLine("[ShotEditorView] Player reset after AccessViolation");
+                                    System.Diagnostics.Debug.WriteLine($"[ShotEditorView] New MediaPlayer instance: {_mediaPlayer.GetHashCode()}");
+
+                                    // 重新加载当前视频
+                                    if (_shot?.GeneratedVideoPath != null && File.Exists(_shot.GeneratedVideoPath))
+                                    {
+                                        Task.Delay(300).ContinueWith(__ =>
+                                        {
+                                            Dispatcher.UIThread.Post(() =>
+                                                LoadVideo(_shot.GeneratedVideoPath!, false));
+                                        });
+                                    }
+                                }
+                                else
+                                {
+                                    System.Diagnostics.Debug.WriteLine("[ShotEditorView] Cannot reset player - view not ready");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Failed to reset player: {ex.Message}");
+                            }
+                        }
+                    });
+                });
+            }
+            catch { /* 忽略所有异常 */ }
+        }
+    }
+
+    // Old synchronous version - kept for compatibility but should not be used
+    private void TogglePlayPause()
+    {
+        _ = TogglePlayPauseAsync();
+    }
+
+    private bool IsPlayableFile(string path)
+    {
+        try
+        {
+            var fi = new FileInfo(path);
+            if (!fi.Exists)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] File does not exist: {path}");
+                return false;
+            }
+
+            if (fi.Length < 1024)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] File too small: {fi.Length} bytes");
+                return false;
+            }
+
+            // 尝试打开文件
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] File not playable: {ex.Message}");
             return false;
         }
-    }
-
-    private static string? NormalizeVideoPath(string? videoPath)
-    {
-        if (string.IsNullOrWhiteSpace(videoPath))
-            return null;
-
-        return File.Exists(videoPath) ? Path.GetFullPath(videoPath) : null;
-    }
-
-    private static Uri? BuildPlayerUri(string? videoPath, bool autoplay)
-    {
-        var playerPath = GetPlayerHtmlPath();
-        if (playerPath == null)
-            return null;
-
-        var playerUri = new Uri(playerPath);
-        if (string.IsNullOrWhiteSpace(videoPath))
-            return playerUri;
-
-        var videoUri = new Uri(videoPath).AbsoluteUri;
-        var query = $"src={Uri.EscapeDataString(videoUri)}";
-        if (autoplay)
-            query += "&autoplay=1";
-
-        var builder = new UriBuilder(playerUri)
-        {
-            Query = query
-        };
-
-        return builder.Uri;
-    }
-
-    private static string? GetPlayerHtmlPath()
-    {
-        var path = Path.Combine(AppContext.BaseDirectory, "App", "Assets", "VideoPlayer", "player.html");
-        return File.Exists(path) ? path : null;
     }
 }
