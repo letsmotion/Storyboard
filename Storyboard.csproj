@@ -25,7 +25,7 @@
     <!-- 绂佺敤 ReadyToRun 浠ラ伩鍏嶅弽灏勫拰 EF Core 闂 -->
     <PublishReadyToRun>false</PublishReadyToRun>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
     <!-- 纭繚淇濈暀鍙嶅皠鍏冩暟鎹?-->
     <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
