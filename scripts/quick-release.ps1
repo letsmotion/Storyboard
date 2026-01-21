@@ -457,7 +457,68 @@ if ($startStep -le 5) {
     Write-Host ""
 
     if (-not $AutoSync) {
-        Read-Host "Press Enter after build completes..."
+        Write-Host "Options:" -ForegroundColor Cyan
+        Write-Host "  1. Auto-check build status (requires gh CLI)"
+        Write-Host "  2. Manual wait (press Enter when done)"
+        Write-Host ""
+        $waitChoice = Read-Host "Choose option (1/2)"
+
+        if ($waitChoice -eq "1") {
+            Write-ColorOutput "Checking build status..." "Cyan"
+            Write-Host ""
+
+            $maxAttempts = 60  # 最多等待 30 分钟（每次 30 秒）
+            $attempt = 0
+            $buildComplete = $false
+
+            while ($attempt -lt $maxAttempts -and -not $buildComplete) {
+                $attempt++
+
+                # 检查 workflow 运行状态
+                $runs = gh run list --repo $GitHubRepo --limit 1 --json status,conclusion,name | ConvertFrom-Json
+
+                if ($runs.Count -gt 0) {
+                    $latestRun = $runs[0]
+                    $status = $latestRun.status
+                    $conclusion = $latestRun.conclusion
+
+                    Write-Host "[$attempt/$maxAttempts] Build status: $status" -NoNewline
+
+                    if ($status -eq "completed") {
+                        Write-Host ""
+                        if ($conclusion -eq "success") {
+                            Write-ColorOutput "Build completed successfully!" "Green"
+                            $buildComplete = $true
+                        } elseif ($conclusion -eq "failure") {
+                            Write-ColorOutput "Build failed!" "Red"
+                            Write-Host "Check: https://github.com/$GitHubRepo/actions"
+                            $continueAnyway = Read-Host "Continue anyway? (Y/N)"
+                            if ($continueAnyway -ne "Y" -and $continueAnyway -ne "y") {
+                                exit 1
+                            }
+                            $buildComplete = $true
+                        } else {
+                            Write-ColorOutput "Build completed with status: $conclusion" "Yellow"
+                            $buildComplete = $true
+                        }
+                    } else {
+                        Write-Host " - waiting..."
+                        Start-Sleep -Seconds 30
+                    }
+                } else {
+                    Write-Host "[$attempt/$maxAttempts] No workflow runs found, waiting..."
+                    Start-Sleep -Seconds 30
+                }
+            }
+
+            if (-not $buildComplete) {
+                Write-ColorOutput "Timeout waiting for build. Please check manually." "Yellow"
+                Write-Host "Build progress: https://github.com/$GitHubRepo/actions"
+                Read-Host "Press Enter when build completes..."
+            }
+        } else {
+            Read-Host "Press Enter after build completes..."
+        }
     } else {
         Write-ColorOutput "Waiting 5 minutes..." "Yellow"
         Start-Sleep -Seconds 300
