@@ -157,14 +157,39 @@
 ## 🚀 快速开始
 
 ### 环境要求
+
+#### 普通用户（使用安装包）
+- **Windows 10/11 x64**
+- **.NET 8 桌面运行时**（首次安装需要，约 55MB）
+
+#### 开发者（从源码运行）
 - .NET 8.0 SDK
 - Windows / Linux / macOS（跨平台支持）
 
 ### 下载安装
 
+#### ⚠️ 首次安装必读
+
+本软件需要 **.NET 8 运行时**，首次使用请先安装：
+
+**方式一：自动安装（推荐）**
+- 直接运行 `StoryboardSetup.exe`
+- 如果缺少运行时，Windows 会自动提示下载
+- 按照提示完成安装即可
+
+**方式二：手动预装**
+1. 访问 [.NET 8 下载页面](https://dotnet.microsoft.com/zh-cn/download/dotnet/8.0)
+2. 在"运行应用"部分，下载 **桌面运行时 x64**（约 55MB）
+3. 安装完成后再运行 `StoryboardSetup.exe`
+
+> 💡 **提示**：
+> - .NET 运行时只需安装一次，后续更新无需重新安装
+> - 运行时体积小（55MB），安装快速
+> - 这样可以让应用更新包更小，更新速度更快
+
 #### 国内用户（推荐）
 从 Gitee 下载，速度更快：
-- 访问 [Gitee Release](https://gitee.com/YOUR_USERNAME/YOUR_REPO/releases)
+- 访问 [Gitee Release](https://gitee.com/nan1314/Storyboard/releases)
 - 下载最新版本的 `StoryboardSetup.exe`
 - 运行安装程序
 
@@ -174,7 +199,7 @@
 - 下载最新版本的 `StoryboardSetup.exe`
 - 运行安装程序
 
-**注意**: 请将上述链接中的 `YOUR_USERNAME/YOUR_REPO` 替换为实际的仓库地址。
+**注意**: 请将上述 GitHub 链接中的 `YOUR_USERNAME/YOUR_REPO` 替换为实际的仓库地址。
 
 ### 运行方式
 
