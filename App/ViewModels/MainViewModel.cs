@@ -80,7 +80,7 @@ public partial class MainViewModel : ObservableObject
 
     // 版本信息
     [ObservableProperty]
-    private string _versionText = "分镜大师 v1.0.0";
+    private string _versionText = "分镜大师 V1.1.0";
 
     // 创作模式属性
     [ObservableProperty]
@@ -244,7 +244,7 @@ public partial class MainViewModel : ObservableObject
         _logger = logger;
 
         // 设置版本号
-        VersionText = $"分镜大师 v1.0.0"; // updateService.GetCurrentVersion();
+        VersionText = $"分镜大师 V1.1.0"; // updateService.GetCurrentVersion();
 
         // 订阅子 ViewModel 的属性变更以更新计算属性
         ProjectManagement.PropertyChanged += (s, e) =>
