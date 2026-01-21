@@ -19,7 +19,10 @@
       "Bash(powershell -Command \"Get-Content scripts/quick-release.ps1 -Encoding UTF8 | Select-String -Pattern ''鐐瑰嚮'' -Context 2,2\")",
       "Bash(powershell -Command:*)",
       "Bash(iconv:*)",
-      "Bash(powershell -NoProfile -Command:*)"
+      "Bash(powershell -NoProfile -Command:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "additionalDirectories": [
       "d:\\project\\分镜大师"
