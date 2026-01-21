@@ -25,13 +25,13 @@ jobs:
       run: dotnet tool install -g vpk
 
     - name: Restore dependencies
-      run: dotnet restore --runtime win-x64
+      run: dotnet restore
 
     - name: Build
-      run: dotnet build --configuration Release --runtime win-x64 --no-restore
+      run: dotnet build --configuration Release --no-restore
 
     - name: Publish
-      run: dotnet publish --configuration Release --runtime win-x64 --output ./publish --no-build
+      run: dotnet publish --configuration Release --runtime win-x64 --self-contained false --output ./publish
 
     - name: Get version from tag
       id: get_version
