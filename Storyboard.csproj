@@ -6,42 +6,49 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>Storyboard</AssemblyName>
-    <Product>鍒嗛暅鏉?Storyboard</Product>
-    <ApplicationTitle>鍒嗛暅鏉?Storyboard</ApplicationTitle>
+    <Product>分镜大师 Storyboard</Product>
+    <ApplicationTitle>分镜大师 Storyboard</ApplicationTitle>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>App\app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-    <!-- 鐗堟湰鍙凤細鍙戝竷鑴氭湰浼氳嚜鍔ㄦ洿鏂版鍊?-->
+    <!-- 版本号：发布脚本会自动更新此值 -->
     <Version>1.1.1</Version>
     <AssemblyVersion>1.1.1</AssemblyVersion>
     <FileVersion>1.1.1</FileVersion>
+    <!-- 应用程序图标配置 -->
+    <ApplicationIcon>App\Assets\icon.ico</ApplicationIcon>
+    <!-- 发布者信息 -->
+    <Company>分镜大师团队</Company>
+    <Authors>BroderQi</Authors>
+    <Copyright>Copyright © 2025 分镜大师团队</Copyright>
+    <Description>专业的视频分镜工具，支持 AI 智能分析</Description>
   </PropertyGroup>
 
-  <!-- 鍗曟枃浠跺彂甯冮厤缃?(Release 妯″紡) -->
+  <!-- 发布配置 (Release 模式) -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>false</SelfContained>
+    <!-- 禁用单文件发布，因为 LibVLC 等原生库需要单独存在 -->
+    <PublishSingleFile>false</PublishSingleFile>
+    <!-- 改为自包含发布，避免用户需要安装 .NET 运行时 -->
+    <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <!-- 绂佺敤 ReadyToRun 浠ラ伩鍏嶅弽灏勫拰 EF Core 闂 -->
+    <!-- 禁用 ReadyToRun 以避免反射和 EF Core 问题 -->
     <PublishReadyToRun>false</PublishReadyToRun>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
-    <!-- 纭繚淇濈暀鍙嶅皠鍏冩暟鎹?-->
+    <!-- 确保保留反射元数据 -->
     <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Avalonia 鏍稿績鍖?-->
+    <!-- Avalonia 核心包 -->
     <PackageReference Include="Avalonia" Version="11.3.11" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.11" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.11" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.11" />
     <PackageReference Include="Avalonia.ReactiveUI" Version="11.3.8" />
-    
-    <!-- Avalonia 寮€鍙戝伐鍏凤紙浠呭紑鍙戠幆澧冿級 -->
+
+    <!-- Avalonia 开发工具（仅开发环境） -->
     <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.3.11" />
-    
-    <!-- 鐜版湁涓氬姟渚濊禆淇濇寔涓嶅彉 -->
+
+    <!-- 现有业务依赖保持不变 -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="LibVLCSharp.Avalonia" Version="3.9.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
@@ -60,7 +67,7 @@
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
-    
+
     <!-- SkiaSharp for cross-platform image processing -->
     <PackageReference Include="SkiaSharp" Version="2.88.9" />
     <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23" />

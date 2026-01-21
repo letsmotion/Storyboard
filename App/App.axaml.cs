@@ -36,9 +36,6 @@ public partial class App : Avalonia.Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        // Velopack: 处理应用启动和更新
-        VelopackApp.Build().Run();
-
         // 配置依赖注入
         var services = new ServiceCollection();
         ConfigureServices(services);
