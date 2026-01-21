@@ -160,6 +160,22 @@
 - .NET 8.0 SDK
 - Windows / Linux / macOS（跨平台支持）
 
+### 下载安装
+
+#### 国内用户（推荐）
+从 Gitee 下载，速度更快：
+- 访问 [Gitee Release](https://gitee.com/YOUR_USERNAME/YOUR_REPO/releases)
+- 下载最新版本的 `StoryboardSetup.exe`
+- 运行安装程序
+
+#### 国外用户
+从 GitHub 下载：
+- 访问 [GitHub Release](https://github.com/YOUR_USERNAME/YOUR_REPO/releases)
+- 下载最新版本的 `StoryboardSetup.exe`
+- 运行安装程序
+
+**注意**: 请将上述链接中的 `YOUR_USERNAME/YOUR_REPO` 替换为实际的仓库地址。
+
 ### 运行方式
 
 #### 方式一：命令行运行
@@ -183,8 +199,29 @@ dotnet run
 2. 按 F5 直接运行
 
 #### 方式三：发布版本
-1. 下载 Release 版本
-2. 解压后直接运行 `Storyboard.exe`
+1. 下载 Release 版本（推荐从 Gitee 下载，国内速度更快）
+2. 运行 `StoryboardSetup.exe` 安装
+3. 安装后支持自动更新功能
+
+---
+
+## 🔄 自动更新
+
+本项目支持 **Gitee + GitHub 双源自动更新**：
+
+- ✅ **国内用户**: 优先使用 Gitee 更新源，速度快
+- ✅ **国外用户**: 自动切换到 GitHub 更新源
+- ✅ **智能切换**: 如果主源不可用，自动切换到备用源
+- ✅ **增量更新**: 只下载变化的部分，节省流量
+- ✅ **后台更新**: 不影响正常使用
+
+### 更新流程
+1. 应用启动 3 秒后自动检查更新
+2. 发现新版本时显示通知栏
+3. 点击"立即更新"下载并安装
+4. 重启后即为最新版本
+
+详细配置请参考：[Gitee + GitHub 双源发布指南](docs/GITEE_RELEASE_GUIDE.md)
 
 ---
 

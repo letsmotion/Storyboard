@@ -289,7 +289,7 @@
                 
                 <!-- Right: Version -->
                 <TextBlock Grid.Column="2"
-                           Text="分镜大师 V1.1.0" 
+                           Text="{Binding VersionText}"
                            Foreground="#71717a"
                            VerticalAlignment="Center" />
             </Grid>

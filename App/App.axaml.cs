@@ -21,6 +21,7 @@ using System.IO;
 using System;
 using CommunityToolkit.Mvvm.Messaging;
 using Velopack;
+using StoryboardUpdateOptions = Storyboard.Infrastructure.Configuration.UpdateOptions;
 
 namespace Storyboard;
 
@@ -55,7 +56,7 @@ public partial class App : Avalonia.Application
             };
 
             // 启动后检查更新（异步执行，不阻塞启动）
-            // _ = CheckForUpdatesAsync();
+            _ = CheckForUpdatesAsync();
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -115,6 +116,7 @@ public partial class App : Avalonia.Application
 
         services.AddSingleton<IConfiguration>(configuration);
         services.Configure<AIServicesConfiguration>(configuration.GetSection("AIServices"));
+        services.Configure<StoryboardUpdateOptions>(configuration.GetSection("Update"));
 
         // Messenger for ViewModel communication
         services.AddSingleton<IMessenger>(WeakReferenceMessenger.Default);
@@ -175,7 +177,7 @@ public partial class App : Avalonia.Application
             new JobQueueService(sp.GetRequiredService<IUiDispatcher>(), maxConcurrency: 2));
 
         // Update Service
-        // services.AddSingleton<UpdateService>();
+        services.AddSingleton<UpdateService>();
 
         // AI Services
         services.AddSingleton<AI.Prompts.PromptManagementService>();

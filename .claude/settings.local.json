@@ -15,7 +15,11 @@
       "Bash(dir:*)",
       "Bash(copy:*)",
       "Bash(.PublishSingleFile.bat)",
-      "Bash(cmd /c \"cd /d d:\\\\project\\\\分镜大师 && echo Y | PublishSingleFile.bat\")"
+      "Bash(cmd /c \"cd /d d:\\\\project\\\\分镜大师 && echo Y | PublishSingleFile.bat\")",
+      "Bash(powershell -Command \"Get-Content scripts/quick-release.ps1 -Encoding UTF8 | Select-String -Pattern ''鐐瑰嚮'' -Context 2,2\")",
+      "Bash(powershell -Command:*)",
+      "Bash(iconv:*)",
+      "Bash(powershell -NoProfile -Command:*)"
     ],
     "additionalDirectories": [
       "d:\\project\\分镜大师"

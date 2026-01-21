@@ -80,7 +80,7 @@ public partial class MainViewModel : ObservableObject
 
     // 版本信息
     [ObservableProperty]
-    private string _versionText = "分镜大师 V1.1.0";
+    private string _versionText = GetVersionText();
 
     // 创作模式属性
     [ObservableProperty]
@@ -209,6 +209,25 @@ public partial class MainViewModel : ObservableObject
 
     public System.Threading.Tasks.Task ExportVideoAsync(string? outputPath) => Export.ExportVideoCommand.ExecuteAsync(outputPath);
 
+    // 获取版本号文本
+    private static string GetVersionText()
+    {
+        try
+        {
+            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            var version = assembly.GetName().Version;
+            if (version != null)
+            {
+                return $"分镜大师 V{version.Major}.{version.Minor}.{version.Build}";
+            }
+        }
+        catch
+        {
+            // 如果读取失败，返回默认值
+        }
+        return "分镜大师";
+    }
+
     public MainViewModel(
         ProjectManagementViewModel projectManagement,
         ShotListViewModel shotList,
@@ -243,8 +262,8 @@ public partial class MainViewModel : ObservableObject
         _messenger = messenger;
         _logger = logger;
 
-        // 设置版本号
-        VersionText = $"分镜大师 V1.1.0"; // updateService.GetCurrentVersion();
+        // 设置版本号（从程序集读取）
+        VersionText = GetVersionText();
 
         // 订阅子 ViewModel 的属性变更以更新计算属性
         ProjectManagement.PropertyChanged += (s, e) =>

@@ -1,27 +1,31 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Velopack;
 using Velopack.Sources;
+using StoryboardUpdateOptions = Storyboard.Infrastructure.Configuration.UpdateOptions;
 
 namespace Storyboard.Application.Services;
 
 /// <summary>
-/// 自动更新服务
+/// 自动更新服务（支持 Gitee + GitHub 双源智能切换）
 /// </summary>
 public class UpdateService
 {
     private readonly ILogger<UpdateService> _logger;
-    private readonly UpdateManager? _updateManager;
-    private const string GitHubRepoUrl = "https://github.com/YOUR_USERNAME/YOUR_REPO"; // 请替换为你的 GitHub 仓库地址
+    private readonly StoryboardUpdateOptions _updateOptions;
+    private UpdateManager? _updateManager;
+    private IUpdateSource? _currentSource;
 
-    public UpdateService(ILogger<UpdateService> logger)
+    public UpdateService(ILogger<UpdateService> logger, IOptions<StoryboardUpdateOptions> updateOptions)
     {
         _logger = logger;
+        _updateOptions = updateOptions.Value;
 
         try
         {
             // 尝试初始化 UpdateManager
             // 如果应用不是通过 Velopack 安装的（例如开发环境），这里会失败
-            _updateManager = new UpdateManager(new GithubSource(GitHubRepoUrl, null, false));
+            InitializeUpdateManager();
             _logger.LogInformation("UpdateManager 初始化成功");
         }
         catch (Exception ex)
@@ -32,7 +36,93 @@ public class UpdateService
     }
 
     /// <summary>
-    /// 检查是否有可用更新
+    /// 初始化 UpdateManager，智能选择最佳更新源
+    /// </summary>
+    private void InitializeUpdateManager()
+    {
+        if (!_updateOptions.Enabled || _updateOptions.Sources == null || _updateOptions.Sources.Count == 0)
+        {
+            _logger.LogWarning("自动更新未启用或未配置更新源");
+            return;
+        }
+
+        // 按优先级排序更新源
+        var enabledSources = _updateOptions.Sources
+            .Where(s => s.Enabled)
+            .OrderBy(s => s.Priority)
+            .ToList();
+
+        if (enabledSources.Count == 0)
+        {
+            _logger.LogWarning("没有可用的更新源");
+            return;
+        }
+
+        // 尝试使用第一个可用的源（优先级最高）
+        foreach (var source in enabledSources)
+        {
+            try
+            {
+                _logger.LogInformation($"尝试使用 {source.Name} 更新源: {source.Url}");
+                _currentSource = new GithubSource(source.Url, null, false);
+                _updateManager = new UpdateManager(_currentSource);
+                _logger.LogInformation($"成功初始化 {source.Name} 更新源");
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, $"{source.Name} 更新源初始化失败，尝试下一个源");
+            }
+        }
+
+        _logger.LogError("所有更新源初始化失败");
+    }
+
+    /// <summary>
+    /// 切换到备用更新源
+    /// </summary>
+    private bool TryFallbackSource()
+    {
+        if (_updateOptions.Sources == null || _updateOptions.Sources.Count <= 1)
+        {
+            return false;
+        }
+
+        var enabledSources = _updateOptions.Sources
+            .Where(s => s.Enabled)
+            .OrderBy(s => s.Priority)
+            .ToList();
+
+        // 找到当前源的索引
+        var currentIndex = enabledSources.FindIndex(s => s.Url == (_currentSource as GithubSource)?.RepoUri.ToString());
+        if (currentIndex < 0 || currentIndex >= enabledSources.Count - 1)
+        {
+            return false;
+        }
+
+        // 尝试下一个源
+        for (int i = currentIndex + 1; i < enabledSources.Count; i++)
+        {
+            var source = enabledSources[i];
+            try
+            {
+                _logger.LogInformation($"切换到备用更新源: {source.Name}");
+                _currentSource = new GithubSource(source.Url, null, false);
+                _updateManager = new UpdateManager(_currentSource);
+                _logger.LogInformation($"成功切换到 {source.Name} 更新源");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, $"切换到 {source.Name} 失败");
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 检查是否有可用更新（支持自动切换更新源）
     /// </summary>
     public async Task<UpdateInfo?> CheckForUpdatesAsync()
     {
@@ -59,12 +149,32 @@ public class UpdateService
         catch (Exception ex)
         {
             _logger.LogError(ex, "检查更新失败");
+
+            // 尝试切换到备用更新源
+            if (TryFallbackSource())
+            {
+                _logger.LogInformation("已切换到备用更新源，重试检查更新");
+                try
+                {
+                    var updateInfo = await _updateManager!.CheckForUpdatesAsync();
+                    if (updateInfo != null)
+                    {
+                        _logger.LogInformation($"发现新版本: {updateInfo.TargetFullRelease.Version}");
+                    }
+                    return updateInfo;
+                }
+                catch (Exception retryEx)
+                {
+                    _logger.LogError(retryEx, "使用备用源检查更新仍然失败");
+                }
+            }
+
             return null;
         }
     }
 
     /// <summary>
-    /// 下载更新
+    /// 下载更新（支持自动切换更新源）
     /// </summary>
     public async Task<bool> DownloadUpdatesAsync(UpdateInfo updateInfo, IProgress<int>? progress = null)
     {
@@ -91,6 +201,29 @@ public class UpdateService
         catch (Exception ex)
         {
             _logger.LogError(ex, "下载更新失败");
+
+            // 尝试切换到备用更新源
+            if (TryFallbackSource())
+            {
+                _logger.LogInformation("已切换到备用更新源，重试下载更新");
+                try
+                {
+                    Action<int>? progressAction = null;
+                    if (progress != null)
+                    {
+                        progressAction = p => progress.Report(p);
+                    }
+
+                    await _updateManager!.DownloadUpdatesAsync(updateInfo, progressAction);
+                    _logger.LogInformation("更新下载完成");
+                    return true;
+                }
+                catch (Exception retryEx)
+                {
+                    _logger.LogError(retryEx, "使用备用源下载更新仍然失败");
+                }
+            }
+
             return false;
         }
     }
@@ -159,6 +292,21 @@ public class UpdateService
         {
             return "Unknown";
         }
+    }
+
+    /// <summary>
+    /// 获取当前使用的更新源名称
+    /// </summary>
+    public string GetCurrentSourceName()
+    {
+        if (_currentSource == null || _updateOptions.Sources == null)
+        {
+            return "Unknown";
+        }
+
+        var currentUrl = (_currentSource as GithubSource)?.RepoUri.ToString();
+        var source = _updateOptions.Sources.FirstOrDefault(s => s.Url == currentUrl);
+        return source?.Name ?? "Unknown";
     }
 
     /// <summary>
