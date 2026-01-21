@@ -13,7 +13,14 @@ param(
     [switch]$SkipGitee,
 
     [Parameter(Mandatory=$false)]
-    [switch]$AutoSync
+    [switch]$AutoSync,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$Resume,
+
+    [Parameter(Mandatory=$false)]
+    [ValidateSet("commit", "push", "tag", "build", "download", "gitee")]
+    [string]$ResumeFrom
 )
 
 # 配置
@@ -143,6 +150,41 @@ function Update-CsprojVersion {
 # 主流程
 Write-Header "Storyboard Master - Quick Release Script"
 
+# 检查是否是恢复模式
+if ($Resume -or $ResumeFrom) {
+    Write-ColorOutput "Resume mode enabled" "Yellow"
+
+    if (-not $Version) {
+        $Version = Get-CurrentVersion
+        if (-not $Version) {
+            Write-ColorOutput "[Error] Cannot determine version for resume. Please specify -Version" "Red"
+            exit 1
+        }
+    }
+
+    $TagName = "v$Version"
+    Write-ColorOutput "Resuming release for version: $TagName" "Cyan"
+    Write-Host ""
+
+    # 根据 ResumeFrom 参数跳转到相应步骤
+    if ($ResumeFrom -eq "push") {
+        Write-ColorOutput "Skipping to push step..." "Yellow"
+        goto PushStep
+    } elseif ($ResumeFrom -eq "tag") {
+        Write-ColorOutput "Skipping to tag creation step..." "Yellow"
+        goto TagStep
+    } elseif ($ResumeFrom -eq "build") {
+        Write-ColorOutput "Skipping to build wait step..." "Yellow"
+        goto BuildStep
+    } elseif ($ResumeFrom -eq "download") {
+        Write-ColorOutput "Skipping to download step..." "Yellow"
+        goto DownloadStep
+    } elseif ($ResumeFrom -eq "gitee") {
+        Write-ColorOutput "Skipping to Gitee sync step..." "Yellow"
+        goto GiteeStep
+    }
+}
+
 # 步骤 0: 确定版本号
 Write-Header "[0/8] Determine Version"
 
@@ -248,6 +290,7 @@ if ($hasChanges) {
 
     Write-ColorOutput "Commit successful" "Green"
 
+    :PushStep
     # 推送到 GitHub
     Write-Host ""
     Write-ColorOutput "Pushing to GitHub..." "Cyan"
@@ -255,14 +298,43 @@ if ($hasChanges) {
 
     if ($LASTEXITCODE -ne 0) {
         Write-ColorOutput "[Error] Push failed" "Red"
-        exit 1
-    }
+        Write-Host ""
+        Write-Host "Possible solutions:" -ForegroundColor Yellow
+        Write-Host "  1. Check network connection to GitHub"
+        Write-Host "  2. Use proxy: git config --global http.proxy http://127.0.0.1:7890"
+        Write-Host "  3. Use SSH instead: git remote set-url origin git@github.com:BroderQi/Storyboard.git"
+        Write-Host ""
 
-    Write-ColorOutput "Push successful" "Green"
+        $retry = Read-Host "Retry push? (Y/N/Skip)"
+
+        if ($retry -eq "Y" -or $retry -eq "y") {
+            Write-ColorOutput "Retrying push..." "Cyan"
+            git push
+            if ($LASTEXITCODE -ne 0) {
+                Write-ColorOutput "[Error] Push failed again" "Red"
+                Write-Host ""
+                Write-Host "You can manually push later with: git push" -ForegroundColor Yellow
+                $continue = Read-Host "Continue with tag creation anyway? (Y/N)"
+                if ($continue -ne "Y" -and $continue -ne "y") {
+                    exit 1
+                }
+            } else {
+                Write-ColorOutput "Push successful" "Green"
+            }
+        } elseif ($retry -eq "Skip" -or $retry -eq "skip" -or $retry -eq "S" -or $retry -eq "s") {
+            Write-ColorOutput "Skipped push, continuing with tag creation..." "Yellow"
+            Write-Host "Remember to push manually later: git push" -ForegroundColor Yellow
+        } else {
+            exit 1
+        }
+    } else {
+        Write-ColorOutput "Push successful" "Green"
+    }
 } else {
     Write-ColorOutput "[3/8] Skip commit (no other changes)" "Gray"
 }
 
+:TagStep
 # 步骤 4: 创建并推送版本标签
 Write-Header "[4/8] Create and Push Tag"
 
@@ -297,11 +369,40 @@ Write-ColorOutput "Pushing tag to GitHub..." "Cyan"
 git push origin $TagName
 if ($LASTEXITCODE -ne 0) {
     Write-ColorOutput "[Error] Failed to push tag" "Red"
-    exit 1
+    Write-Host ""
+    Write-Host "Possible solutions:" -ForegroundColor Yellow
+    Write-Host "  1. Check network connection to GitHub"
+    Write-Host "  2. Use proxy if needed"
+    Write-Host "  3. Manually push later: git push origin $TagName"
+    Write-Host ""
+
+    $retryTag = Read-Host "Retry pushing tag? (Y/N/Skip)"
+
+    if ($retryTag -eq "Y" -or $retryTag -eq "y") {
+        Write-ColorOutput "Retrying tag push..." "Cyan"
+        git push origin $TagName
+        if ($LASTEXITCODE -ne 0) {
+            Write-ColorOutput "[Error] Tag push failed again" "Red"
+            Write-Host ""
+            Write-Host "You can manually push the tag later with: git push origin $TagName" -ForegroundColor Yellow
+            $continueWithoutTag = Read-Host "Continue anyway? (Y/N)"
+            if ($continueWithoutTag -ne "Y" -and $continueWithoutTag -ne "y") {
+                exit 1
+            }
+        } else {
+            Write-ColorOutput "Tag pushed successfully" "Green"
+        }
+    } elseif ($retryTag -eq "Skip" -or $retryTag -eq "skip" -or $retryTag -eq "S" -or $retryTag -eq "s") {
+        Write-ColorOutput "Skipped tag push" "Yellow"
+        Write-Host "Remember to push tag manually: git push origin $TagName" -ForegroundColor Yellow
+    } else {
+        exit 1
+    }
+} else {
+    Write-ColorOutput "Tag pushed to GitHub, GitHub Actions will start building" "Green"
 }
 
-Write-ColorOutput "Tag pushed to GitHub, GitHub Actions will start building" "Green"
-
+:BuildStep
 # 步骤 5: 等待 GitHub Actions 构建
 Write-Header "[5/8] Wait for GitHub Actions Build"
 
@@ -353,6 +454,7 @@ if (-not $AutoSync) {
     Start-Sleep -Seconds 300
 }
 
+:DownloadStep
 # 步骤 6: 下载 GitHub Release 文件
 Write-Header "[6/8] Download GitHub Release Files"
 
@@ -390,6 +492,7 @@ Get-ChildItem -Path $DownloadDir | ForEach-Object {
     Write-Host "  - $($_.Name) ($size MB)"
 }
 
+:GiteeStep
 # 步骤 7: 同步到 Gitee
 Write-Header "[7/8] Sync to Gitee Release"
 
