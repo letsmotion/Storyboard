@@ -63,8 +63,10 @@ public class UpdateService
         {
             try
             {
-                _logger.LogInformation($"尝试使用 {source.Name} 更新源: {source.Url}");
-                _currentSource = new GithubSource(source.Url, null, false);
+                _logger.LogInformation($"尝试使用 {source.Name} 更新源 (类型: {source.Type}): {source.Url}");
+
+                // 根据源类型创建不同的 IUpdateSource
+                _currentSource = CreateUpdateSource(source);
                 _updateManager = new UpdateManager(_currentSource);
                 _logger.LogInformation($"成功初始化 {source.Name} 更新源");
                 return;
@@ -76,6 +78,20 @@ public class UpdateService
         }
 
         _logger.LogError("所有更新源初始化失败");
+    }
+
+    /// <summary>
+    /// 根据配置创建更新源
+    /// </summary>
+    private IUpdateSource CreateUpdateSource(Infrastructure.Configuration.UpdateSource source)
+    {
+        return source.Type.ToLowerInvariant() switch
+        {
+            "http" or "https" => new SimpleWebSource(source.Url),
+            "github" => new GithubSource(source.Url, null, false),
+            "gitee" => new GithubSource(source.Url, null, false), // Gitee 使用相同的 API 格式
+            _ => new GithubSource(source.Url, null, false)
+        };
     }
 
     /// <summary>
@@ -94,7 +110,8 @@ public class UpdateService
             .ToList();
 
         // 找到当前源的索引
-        var currentIndex = enabledSources.FindIndex(s => s.Url == (_currentSource as GithubSource)?.RepoUri.ToString());
+        var currentUrl = GetCurrentSourceUrl();
+        var currentIndex = enabledSources.FindIndex(s => s.Url == currentUrl);
         if (currentIndex < 0 || currentIndex >= enabledSources.Count - 1)
         {
             return false;
@@ -106,8 +123,8 @@ public class UpdateService
             var source = enabledSources[i];
             try
             {
-                _logger.LogInformation($"切换到备用更新源: {source.Name}");
-                _currentSource = new GithubSource(source.Url, null, false);
+                _logger.LogInformation($"切换到备用更新源: {source.Name} (类型: {source.Type})");
+                _currentSource = CreateUpdateSource(source);
                 _updateManager = new UpdateManager(_currentSource);
                 _logger.LogInformation($"成功切换到 {source.Name} 更新源");
                 return true;
@@ -119,6 +136,32 @@ public class UpdateService
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// 获取当前源的 URL
+    /// </summary>
+    private string GetCurrentSourceUrl()
+    {
+        if (_currentSource is GithubSource githubSource)
+        {
+            return githubSource.RepoUri.ToString();
+        }
+        else if (_currentSource is SimpleWebSource)
+        {
+            // SimpleWebSource 没有公开的 URL 属性，从配置中查找
+            if (_updateOptions.Sources != null)
+            {
+                var httpSource = _updateOptions.Sources.FirstOrDefault(s =>
+                    s.Type.Equals("Http", StringComparison.OrdinalIgnoreCase) ||
+                    s.Type.Equals("Https", StringComparison.OrdinalIgnoreCase));
+                if (httpSource != null)
+                {
+                    return httpSource.Url;
+                }
+            }
+        }
+        return string.Empty;
     }
 
     /// <summary>
@@ -304,7 +347,7 @@ public class UpdateService
             return "Unknown";
         }
 
-        var currentUrl = (_currentSource as GithubSource)?.RepoUri.ToString();
+        var currentUrl = GetCurrentSourceUrl();
         var source = _updateOptions.Sources.FirstOrDefault(s => s.Url == currentUrl);
         return source?.Name ?? "Unknown";
     }

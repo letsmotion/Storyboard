@@ -22,7 +22,15 @@
       "Bash(powershell -NoProfile -Command:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(where:*)",
+      "Bash(dotnet publish:*)",
+      "Bash(Select-Object -First 50)",
+      "Bash(test:*)",
+      "Bash(Get-ChildItem -Path \"d:\\\\project\\\\分镜大师\" -Recurse -Directory -Name)",
+      "Bash(Select-Object -First 20)",
+      "Bash(du:*)",
+      "Bash(dotnet list:*)"
     ],
     "additionalDirectories": [
       "d:\\project\\分镜大师"

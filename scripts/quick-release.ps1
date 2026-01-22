@@ -10,7 +10,7 @@ param(
     [string]$IncrementType = "patch",
 
     [Parameter(Mandatory=$false)]
-    [switch]$SkipGitee,
+    [switch]$SkipGitee = $true,
 
     [Parameter(Mandatory=$false)]
     [switch]$AutoSync,

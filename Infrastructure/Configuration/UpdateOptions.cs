@@ -32,12 +32,17 @@ public class UpdateOptions
 public class UpdateSource
 {
     /// <summary>
-    /// 源名称（如 Gitee、GitHub）
+    /// 源名称（如 Gitee、GitHub、又拍云）
     /// </summary>
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// 仓库 URL
+    /// 源类型：GitHub, Gitee, Http
+    /// </summary>
+    public string Type { get; set; } = "GitHub";
+
+    /// <summary>
+    /// 仓库 URL（GitHub/Gitee）或 HTTP 基础 URL（Http）
     /// </summary>
     public string Url { get; set; } = string.Empty;
 
