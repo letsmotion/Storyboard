@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Storyboard.Application.Services;
 using Storyboard.Messages;
 using System;
@@ -19,6 +20,7 @@ public partial class UpdateNotificationViewModel : ObservableObject
 {
     private readonly UpdateService _updateService;
     private readonly IMessenger _messenger;
+    private readonly ILogger<UpdateNotificationViewModel> _logger;
 
     [ObservableProperty]
     private bool _isUpdateAvailable;
@@ -30,6 +32,9 @@ public partial class UpdateNotificationViewModel : ObservableObject
     private string _currentVersion = string.Empty;
 
     [ObservableProperty]
+    private string _updateSize = string.Empty;
+
+    [ObservableProperty]
     private bool _isDownloading;
 
     [ObservableProperty]
@@ -38,12 +43,25 @@ public partial class UpdateNotificationViewModel : ObservableObject
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
+    [ObservableProperty]
+    private bool _downloadCompleted;
+
+    [ObservableProperty]
+    private bool _downloadFailed;
+
+    [ObservableProperty]
+    private string _errorMessage = string.Empty;
+
+    [ObservableProperty]
+    private bool _isDeltaUpdate;
+
     private UpdateInfo? _updateInfo;
 
     public UpdateNotificationViewModel()
     {
         _updateService = App.Services.GetRequiredService<UpdateService>();
         _messenger = App.Services.GetRequiredService<IMessenger>();
+        _logger = App.Services.GetRequiredService<ILogger<UpdateNotificationViewModel>>();
 
         CurrentVersion = _updateService.GetCurrentVersion();
 
@@ -56,8 +74,20 @@ public partial class UpdateNotificationViewModel : ObservableObject
     {
         _updateInfo = message.UpdateInfo;
         NewVersion = message.UpdateInfo.TargetFullRelease.Version.ToString();
+
+        // 计算更新大小
+        UpdateSize = FormatFileSize(message.UpdateInfo.TargetFullRelease.Size);
+
+        // 检查是否为增量更新
+        IsDeltaUpdate = message.UpdateInfo.DeltasToTarget?.Any() ?? false;
+
         IsUpdateAvailable = true;
-        StatusMessage = $"发现新版本 {NewVersion}";
+        StatusMessage = IsDeltaUpdate
+            ? $"发现新版本 {NewVersion} (增量更新，仅 {UpdateSize})"
+            : $"发现新版本 {NewVersion} (完整安装包，{UpdateSize})";
+
+        _logger.LogInformation("发现新版本: {Version}, 大小: {Size}, 增量更新: {IsDelta}",
+            NewVersion, UpdateSize, IsDeltaUpdate);
     }
 
     private void OnDownloadProgress(object recipient, UpdateDownloadProgressMessage message)
@@ -74,11 +104,17 @@ public partial class UpdateNotificationViewModel : ObservableObject
         try
         {
             IsDownloading = true;
-            StatusMessage = "开始下载更新...";
+            DownloadCompleted = false;
+            DownloadFailed = false;
+            DownloadProgress = 0;
+            StatusMessage = "准备下载更新...";
+
+            _logger.LogInformation("开始下载更新: {Version}", NewVersion);
 
             var progress = new Progress<int>(p =>
             {
                 DownloadProgress = p;
+                StatusMessage = $"下载中... {p}%";
                 _messenger.Send(new UpdateDownloadProgressMessage(p));
             });
 
@@ -86,21 +122,30 @@ public partial class UpdateNotificationViewModel : ObservableObject
 
             if (success)
             {
-                StatusMessage = "下载完成，准备安装...";
-                await Task.Delay(500);
+                DownloadCompleted = true;
+                StatusMessage = "下载完成！准备安装...";
+                _logger.LogInformation("更新下载完成");
+
+                // 等待 1 秒让用户看到完成消息
+                await Task.Delay(1000);
 
                 // 应用更新并重启
                 _updateService.ApplyUpdatesAndRestart(_updateInfo);
             }
             else
             {
-                StatusMessage = "下载失败，请稍后重试";
-                IsDownloading = false;
+                DownloadFailed = true;
+                StatusMessage = "下载失败";
+                ErrorMessage = "下载更新失败，请稍后重试或手动下载安装包";
+                _logger.LogError("更新下载失败");
             }
         }
         catch (Exception ex)
         {
-            StatusMessage = $"更新失败: {ex.Message}";
+            _logger.LogError(ex, "下载更新时发生错误");
+            DownloadFailed = true;
+            StatusMessage = "下载失败";
+            ErrorMessage = $"错误: {ex.Message}";
             IsDownloading = false;
         }
     }
@@ -108,8 +153,40 @@ public partial class UpdateNotificationViewModel : ObservableObject
     [RelayCommand]
     private void DismissUpdate()
     {
+        if (!IsDownloading)
+        {
+            IsUpdateAvailable = false;
+            StatusMessage = string.Empty;
+            _logger.LogInformation("用户关闭了更新通知");
+        }
+    }
+
+    [RelayCommand]
+    private void RemindLater()
+    {
         IsUpdateAvailable = false;
         StatusMessage = string.Empty;
+        _logger.LogInformation("用户选择稍后更新");
+    }
+
+    [RelayCommand]
+    private void OpenDownloadPage()
+    {
+        try
+        {
+            var url = "https://github.com/BroderQi/Storyboard/releases/latest";
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            };
+            System.Diagnostics.Process.Start(psi);
+            _logger.LogInformation("打开下载页面: {Url}", url);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "打开下载页面失败");
+        }
     }
 
     [RelayCommand]
@@ -118,27 +195,51 @@ public partial class UpdateNotificationViewModel : ObservableObject
         try
         {
             StatusMessage = "检查更新中...";
+            _logger.LogInformation("手动检查更新");
+
             var updateInfo = await _updateService.CheckForUpdatesAsync();
 
             if (updateInfo != null)
             {
                 _updateInfo = updateInfo;
                 NewVersion = updateInfo.TargetFullRelease.Version.ToString();
+                UpdateSize = FormatFileSize(updateInfo.TargetFullRelease.Size);
+                IsDeltaUpdate = updateInfo.DeltasToTarget?.Any() ?? false;
+
                 IsUpdateAvailable = true;
-                StatusMessage = $"发现新版本 {NewVersion}";
+                StatusMessage = IsDeltaUpdate
+                    ? $"发现新版本 {NewVersion} (增量更新，仅 {UpdateSize})"
+                    : $"发现新版本 {NewVersion} (完整安装包，{UpdateSize})";
+
+                _logger.LogInformation("发现新版本: {Version}", NewVersion);
             }
             else
             {
                 StatusMessage = "当前已是最新版本";
+                _logger.LogInformation("当前已是最新版本");
                 await Task.Delay(2000);
                 StatusMessage = string.Empty;
             }
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "检查更新失败");
             StatusMessage = $"检查更新失败: {ex.Message}";
             await Task.Delay(3000);
             StatusMessage = string.Empty;
         }
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
     }
 }

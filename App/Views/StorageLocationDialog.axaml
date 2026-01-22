@@ -1,0 +1,119 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="400"
+        x:Class="Storyboard.Views.StorageLocationDialog"
+        Title="选择数据存储位置"
+        Width="600" Height="400"
+        WindowStartupLocation="CenterScreen"
+        CanResize="False">
+
+    <Window.Styles>
+        <Style Selector="TextBlock.title">
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
+        </Style>
+        <Style Selector="TextBlock.description">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#666"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#0078D4"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题 -->
+        <StackPanel Grid.Row="0">
+            <TextBlock Classes="title" Text="欢迎使用分镜大师"/>
+            <TextBlock Classes="description"
+                       Text="首次启动需要选择数据存储位置。您可以选择默认位置（应用程序目录），或自定义位置（推荐选择非系统盘，避免占用 C 盘空间）。"/>
+        </StackPanel>
+
+        <!-- 选项 -->
+        <StackPanel Grid.Row="1" Spacing="16" VerticalAlignment="Center">
+            <!-- 默认位置 -->
+            <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="8" Padding="16">
+                <StackPanel Spacing="8">
+                    <RadioButton Name="DefaultLocationRadio"
+                                 Content="使用默认位置（应用程序目录）"
+                                 IsChecked="True"
+                                 FontSize="14"
+                                 FontWeight="SemiBold"/>
+                    <TextBlock Text="数据将存储在应用程序安装目录下"
+                               FontSize="12"
+                               Foreground="#666"
+                               Margin="28,0,0,0"/>
+                    <TextBlock Name="DefaultLocationPath"
+                               FontSize="11"
+                               Foreground="#999"
+                               Margin="28,0,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 自定义位置 -->
+            <Border BorderBrush="#DDD" BorderThickness="1" CornerRadius="8" Padding="16">
+                <StackPanel Spacing="8">
+                    <RadioButton Name="CustomLocationRadio"
+                                 Content="自定义存储位置（推荐）"
+                                 FontSize="14"
+                                 FontWeight="SemiBold"/>
+                    <TextBlock Text="选择其他磁盘存储数据，避免占用 C 盘空间"
+                               FontSize="12"
+                               Foreground="#666"
+                               Margin="28,0,0,0"/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,8,0,0">
+                        <TextBox Name="CustomLocationTextBox"
+                                 Width="350"
+                                 Watermark="点击浏览选择文件夹"
+                                 IsReadOnly="True"/>
+                        <Button Name="BrowseButton"
+                                Content="浏览..."
+                                Click="BrowseButton_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 说明 -->
+            <Border Background="#FFF4E5" BorderBrush="#FFE0B2" BorderThickness="1"
+                    CornerRadius="4" Padding="12" Margin="0,8,0,0">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="💡 提示" FontWeight="SemiBold" FontSize="13"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#666">
+                        <Run Text="• 数据包括：项目数据库、生成的图片和视频"/>
+                        <LineBreak/>
+                        <Run Text="• 建议选择空间充足的磁盘（如 D 盘、E 盘）"/>
+                        <LineBreak/>
+                        <Run Text="• 后续可在设置中修改存储位置"/>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- 按钮 -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+            <Button Content="取消"
+                    Width="100"
+                    Click="CancelButton_Click"/>
+            <Button Name="ConfirmButton"
+                    Classes="primary"
+                    Content="确认"
+                    Width="100"
+                    Click="ConfirmButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

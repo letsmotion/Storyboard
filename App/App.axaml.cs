@@ -1,8 +1,10 @@
 ﻿using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Storyboard.ViewModels;
@@ -36,6 +38,9 @@ public partial class App : Avalonia.Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // 合并配置文件（如果有更新）
+        MergeAppSettingsAsync().GetAwaiter().GetResult();
+
         // 配置依赖注入
         var services = new ServiceCollection();
         ConfigureServices(services);
@@ -47,6 +52,7 @@ public partial class App : Avalonia.Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.Exit += (_, __) => Log.CloseAndFlush();
+
             desktop.MainWindow = new MainWindow
             {
                 DataContext = Services.GetRequiredService<MainViewModel>()
@@ -83,6 +89,24 @@ public partial class App : Avalonia.Application
         }
     }
 
+    private async System.Threading.Tasks.Task MergeAppSettingsAsync()
+    {
+        try
+        {
+            var loggerFactory = LoggerFactory.Create(builder =>
+            {
+                builder.AddSerilog(Log.Logger);
+            });
+            var logger = loggerFactory.CreateLogger<AppSettingsMergeService>();
+            var mergeService = new AppSettingsMergeService(logger);
+            await mergeService.MergeSettingsAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "合并配置文件时出错");
+        }
+    }
+
     private async System.Threading.Tasks.Task ApplyDatabaseMigrations()
     {
         try
@@ -114,14 +138,21 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IConfiguration>(configuration);
         services.Configure<AIServicesConfiguration>(configuration.GetSection("AIServices"));
         services.Configure<StoryboardUpdateOptions>(configuration.GetSection("Update"));
+        services.Configure<StorageOptions>(configuration.GetSection("Storage"));
+
+        // Storage Path Service - 统一管理数据存储路径
+        services.AddSingleton<StoragePathService>();
 
         // Messenger for ViewModel communication
         services.AddSingleton<IMessenger>(WeakReferenceMessenger.Default);
 
-        // Persistence (SQLite + EF Core)
-        var dbRoot = Path.Combine(AppContext.BaseDirectory, "Data");
-        Directory.CreateDirectory(dbRoot);
-        var dbPath = Path.Combine(dbRoot, "storyboard.db");
+        // Persistence (SQLite + EF Core) - 使用 StoragePathService 获取数据库路径
+        var storagePathService = new StoragePathService(
+            Microsoft.Extensions.Options.Options.Create(
+                configuration.GetSection("Storage").Get<StorageOptions>() ?? new StorageOptions()
+            )
+        );
+        var dbPath = storagePathService.GetDatabasePath();
         services.AddStoryboardPersistence(dbPath);
 
         // Logging
@@ -141,7 +172,8 @@ public partial class App : Avalonia.Application
         // ViewModels
         services.AddTransient<MainViewModel>();
         services.AddTransient<ApiKeyViewModel>();
-        // services.AddTransient<UpdateNotificationViewModel>();
+        services.AddTransient<SettingsViewModel>();
+        services.AddSingleton<UpdateNotificationViewModel>();
 
         // 新的子 ViewModels
         services.AddTransient<ViewModels.Project.ProjectManagementViewModel>();
@@ -175,6 +207,9 @@ public partial class App : Avalonia.Application
 
         // Update Service
         services.AddSingleton<UpdateService>();
+
+        // Data Migration Service
+        services.AddSingleton<DataMigrationService>();
 
         // AI Services
         services.AddSingleton<AI.Prompts.PromptManagementService>();

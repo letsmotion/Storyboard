@@ -33,6 +33,46 @@ jobs:
     - name: Publish
       run: dotnet publish Storyboard.csproj --configuration Release --output ./publish
 
+    - name: Prepare publish directory for Velopack
+      run: |
+        Write-Host "清理发布目录，移除用户数据文件夹（如果存在）"
+
+        # 确保不会打包用户数据文件夹
+        $foldersToRemove = @("Data", "data", "output", "Output", "logs", "Logs")
+        foreach ($folder in $foldersToRemove) {
+          $path = Join-Path "./publish" $folder
+          if (Test-Path $path) {
+            Write-Host "移除: $path"
+            Remove-Item -Path $path -Recurse -Force
+          }
+        }
+
+        # 创建 appsettings.default.json（用于配置合并）
+        $appsettingsPath = "./publish/appsettings.json"
+        $defaultSettingsPath = "./publish/appsettings.default.json"
+
+        if (Test-Path $appsettingsPath) {
+          Write-Host "创建 appsettings.default.json 用于配置合并"
+          Copy-Item -Path $appsettingsPath -Destination $defaultSettingsPath -Force
+        }
+
+        Write-Host "`n🧹 清理发布目录中的用户数据..."
+
+        # 删除 Data 文件夹（如果存在）
+        if (Test-Path ./publish/Data) {
+          Remove-Item -Path ./publish/Data -Recurse -Force
+          Write-Host "✅ 已删除 Data 文件夹"
+        }
+
+        # 删除 output 文件夹（如果存在）
+        if (Test-Path ./publish/output) {
+          Remove-Item -Path ./publish/output -Recurse -Force
+          Write-Host "✅ 已删除 output 文件夹"
+        }
+
+        Write-Host "✅ 发布目录准备完成"
+      shell: pwsh
+
     - name: Get version from tag
       id: get_version
       run: |
@@ -43,20 +83,86 @@ jobs:
 
     - name: Package with Velopack
       run: |
-        vpk pack `
-          --packId Storyboard `
-          --packVersion ${{ steps.get_version.outputs.VERSION }} `
-          --packDir ./publish `
-          --mainExe Storyboard.exe `
-          --outputDir ./releases `
-          --icon ./App/Assets/icon.ico `
-          --packTitle "分镜大师" `
-          --packAuthors "BroderQi" `
-          --splashImage ./App/Assets/icon.ico
+        Write-Host "========================================="
+        Write-Host "开始 Velopack 打包流程"
+        Write-Host "========================================="
 
-        echo "打包完成，文件列表："
-        Get-ChildItem ./releases
+        # 下载前一个版本的 Release（用于生成 delta 包）
+        Write-Host "`n🔍 查找前一个版本..."
+        $previousRelease = gh release list --limit 2 --json tagName,isLatest | ConvertFrom-Json | Where-Object { -not $_.isLatest } | Select-Object -First 1
+
+        if ($previousRelease) {
+          $previousTag = $previousRelease.tagName
+          Write-Host "✅ 发现前一个版本: $previousTag"
+          Write-Host "📦 将生成增量更新包（Delta Package）"
+
+          # 下载前一个版本的 Release 文件
+          Write-Host "`n📥 下载前一个版本的文件..."
+          New-Item -ItemType Directory -Path ./previous-release -Force | Out-Null
+
+          try {
+            gh release download $previousTag --dir ./previous-release --pattern "*.nupkg"
+            gh release download $previousTag --dir ./previous-release --pattern "RELEASES"
+
+            Write-Host "✅ 前一个版本文件下载完成:"
+            Get-ChildItem ./previous-release | ForEach-Object { Write-Host "  - $($_.Name)" }
+          } catch {
+            Write-Host "⚠️ 警告: 下载前一个版本失败，将只生成完整安装包"
+            Write-Host "错误信息: $_"
+            $previousRelease = $null
+          }
+        } else {
+          Write-Host "ℹ️ 这是第一个版本，只生成完整安装包"
+        }
+
+        Write-Host "`n📦 开始打包..."
+
+        # 通用打包参数
+        $packArgs = @(
+          "pack",
+          "--packId", "Storyboard",
+          "--packVersion", "${{ steps.get_version.outputs.VERSION }}",
+          "--packDir", "./publish",
+          "--mainExe", "Storyboard.exe",
+          "--outputDir", "./releases",
+          "--icon", "./App/Assets/icon.ico",
+          "--packTitle", "分镜大师",
+          "--packAuthors", "BroderQi",
+          "--splashImage", "./App/Assets/icon.ico"
+        )
+
+        # 如果有前一个版本，添加 delta 参数
+        if ($previousRelease -and (Test-Path ./previous-release)) {
+          $packArgs += "--delta"
+          $packArgs += "./previous-release"
+          Write-Host "✅ 启用增量更新包生成"
+        }
+
+        # 执行打包
+        & vpk @packArgs
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "❌ 打包失败，退出码: $LASTEXITCODE"
+          exit $LASTEXITCODE
+        }
+
+        Write-Host "`n✅ 打包完成！"
+        Write-Host "`n📦 生成的文件列表:"
+        Get-ChildItem ./releases | ForEach-Object {
+          $size = if ($_.Length -gt 1MB) {
+            "{0:N2} MB" -f ($_.Length / 1MB)
+          } else {
+            "{0:N2} KB" -f ($_.Length / 1KB)
+          }
+          Write-Host "  - $($_.Name) ($size)"
+        }
+
+        Write-Host "`n========================================="
+        Write-Host "Velopack 打包流程完成"
+        Write-Host "========================================="
       shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Generate Release Notes
       id: release_notes

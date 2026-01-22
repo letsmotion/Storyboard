@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Storyboard.Application.Abstractions;
+using Storyboard.Application.Services;
 using Storyboard.Infrastructure.Media;
 using Storyboard.Models;
 using System.Diagnostics;
@@ -12,11 +13,16 @@ public sealed class FrameExtractionService : IFrameExtractionService
 {
     private readonly ILogger<FrameExtractionService> _logger;
     private readonly IVideoMetadataService _metadataService;
+    private readonly StoragePathService _storagePathService;
 
-    public FrameExtractionService(IVideoMetadataService metadataService, ILogger<FrameExtractionService> logger)
+    public FrameExtractionService(
+        IVideoMetadataService metadataService,
+        ILogger<FrameExtractionService> logger,
+        StoragePathService storagePathService)
     {
         _metadataService = metadataService;
         _logger = logger;
+        _storagePathService = storagePathService;
     }
 
     public async Task<FrameExtractionResult> ExtractAsync(
@@ -36,7 +42,7 @@ public sealed class FrameExtractionService : IFrameExtractionService
         if (timestamps.Count == 0)
             throw new InvalidOperationException("未能生成抽帧时间点，请调整参数后重试。");
 
-        var outDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "frames", request.ProjectId);
+        var outDir = _storagePathService.GetFramesOutputDirectory(request.ProjectId);
         Directory.CreateDirectory(outDir);
 
         var frames = new List<ExtractedFrame>();

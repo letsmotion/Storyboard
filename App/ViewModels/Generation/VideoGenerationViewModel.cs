@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Storyboard.Application.Abstractions;
+using Storyboard.Application.Services;
 using Storyboard.Domain.Entities;
 using Storyboard.Infrastructure.Media;
 using Storyboard.Messages;
@@ -27,6 +28,7 @@ public partial class VideoGenerationViewModel : ObservableObject
     private readonly IJobQueueService _jobQueue;
     private readonly IMessenger _messenger;
     private readonly ILogger<VideoGenerationViewModel> _logger;
+    private readonly StoragePathService _storagePathService;
 
     [ObservableProperty]
     private int _generatedVideosCount;
@@ -35,12 +37,14 @@ public partial class VideoGenerationViewModel : ObservableObject
         IVideoGenerationService videoGenerationService,
         IJobQueueService jobQueue,
         IMessenger messenger,
-        ILogger<VideoGenerationViewModel> logger)
+        ILogger<VideoGenerationViewModel> logger,
+        StoragePathService storagePathService)
     {
         _videoGenerationService = videoGenerationService;
         _jobQueue = jobQueue;
         _messenger = messenger;
         _logger = logger;
+        _storagePathService = storagePathService;
 
         // 订阅视频生成请求消息
         _messenger.Register<VideoGenerationRequestedMessage>(this, OnVideoGenerationRequested);
@@ -223,7 +227,7 @@ public partial class VideoGenerationViewModel : ObservableObject
             _messenger.Send(query);
             var projectId = query.ProjectId ?? "temp";
 
-            var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "projects", projectId, "video-thumbnails");
+            var outputDir = _storagePathService.GetProjectVideoThumbnailsDirectory(projectId);
             Directory.CreateDirectory(outputDir);
 
             var baseName = Path.GetFileNameWithoutExtension(videoPath);

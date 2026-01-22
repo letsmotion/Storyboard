@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Storyboard.AI.Core;
 using Storyboard.Application.Abstractions;
+using Storyboard.Application.Services;
 using Storyboard.Infrastructure.Media;
 using Storyboard.Models;
 
@@ -16,15 +17,18 @@ public sealed class ImageGenerationService : IImageGenerationService
     private readonly IEnumerable<IImageGenerationProvider> _providers;
     private readonly IOptionsMonitor<AIServicesConfiguration> _configMonitor;
     private readonly ILogger<ImageGenerationService> _logger;
+    private readonly StoragePathService _storagePathService;
 
     public ImageGenerationService(
         IEnumerable<IImageGenerationProvider> providers,
         IOptionsMonitor<AIServicesConfiguration> configMonitor,
-        ILogger<ImageGenerationService> logger)
+        ILogger<ImageGenerationService> logger,
+        StoragePathService storagePathService)
     {
         _providers = providers;
         _configMonitor = configMonitor;
         _logger = logger;
+        _storagePathService = storagePathService;
     }
 
     public async Task<string> GenerateImageAsync(
@@ -35,7 +39,7 @@ public sealed class ImageGenerationService : IImageGenerationService
         CancellationToken cancellationToken = default)
     {
         var outDir = string.IsNullOrWhiteSpace(outputDirectory)
-            ? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "images")
+            ? _storagePathService.GetImagesOutputDirectory()
             : outputDirectory;
         Directory.CreateDirectory(outDir);
 
@@ -68,7 +72,7 @@ public sealed class ImageGenerationService : IImageGenerationService
         CancellationToken cancellationToken = default)
     {
         var outDir = string.IsNullOrWhiteSpace(outputDirectory)
-            ? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "images")
+            ? _storagePathService.GetImagesOutputDirectory()
             : outputDirectory;
         Directory.CreateDirectory(outDir);
 
@@ -100,7 +104,7 @@ public sealed class ImageGenerationService : IImageGenerationService
             throw new InvalidOperationException($"{(isFirstFrame ? "首帧" : "尾帧")}提示词为空。");
 
         var outDir = string.IsNullOrWhiteSpace(outputDirectory)
-            ? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "shots", $"shot_{shot.ShotNumber:000}", isFirstFrame ? "first_frame" : "last_frame")
+            ? Path.Combine(_storagePathService.GetShotsOutputDirectory(), $"shot_{shot.ShotNumber:000}", isFirstFrame ? "first_frame" : "last_frame")
             : outputDirectory;
         Directory.CreateDirectory(outDir);
 

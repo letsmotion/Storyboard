@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using Storyboard.Application.Abstractions;
 using Storyboard.Application.Services;
 using Storyboard.Messages;
@@ -12,6 +13,7 @@ using Storyboard.ViewModels.Import;
 using Storyboard.ViewModels.Shot;
 using Storyboard.ViewModels.Generation;
 using Storyboard.ViewModels.Shared;
+using Avalonia.Controls.ApplicationLifetimes;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -265,6 +267,9 @@ public partial class MainViewModel : ObservableObject
         // 设置版本号（从程序集读取）
         VersionText = GetVersionText();
 
+        // 检查是否首次启动，如果是则自动打开设置对话框
+        _ = CheckFirstLaunchAsync();
+
         // 订阅子 ViewModel 的属性变更以更新计算属性
         ProjectManagement.PropertyChanged += (s, e) =>
         {
@@ -395,6 +400,75 @@ public partial class MainViewModel : ObservableObject
     private void ShowProviderSettings()
     {
         IsProviderSettingsDialogOpen = true;
+    }
+
+    [RelayCommand]
+    private async Task ShowSettingsAsync()
+    {
+        await ShowSettingsDialogAsync(false);
+    }
+
+    private async Task ShowSettingsDialogAsync(bool isFirstLaunch)
+    {
+        try
+        {
+            var settingsViewModel = App.Services.GetRequiredService<SettingsViewModel>();
+            settingsViewModel.IsFirstLaunch = isFirstLaunch;
+            settingsViewModel.IsDialogOpen = true;  // 设置对话框打开状态
+
+            var dialog = new Views.SettingsDialog
+            {
+                DataContext = settingsViewModel
+            };
+
+            if (Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                await dialog.ShowDialog(desktop.MainWindow!);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "打开设置对话框失败");
+        }
+    }
+
+    private async Task CheckFirstLaunchAsync()
+    {
+        try
+        {
+            // 延迟一点时间，确保主窗口已经显示
+            await Task.Delay(500);
+
+            var settingsPath = System.IO.Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+            if (!System.IO.File.Exists(settingsPath))
+            {
+                _logger.LogWarning("配置文件不存在，跳过首次启动检查");
+                return;
+            }
+
+            var json = await System.IO.File.ReadAllTextAsync(settingsPath);
+            var doc = System.Text.Json.JsonDocument.Parse(json);
+
+            // 检查是否已配置存储位置
+            bool isConfigured = false;
+            if (doc.RootElement.TryGetProperty("Storage", out var storage))
+            {
+                if (storage.TryGetProperty("_Configured", out var configured))
+                {
+                    isConfigured = configured.GetBoolean();
+                }
+            }
+
+            if (!isConfigured)
+            {
+                _logger.LogInformation("首次启动，显示设置对话框");
+                await ShowSettingsDialogAsync(true);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "检查首次启动时出错");
+        }
     }
 
     [RelayCommand]

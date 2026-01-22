@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Storyboard.Application.Abstractions;
+using Storyboard.Application.Services;
 using Storyboard.Infrastructure.Media;
 using System.Diagnostics;
 using System.IO;
@@ -11,10 +12,14 @@ namespace Storyboard.Infrastructure.Services;
 public sealed class FinalRenderService : IFinalRenderService
 {
     private readonly ILogger<FinalRenderService> _logger;
+    private readonly StoragePathService _storagePathService;
 
-    public FinalRenderService(ILogger<FinalRenderService> logger)
+    public FinalRenderService(
+        ILogger<FinalRenderService> logger,
+        StoragePathService storagePathService)
     {
         _logger = logger;
+        _storagePathService = storagePathService;
     }
 
     public async Task<string> RenderAsync(IReadOnlyList<string> clipPaths, CancellationToken cancellationToken, IProgress<double>? progress = null)
@@ -26,7 +31,7 @@ public sealed class FinalRenderService : IFinalRenderService
         if (missing.Count > 0)
             throw new FileNotFoundException($"存在缺失的视频片段，无法合成：\n{string.Join("\n", missing)}");
 
-        var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output");
+        var outputDir = _storagePathService.GetFinalRenderOutputDirectory();
         Directory.CreateDirectory(outputDir);
 
         var outputPath = Path.Combine(outputDir, $"final_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");

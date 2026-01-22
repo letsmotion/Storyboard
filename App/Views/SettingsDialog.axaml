@@ -1,0 +1,206 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Storyboard.ViewModels"
+        x:Class="Storyboard.Views.SettingsDialog"
+        x:DataType="vm:SettingsViewModel"
+        Title="设置"
+        Width="700"
+        Height="600"
+        MinWidth="600"
+        MinHeight="500"
+        WindowStartupLocation="CenterOwner"
+        Background="#0f0f0f"
+        Foreground="#f5f5f5"
+        CanResize="True">
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="0">
+
+        <!-- Header -->
+        <Border Grid.Row="0"
+                Background="#18181b"
+                BorderBrush="#27272a"
+                BorderThickness="0,0,0,1"
+                Padding="24,16">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="设置"
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           Foreground="#f5f5f5" />
+                <!-- 首次启动提示 -->
+                <Border Grid.Column="1"
+                        Background="#3b82f6"
+                        Padding="12,4"
+                        CornerRadius="4"
+                        IsVisible="{Binding IsFirstLaunch}">
+                    <TextBlock Text="首次启动配置"
+                               FontSize="12"
+                               FontWeight="Medium"
+                               Foreground="White" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1" Padding="24">
+            <StackPanel Spacing="24">
+
+                <!-- 版本信息 -->
+                <Border Background="#18181b"
+                        BorderBrush="#27272a"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="版本信息"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="#f5f5f5" />
+
+                        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                            <TextBlock Grid.Row="0" Grid.Column="0"
+                                       Text="当前版本:"
+                                       Foreground="#a1a1aa" />
+                            <TextBlock Grid.Row="0" Grid.Column="1"
+                                       Text="{Binding CurrentVersion}"
+                                       Foreground="#f5f5f5" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0"
+                                       Text="更新源:"
+                                       Foreground="#a1a1aa" />
+                            <TextBlock Grid.Row="1" Grid.Column="1"
+                                       Text="{Binding CurrentUpdateSource}"
+                                       Foreground="#f5f5f5" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0"
+                                       Text="自动检查更新:"
+                                       Foreground="#a1a1aa" />
+                            <CheckBox Grid.Row="2" Grid.Column="1"
+                                      IsChecked="{Binding AutoCheckUpdates}"
+                                      Content="启用" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- 存储位置 -->
+                <Border Background="#18181b"
+                        BorderBrush="#27272a"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20">
+                    <StackPanel Spacing="16">
+                        <TextBlock Text="存储位置"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="#f5f5f5" />
+
+                        <!-- 首次启动提示 -->
+                        <Border Background="#422006"
+                                BorderBrush="#78350f"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="12"
+                                IsVisible="{Binding IsFirstLaunch}">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                                              Width="16"
+                                              Height="16"
+                                              Foreground="#fbbf24" />
+                                    <TextBlock Text="首次使用"
+                                               FontWeight="SemiBold"
+                                               Foreground="#fbbf24" />
+                                </StackPanel>
+                                <TextBlock Text="这是您第一次使用本软件。请确认数据存储位置，默认保存在应用程序目录下。您可以点击浏览按钮选择其他位置。"
+                                           TextWrapping="Wrap"
+                                           Foreground="#fcd34d"
+                                           FontSize="12" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 数据库位置 -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="数据库位置"
+                                       Foreground="#a1a1aa"
+                                       FontSize="13" />
+                            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding DataDirectory}"
+                                         Background="#0a0a0a"
+                                         BorderBrush="#27272a" />
+                                <Button Grid.Column="1"
+                                        Content="浏览"
+                                        Command="{Binding BrowseDataDirectoryCommand}"
+                                        Margin="8,0,0,0"
+                                        Classes="Ghost" />
+                                <Button Grid.Column="2"
+                                        Content="打开"
+                                        Command="{Binding OpenDataDirectoryCommand}"
+                                        Margin="8,0,0,0"
+                                        Classes="Ghost" />
+                                <TextBlock Grid.Column="3"
+                                           Text="{Binding DatabaseSize}"
+                                           Foreground="#71717a"
+                                           VerticalAlignment="Center"
+                                           Margin="12,0,0,0" />
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- 输出文件位置 -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="输出文件位置"
+                                       Foreground="#a1a1aa"
+                                       FontSize="13" />
+                            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding OutputDirectory}"
+                                         Background="#0a0a0a"
+                                         BorderBrush="#27272a" />
+                                <Button Grid.Column="1"
+                                        Content="浏览"
+                                        Command="{Binding BrowseOutputDirectoryCommand}"
+                                        Margin="8,0,0,0"
+                                        Classes="Ghost" />
+                                <Button Grid.Column="2"
+                                        Content="打开"
+                                        Command="{Binding OpenOutputDirectoryCommand}"
+                                        Margin="8,0,0,0"
+                                        Classes="Ghost" />
+                                <TextBlock Grid.Column="3"
+                                           Text="{Binding OutputSize}"
+                                           Foreground="#71717a"
+                                           VerticalAlignment="Center"
+                                           Margin="12,0,0,0" />
+                            </Grid>
+                        </StackPanel>
+
+                        <Button Content="重新计算大小"
+                                Command="{Binding CalculateStorageSizeCommand}"
+                                HorizontalAlignment="Left"
+                                Classes="Ghost" />
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <Border Grid.Row="2"
+                Background="#18181b"
+                BorderBrush="#27272a"
+                BorderThickness="0,1,0,0"
+                Padding="24,16">
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="12">
+                <Button Content="取消"
+                        Command="{Binding CloseDialogCommand}"
+                        Classes="Ghost"
+                        IsVisible="{Binding !IsFirstLaunch}" />
+                <Button Content="保存"
+                        Command="{Binding SaveSettingsCommand}"
+                        Classes="Primary" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

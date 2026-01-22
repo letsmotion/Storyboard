@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Storyboard.AI.Core;
 using Storyboard.Application.Abstractions;
+using Storyboard.Application.Services;
 using Storyboard.Infrastructure.Media;
 using Storyboard.Models;
 using VideoGenerationRequest = Storyboard.Infrastructure.Media.VideoGenerationRequest;
@@ -16,15 +17,18 @@ public sealed class VideoGenerationService : IVideoGenerationService
     private readonly IEnumerable<IVideoGenerationProvider> _providers;
     private readonly IOptionsMonitor<AIServicesConfiguration> _configMonitor;
     private readonly ILogger<VideoGenerationService> _logger;
+    private readonly StoragePathService _storagePathService;
 
     public VideoGenerationService(
         IEnumerable<IVideoGenerationProvider> providers,
         IOptionsMonitor<AIServicesConfiguration> configMonitor,
-        ILogger<VideoGenerationService> logger)
+        ILogger<VideoGenerationService> logger,
+        StoragePathService storagePathService)
     {
         _providers = providers;
         _configMonitor = configMonitor;
         _logger = logger;
+        _storagePathService = storagePathService;
     }
 
     public async Task<string> GenerateVideoAsync(
@@ -39,7 +43,7 @@ public sealed class VideoGenerationService : IVideoGenerationService
         _logger.LogInformation("VideoGenerationService.GenerateVideoAsync 开始 - Shot {ShotNumber}", shot.ShotNumber);
 
         var outDir = string.IsNullOrWhiteSpace(outputDirectory)
-            ? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "shots")
+            ? _storagePathService.GetShotsOutputDirectory()
             : outputDirectory;
         Directory.CreateDirectory(outDir);
         _logger.LogInformation("输出目录: {OutputDir}", outDir);
