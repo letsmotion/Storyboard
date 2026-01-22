@@ -134,8 +134,8 @@ jobs:
         # 如果有前一个版本，添加 delta 参数
         if ($previousRelease -and (Test-Path ./previous-release)) {
           $packArgs += "--delta"
-          $packArgs += "./previous-release"
-          Write-Host "✅ 启用增量更新包生成"
+          $packArgs += "BestSize"
+          Write-Host "✅ 启用增量更新包生成（压缩模式: BestSize）"
         }
 
         # 执行打包
