@@ -15,6 +15,33 @@ echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}分镜大师 - macOS 发布脚本${NC}"
 echo -e "${GREEN}========================================${NC}"
 
+# 检查 VLC 是否已安装（运行时需要）
+echo ""
+echo -e "${YELLOW}检查系统依赖...${NC}"
+VLC_FOUND=false
+if [ -d "/Applications/VLC.app/Contents/MacOS/lib" ]; then
+    echo -e "${GREEN}✓ 找到 VLC.app${NC}"
+    VLC_FOUND=true
+elif [ -d "/opt/homebrew/lib" ] && [ -f "/opt/homebrew/lib/libvlc.dylib" ]; then
+    echo -e "${GREEN}✓ 找到 Homebrew VLC (ARM64)${NC}"
+    VLC_FOUND=true
+elif [ -d "/usr/local/lib" ] && [ -f "/usr/local/lib/libvlc.dylib" ]; then
+    echo -e "${GREEN}✓ 找到 Homebrew VLC (Intel)${NC}"
+    VLC_FOUND=true
+fi
+
+if [ "$VLC_FOUND" = false ]; then
+    echo -e "${RED}⚠️  警告: 未找到 VLC 安装${NC}"
+    echo -e "${YELLOW}应用运行需要 VLC。请安装:${NC}"
+    echo -e "  ${YELLOW}brew install --cask vlc${NC}"
+    echo ""
+    read -p "是否继续发布? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+fi
+
 # 获取版本号
 VERSION=${1:-"1.1.3"}
 echo -e "${YELLOW}版本号: ${VERSION}${NC}"
@@ -81,9 +108,9 @@ echo -e "📦 输出文件: ${YELLOW}./publish/${ZIP_NAME}${NC}"
 echo -e "📂 输出目录: ${YELLOW}${OUTPUT_DIR}${NC}"
 echo ""
 echo -e "${YELLOW}⚠️  注意事项:${NC}"
-echo -e "1. 首次运行需要右键 → 打开（macOS 安全限制）"
-echo -e "2. 需要安装 FFmpeg: ${YELLOW}brew install ffmpeg${NC}"
-echo -e "3. 需要安装 VLC: ${YELLOW}brew install --cask vlc${NC}"
+echo -e "1. ${RED}必须先安装 VLC:${NC} ${YELLOW}brew install --cask vlc${NC}"
+echo -e "2. 首次运行需要右键 → 打开（macOS 安全限制）"
+echo -e "3. 需要安装 FFmpeg: ${YELLOW}brew install ffmpeg${NC}"
 echo ""
 echo -e "${GREEN}运行应用:${NC}"
 echo -e "  cd ${OUTPUT_DIR}"

@@ -5,6 +5,7 @@ using LibVLCSharp.Shared;
 using Microsoft.Extensions.Logging;
 using Storyboard.ViewModels.Timeline;
 using System;
+using System.IO;
 using System.Threading;
 
 namespace Storyboard.Views.Timeline;
@@ -22,6 +23,36 @@ public partial class TimelineEditorView : UserControl, IDisposable
     {
         try
         {
+            // macOS: 尝试使用系统安装的 VLC
+            if (OperatingSystem.IsMacOS())
+            {
+                var systemVlcPaths = new[]
+                {
+                    "/Applications/VLC.app/Contents/MacOS/lib",  // 系统安装的 VLC
+                    "/opt/homebrew/lib",                          // Homebrew ARM64
+                    "/usr/local/lib"                              // Homebrew Intel
+                };
+
+                foreach (var path in systemVlcPaths)
+                {
+                    if (Directory.Exists(path))
+                    {
+                        try
+                        {
+                            Core.Initialize(path);
+                            System.Diagnostics.Debug.WriteLine($"[LibVLC] 使用系统 VLC: {path}");
+                            return;
+                        }
+                        catch
+                        {
+                            // 尝试下一个路径
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            // Windows 或 macOS 未找到系统 VLC 时使用默认初始化
             Core.Initialize();
         }
         catch (InvalidOperationException)
