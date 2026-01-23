@@ -40,6 +40,13 @@ public class UpdateService
     /// </summary>
     private void InitializeUpdateManager()
     {
+        // 仅在 Windows 平台启用自动更新
+        if (!OperatingSystem.IsWindows())
+        {
+            _logger.LogInformation("当前平台不支持自动更新（仅 Windows 支持），请手动下载更新");
+            return;
+        }
+
         if (!_updateOptions.Enabled || _updateOptions.Sources == null || _updateOptions.Sources.Count == 0)
         {
             _logger.LogWarning("自动更新未启用或未配置更新源");

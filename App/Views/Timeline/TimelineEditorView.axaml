@@ -1,0 +1,238 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Storyboard.ViewModels.Timeline"
+             xmlns:m="using:Storyboard.Models"
+             xmlns:tm="using:Storyboard.Models.Timeline"
+             xmlns:v="using:Storyboard.Views.Timeline"
+             xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
+             xmlns:conv="using:Storyboard.Converters"
+             x:Class="Storyboard.Views.Timeline.TimelineEditorView"
+             x:DataType="vm:TimelineEditorViewModel">
+
+    <Grid RowDefinitions="*,Auto,Auto,*" Background="#0a0a0a">
+
+        <!-- 1. 视频预览播放器 (50-60% 高度) -->
+        <Border Grid.Row="0"
+                Background="#0f0f0f"
+                BorderBrush="#27272a"
+                BorderThickness="0,0,0,1"
+                Padding="16">
+            <Grid RowDefinitions="Auto,*">
+                <!-- 标题栏 -->
+                <TextBlock Grid.Row="0"
+                           Text="视频预览"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="#f5f5f5"
+                           Margin="0,0,0,12" />
+
+                <!-- 视频播放器 -->
+                <Border Grid.Row="1"
+                        Background="#000000"
+                        CornerRadius="8"
+                        ClipToBounds="True">
+                    <vlc:VideoView x:Name="VideoPlayer"
+                                   HorizontalAlignment="Stretch"
+                                   VerticalAlignment="Stretch" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- 2. 播放控制栏 -->
+        <Border Grid.Row="1"
+                Background="#0f0f0f"
+                BorderBrush="#27272a"
+                BorderThickness="0,0,0,1"
+                Padding="16,12">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <!-- 播放按钮 -->
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal"
+                            Spacing="8">
+                    <Button Command="{Binding Playback.PlayCommand}"
+                            IsEnabled="{Binding Playback.CanPlay}"
+                            Classes="Ghost"
+                            Width="32"
+                            Height="32"
+                            Padding="6">
+                        <PathIcon Data="M8 5v14l11-7z"
+                                  Width="16"
+                                  Height="16"
+                                  Foreground="#f5f5f5" />
+                    </Button>
+                    <Button Command="{Binding Playback.PauseCommand}"
+                            IsEnabled="{Binding Playback.CanPause}"
+                            Classes="Ghost"
+                            Width="32"
+                            Height="32"
+                            Padding="6">
+                        <PathIcon Data="M6 4h4v16H6V4zm8 0h4v16h-4V4z"
+                                  Width="16"
+                                  Height="16"
+                                  Foreground="#f5f5f5" />
+                    </Button>
+                    <Button Command="{Binding Playback.StopCommand}"
+                            Classes="Ghost"
+                            Width="32"
+                            Height="32"
+                            Padding="6">
+                        <PathIcon Data="M6 6h12v12H6z"
+                                  Width="16"
+                                  Height="16"
+                                  Foreground="#f5f5f5" />
+                    </Button>
+                </StackPanel>
+
+                <!-- 进度条 -->
+                <Slider Grid.Column="1"
+                        Minimum="0"
+                        Maximum="{Binding TotalDuration}"
+                        Value="{Binding PlayheadTime, Mode=TwoWay}"
+                        Margin="16,0"
+                        VerticalAlignment="Center" />
+
+                <!-- 时间码 -->
+                <TextBlock Grid.Column="2"
+                           FontFamily="Consolas"
+                           FontSize="12"
+                           Foreground="#a1a1aa"
+                           VerticalAlignment="Center">
+                    <Run Text="{Binding Playback.State.TimeCode}" />
+                    <Run Text=" / " />
+                    <Run Text="{Binding Playback.State.TotalTimeCode}" />
+                </TextBlock>
+            </Grid>
+        </Border>
+
+        <!-- 3. 时间轴工具栏 -->
+        <Border Grid.Row="2"
+                Background="#0f0f0f"
+                BorderBrush="#27272a"
+                BorderThickness="0,0,0,1"
+                Padding="16,8">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <!-- 左侧：添加轨道 -->
+                <Button Grid.Column="0"
+                        Command="{Binding AddTrackCommand}"
+                        CommandParameter="{x:Static tm:TrackType.Video}"
+                        Classes="Ghost">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"
+                                  Width="16"
+                                  Height="16"
+                                  Foreground="#a1a1aa" />
+                        <TextBlock Text="添加轨道"
+                                   FontSize="12"
+                                   Foreground="#a1a1aa" />
+                    </StackPanel>
+                </Button>
+
+                <!-- 右侧：缩放控制 -->
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            Spacing="12">
+                    <TextBlock Text="缩放:"
+                               FontSize="12"
+                               Foreground="#a1a1aa"
+                               VerticalAlignment="Center" />
+
+                    <Slider Minimum="10"
+                            Maximum="200"
+                            Width="160"
+                            Value="{Binding PixelsPerSecond, Mode=TwoWay}"
+                            VerticalAlignment="Center" />
+
+                    <TextBlock Text="{Binding PixelsPerSecond, StringFormat='{}{0:0}px/s'}"
+                               FontSize="12"
+                               Foreground="#a1a1aa"
+                               VerticalAlignment="Center"
+                               Width="60" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 4. 时间轴画布 (40-50% 高度) -->
+        <ScrollViewer Grid.Row="3"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto">
+            <Grid RowDefinitions="Auto,*">
+
+                <!-- 时间刻度尺 -->
+                <Border Grid.Row="0"
+                        Height="32"
+                        Background="#0f0f0f"
+                        BorderBrush="#27272a"
+                        BorderThickness="0,0,0,1">
+                    <Canvas Width="{Binding TimelineWidth}"
+                            Height="32">
+                        <!-- 时间标记 -->
+                        <ItemsControl ItemsSource="{Binding TimeMarkers}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <Canvas />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="m:TimeMarker">
+                                    <StackPanel Canvas.Left="{Binding Position}">
+                                        <Border Width="1"
+                                                Height="8"
+                                                Background="#52525b" />
+                                        <TextBlock Text="{Binding Label}"
+                                                   FontSize="10"
+                                                   Foreground="#71717a"
+                                                   Margin="0,4,0,0" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- 播放头（刻度尺部分） -->
+                        <Border Canvas.Left="{Binding PlayheadPosition}"
+                                Width="1"
+                                Height="32"
+                                Background="#ef4444">
+                            <Ellipse Width="12"
+                                     Height="12"
+                                     Fill="#ef4444"
+                                     HorizontalAlignment="Center"
+                                     VerticalAlignment="Top"
+                                     Margin="0,-6,0,0" />
+                        </Border>
+                    </Canvas>
+                </Border>
+
+                <!-- 轨道区域 -->
+                <Border Grid.Row="1"
+                        Background="#0a0a0a">
+                    <Panel>
+                        <!-- 轨道列表 -->
+                        <ItemsControl ItemsSource="{Binding Tracks}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="tm:TimelineTrack">
+                                    <v:TimelineTrackView Width="{Binding $parent[vm:TimelineEditorViewModel].TimelineWidth}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- 播放头（轨道部分） -->
+                        <Canvas>
+                            <Border Canvas.Left="{Binding PlayheadPosition}"
+                                    Width="2"
+                                    Height="1000"
+                                    Background="#ef4444"
+                                    Opacity="0.8" />
+                        </Canvas>
+                    </Panel>
+                </Border>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

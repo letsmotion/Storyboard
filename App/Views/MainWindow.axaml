@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Storyboard.ViewModels"
         xmlns:v="using:Storyboard.Views"
+        xmlns:vt="using:Storyboard.Views.Timeline"
         xmlns:conv="using:Storyboard.Converters"
         x:Class="Storyboard.Views.MainWindow"
         x:DataType="vm:MainViewModel"
@@ -244,8 +245,9 @@
                     <Panel Grid.Row="1">
                         <!-- Grid and List views are in ShotListView -->
                         <v:ShotListView IsVisible="{Binding IsTimelineView, Converter={StaticResource BoolNot}}" />
-                        <!-- Timeline View -->
-                        <v:TimelineView IsVisible="{Binding IsTimelineView}" />
+                        <!-- Timeline Editor View -->
+                        <vt:TimelineEditorView IsVisible="{Binding $parent[Window].DataContext.IsTimelineView}"
+                                               DataContext="{Binding TimelineEditor}" />
                     </Panel>
                 </Grid>
                 

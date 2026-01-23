@@ -188,6 +188,10 @@ public partial class App : Avalonia.Application
         services.AddTransient<ViewModels.Generation.ExportViewModel>();
         services.AddTransient<ViewModels.Shared.HistoryViewModel>();
 
+        // Timeline Editor ViewModels
+        services.AddTransient<ViewModels.Timeline.TimelinePlaybackViewModel>();
+        services.AddTransient<ViewModels.Timeline.TimelineEditorViewModel>();
+
         // Services - 保持现有业务逻辑
         services.AddSingleton<VideoAnalysisService>();
         services.AddSingleton<IVideoAnalysisService>(sp => sp.GetRequiredService<VideoAnalysisService>());

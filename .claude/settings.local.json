@@ -30,7 +30,8 @@
       "Bash(Get-ChildItem -Path \"d:\\\\project\\\\分镜大师\" -Recurse -Directory -Name)",
       "Bash(Select-Object -First 20)",
       "Bash(du:*)",
-      "Bash(dotnet list:*)"
+      "Bash(dotnet list:*)",
+      "Bash(taskkill:*)"
     ],
     "additionalDirectories": [
       "d:\\project\\分镜大师"

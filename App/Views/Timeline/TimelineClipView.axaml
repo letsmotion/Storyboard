@@ -1,0 +1,68 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:m="using:Storyboard.Models.Timeline"
+             xmlns:conv="using:Storyboard.Converters"
+             x:Class="Storyboard.Views.Timeline.TimelineClipView"
+             x:DataType="m:TimelineClip">
+
+    <Border x:Name="ClipBorder"
+            Background="#27272a"
+            BorderBrush="#3b82f6"
+            BorderThickness="2"
+            CornerRadius="4"
+            Padding="6"
+            Cursor="Hand"
+            PointerPressed="OnClipPointerPressed">
+
+        <Grid RowDefinitions="Auto,*,Auto">
+            <!-- Shot 编号和时长 -->
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="{Binding ShotNumber, StringFormat='#{0}'}"
+                           FontSize="11"
+                           FontWeight="SemiBold"
+                           Foreground="#f5f5f5"
+                           IsVisible="{Binding ShotNumber, Converter={x:Static conv:IntConverters.IsNotZero}}" />
+                <TextBlock Grid.Column="0"
+                           Text="原视频"
+                           FontSize="11"
+                           FontWeight="SemiBold"
+                           Foreground="#10b981"
+                           IsVisible="{Binding ShotNumber, Converter={x:Static conv:IntConverters.IsZero}}" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Duration, StringFormat='{}{0:F1}s'}"
+                           FontSize="10"
+                           Foreground="#71717a" />
+            </Grid>
+
+            <!-- 缩略图或占位符 -->
+            <Border Grid.Row="1"
+                    Background="#0a0a0a"
+                    CornerRadius="3"
+                    Margin="0,4">
+                <Panel>
+                    <!-- 缩略图（已生成） -->
+                    <Image Source="{Binding ThumbnailPath}"
+                           Stretch="UniformToFill"
+                           IsVisible="{Binding ThumbnailPath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+
+                    <!-- 占位符图标（未生成） -->
+                    <PathIcon Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z"
+                              Width="24"
+                              Height="24"
+                              Foreground="#52525b"
+                              IsVisible="{Binding ThumbnailPath, Converter={x:Static conv:StringConverters.IsNullOrEmpty}}" />
+                </Panel>
+            </Border>
+
+            <!-- 状态指示器 -->
+            <StackPanel Grid.Row="2"
+                        Orientation="Horizontal"
+                        Spacing="4">
+                <TextBlock Text="{Binding Status}"
+                           FontSize="10"
+                           Foreground="#71717a" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

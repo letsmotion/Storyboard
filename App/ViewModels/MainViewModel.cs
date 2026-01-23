@@ -40,6 +40,7 @@ public partial class MainViewModel : ObservableObject
     public JobQueueViewModel JobQueue { get; }
     public HistoryViewModel History { get; }
     public TimelineViewModel Timeline { get; }
+    public Timeline.TimelineEditorViewModel TimelineEditor { get; }
     // public UpdateNotificationViewModel UpdateNotificationViewModel { get; }
 
     // 全局 UI 状态
@@ -242,6 +243,7 @@ public partial class MainViewModel : ObservableObject
         JobQueueViewModel jobQueue,
         HistoryViewModel history,
         TimelineViewModel timeline,
+        Timeline.TimelineEditorViewModel timelineEditor,
         // UpdateNotificationViewModel updateNotificationViewModel,
         // UpdateService updateService,
         IProjectStore projectStore,
@@ -259,6 +261,7 @@ public partial class MainViewModel : ObservableObject
         JobQueue = jobQueue;
         History = history;
         Timeline = timeline;
+        TimelineEditor = timelineEditor;
         // UpdateNotificationViewModel = updateNotificationViewModel;
         _projectStore = projectStore;
         _messenger = messenger;
@@ -334,9 +337,18 @@ public partial class MainViewModel : ObservableObject
         _messenger.Register<ImageGenerationCompletedMessage>(this, (r, m) => _ = SaveProjectAsync());
         _messenger.Register<VideoGenerationCompletedMessage>(this, (r, m) => _ = SaveProjectAsync());
 
+        // 订阅时间轴片段选中消息
+        _messenger.Register<ClipSelectedMessage>(this, OnClipSelected);
+
         // 订阅项目数据加载消息，加载创作意图
         _messenger.Register<ProjectDataLoadedMessage>(this, OnProjectDataLoaded);
         _messenger.Register<ProjectClosedMessage>(this, OnProjectClosed);
+
+        // 注册查询消息处理器
+        _messenger.Register<GetAllShotsQuery>(this, (r, query) =>
+        {
+            query.Shots = ShotList.Shots.ToList();
+        });
 
         _logger.LogInformation("MainViewModel 初始化完成");
     }
@@ -387,6 +399,9 @@ public partial class MainViewModel : ObservableObject
         IsGridView = false;
         IsListView = false;
         IsTimelineView = true;
+
+        // 切换到时间轴视图时，自动构建时间轴
+        TimelineEditor.BuildTimelineFromShots();
     }
 
     // 对话框命令
@@ -742,6 +757,32 @@ public partial class MainViewModel : ObservableObject
         KeyMessage = null;
 
         _logger.LogInformation("创作意图已清空");
+    }
+
+    /// <summary>
+    /// 处理时间轴片段选中消息，切换右侧分镜编辑页
+    /// </summary>
+    private void OnClipSelected(object recipient, ClipSelectedMessage message)
+    {
+        if (message.Clip == null)
+        {
+            _logger.LogDebug("片段选中消息为空");
+            return;
+        }
+
+        // 根据片段的 ShotNumber 找到对应的 ShotItem
+        var shot = ShotList.Shots.FirstOrDefault(s => s.ShotNumber == message.Clip.ShotNumber);
+
+        if (shot != null)
+        {
+            // 设置选中的 Shot，这会自动更新右侧的分镜编辑页
+            ShotList.SelectedShot = shot;
+            _logger.LogInformation("切换到分镜 #{ShotNumber}", shot.ShotNumber);
+        }
+        else
+        {
+            _logger.LogWarning("未找到对应的 Shot: #{ShotNumber}", message.Clip.ShotNumber);
+        }
     }
 
     private async Task SaveProjectAsync()

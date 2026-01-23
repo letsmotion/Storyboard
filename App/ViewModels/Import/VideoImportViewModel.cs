@@ -54,6 +54,18 @@ public partial class VideoImportViewModel : ObservableObject
         _messenger.Register<ProjectOpenedMessage>(this, OnProjectOpened);
         _messenger.Register<ProjectDataLoadedMessage>(this, OnProjectDataLoaded);
         _messenger.Register<ProjectClosedMessage>(this, OnProjectClosed);
+
+        // 订阅查询消息 - 允许其他ViewModel查询视频导入信息
+        _messenger.Register<GetVideoImportInfoQuery>(this, (r, query) =>
+        {
+            query.VideoPath = SelectedVideoPath;
+            query.VideoDuration = VideoFileDuration;
+            // 解析时长字符串为秒数
+            if (TimeSpan.TryParse(VideoFileDuration, out var duration))
+            {
+                query.VideoDurationSeconds = duration.TotalSeconds;
+            }
+        });
     }
 
     [RelayCommand]

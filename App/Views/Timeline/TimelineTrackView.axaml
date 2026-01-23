@@ -1,0 +1,76 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:m="using:Storyboard.Models.Timeline"
+             xmlns:v="using:Storyboard.Views.Timeline"
+             xmlns:conv="using:Storyboard.Converters"
+             x:Class="Storyboard.Views.Timeline.TimelineTrackView"
+             x:DataType="m:TimelineTrack">
+
+    <Grid ColumnDefinitions="120,*" Height="{Binding Height}">
+
+        <!-- 轨道头部 -->
+        <Border Grid.Column="0"
+                Background="#0f0f0f"
+                BorderBrush="#27272a"
+                BorderThickness="0,0,1,1"
+                Padding="8">
+            <Grid RowDefinitions="Auto,Auto,*">
+                <!-- 轨道类型图标 -->
+                <PathIcon Grid.Row="0"
+                          Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-8 12H9.5v-2h-2v2H6V9h1.5v2.5h2V9H11v6zm7-1c0 .55-.45 1-1 1h-.75v1.5h-1.5V15H14c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v4zm-3.5-.5h2v-3h-2v3z"
+                          Width="20"
+                          Height="20"
+                          Foreground="#a1a1aa"
+                          HorizontalAlignment="Left" />
+
+                <!-- 轨道名称 -->
+                <TextBlock Grid.Row="1"
+                           Text="{Binding Name}"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Foreground="#f5f5f5"
+                           Margin="0,4,0,0" />
+
+                <!-- 控制按钮 -->
+                <StackPanel Grid.Row="2"
+                            Orientation="Horizontal"
+                            Spacing="4"
+                            VerticalAlignment="Bottom">
+                    <!-- 锁定按钮 -->
+                    <Button Classes="IconButton"
+                            Width="24"
+                            Height="24"
+                            Padding="4"
+                            Command="{Binding ToggleLockCommand}">
+                        <PathIcon Data="{Binding IsLocked, Converter={x:Static conv:BoolConverters.LockIcon}}"
+                                  Width="14"
+                                  Height="14"
+                                  Foreground="{Binding IsLocked, Converter={x:Static conv:BoolConverters.LockColor}}" />
+                    </Button>
+
+                    <!-- 可见性按钮 -->
+                    <Button Classes="IconButton"
+                            Width="24"
+                            Height="24"
+                            Padding="4"
+                            Command="{Binding ToggleVisibilityCommand}">
+                        <PathIcon Data="{Binding IsVisible, Converter={x:Static conv:BoolConverters.VisibilityIcon}}"
+                                  Width="14"
+                                  Height="14"
+                                  Foreground="{Binding IsVisible, Converter={x:Static conv:BoolConverters.VisibilityColor}}" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 轨道内容区域 -->
+        <Border Grid.Column="1"
+                Background="#0a0a0a"
+                BorderBrush="#27272a"
+                BorderThickness="0,0,0,1">
+            <Canvas Height="{Binding Height}" x:Name="ClipsCanvas">
+                <!-- 片段将通过代码后台添加 -->
+            </Canvas>
+        </Border>
+    </Grid>
+</UserControl>
