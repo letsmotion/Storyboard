@@ -70,7 +70,10 @@
 
     <!-- SkiaSharp for cross-platform image processing -->
     <PackageReference Include="SkiaSharp" Version="2.88.9" />
-    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23" />
+    <PackageReference Include="VideoLAN.LibVLC.Mac" Version="3.0.23"
+                      Condition="$(RuntimeIdentifier.StartsWith('osx'))" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23"
+                      Condition="$(RuntimeIdentifier.StartsWith('win'))" />
 
     <!-- Velopack for auto-update -->
     <PackageReference Include="Velopack" Version="0.0.942" />
