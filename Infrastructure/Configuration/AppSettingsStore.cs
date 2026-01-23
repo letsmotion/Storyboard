@@ -19,7 +19,7 @@ public sealed class AppSettingsStore
         _configuration = configuration;
     }
 
-    public string SettingsFilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
+    public string SettingsFilePath => AppSettingsPaths.EnsureUserSettingsFile();
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

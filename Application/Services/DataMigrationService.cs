@@ -205,7 +205,7 @@ public class DataMigrationService
     {
         try
         {
-            var settingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+            var settingsPath = Infrastructure.Configuration.AppSettingsPaths.EnsureUserSettingsFile();
             if (!File.Exists(settingsPath))
             {
                 _logger.LogWarning("配置文件不存在: {Path}", settingsPath);

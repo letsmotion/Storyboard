@@ -130,9 +130,9 @@ public partial class App : Avalonia.Application
     private void ConfigureServices(IServiceCollection services)
     {
         // Configuration
+        var settingsPath = AppSettingsPaths.EnsureUserSettingsFile();
         var configuration = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .AddJsonFile(settingsPath, optional: false, reloadOnChange: true)
             .Build();
 
         services.AddSingleton<IConfiguration>(configuration);

@@ -454,7 +454,7 @@ public partial class MainViewModel : ObservableObject
             // 延迟一点时间，确保主窗口已经显示
             await Task.Delay(500);
 
-            var settingsPath = System.IO.Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+            var settingsPath = Infrastructure.Configuration.AppSettingsPaths.EnsureUserSettingsFile();
             if (!System.IO.File.Exists(settingsPath))
             {
                 _logger.LogWarning("配置文件不存在，跳过首次启动检查");

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 
@@ -17,8 +17,8 @@ public class AppSettingsMergeService
     public AppSettingsMergeService(ILogger<AppSettingsMergeService> logger)
     {
         _logger = logger;
-        _userSettingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-        _defaultSettingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.default.json");
+        _userSettingsPath = Infrastructure.Configuration.AppSettingsPaths.UserSettingsFilePath;
+        _defaultSettingsPath = Infrastructure.Configuration.AppSettingsPaths.DefaultSettingsFilePath;
     }
 
     /// <summary>
@@ -29,10 +29,17 @@ public class AppSettingsMergeService
     {
         try
         {
+            var defaultPath = File.Exists(_defaultSettingsPath)
+                ? _defaultSettingsPath
+                : Infrastructure.Configuration.AppSettingsPaths.BundledSettingsFilePath;
+
+            var shouldDeleteDefault = string.Equals(defaultPath, _defaultSettingsPath, StringComparison.OrdinalIgnoreCase);
+
             // 如果不存在默认配置文件，说明不需要合并
-            if (!File.Exists(_defaultSettingsPath))
+            if (!File.Exists(defaultPath))
             {
                 _logger.LogDebug("未找到默认配置文件，跳过合并");
+                Infrastructure.Configuration.AppSettingsPaths.EnsureUserSettingsFile();
                 return;
             }
 
@@ -40,16 +47,20 @@ public class AppSettingsMergeService
             if (!File.Exists(_userSettingsPath))
             {
                 _logger.LogInformation("用户配置文件不存在，使用默认配置");
-                File.Copy(_defaultSettingsPath, _userSettingsPath, overwrite: true);
-                File.Delete(_defaultSettingsPath);
+                Directory.CreateDirectory(Path.GetDirectoryName(_userSettingsPath)!);
+                File.Copy(defaultPath, _userSettingsPath, overwrite: true);
+                if (shouldDeleteDefault)
+                {
+                    File.Delete(defaultPath);
+                }
                 return;
             }
 
-            _logger.LogInformation("开始合并配置文件...");
+            _logger.LogInformation("开始合并配置文件..");
 
             // 读取两个配置文件
             var userSettingsJson = await File.ReadAllTextAsync(_userSettingsPath);
-            var defaultSettingsJson = await File.ReadAllTextAsync(_defaultSettingsPath);
+            var defaultSettingsJson = await File.ReadAllTextAsync(defaultPath);
 
             var userSettings = JsonNode.Parse(userSettingsJson) as JsonObject;
             var defaultSettings = JsonNode.Parse(defaultSettingsJson) as JsonObject;
@@ -74,7 +85,10 @@ public class AppSettingsMergeService
             await File.WriteAllTextAsync(_userSettingsPath, mergedJson);
 
             // 删除默认配置文件（已完成合并）
-            File.Delete(_defaultSettingsPath);
+            if (shouldDeleteDefault)
+            {
+                File.Delete(defaultPath);
+            }
 
             _logger.LogInformation("配置文件合并完成");
         }

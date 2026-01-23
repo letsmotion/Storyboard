@@ -382,21 +382,71 @@ public partial class SettingsViewModel : ObservableObject
             _logger.LogError(ex, "打开目录失败: {Path}", path);
         }
     }
-
     private void RestartApplication()
     {
         try
         {
             var exePath = Environment.ProcessPath;
-            if (!string.IsNullOrEmpty(exePath))
+            if (string.IsNullOrWhiteSpace(exePath))
+                return;
+
+            static string QuoteArg(string arg)
             {
-                System.Diagnostics.Process.Start(exePath);
-                Environment.Exit(0);
+                if (string.IsNullOrEmpty(arg))
+                    return "\"\"";
+
+                return arg.Contains(' ') || arg.Contains('	') || arg.Contains('"')
+                    ? $"\"{arg.Replace("\"", "\\\"")}\""
+                    : arg;
             }
+
+            static string BuildArgs(string[] args, int startIndex)
+            {
+                var sb = new System.Text.StringBuilder();
+                for (var i = startIndex; i < args.Length; i++)
+                {
+                    if (i > startIndex)
+                        sb.Append(' ');
+                    sb.Append(QuoteArg(args[i]));
+                }
+                return sb.ToString();
+            }
+
+            var args = Environment.GetCommandLineArgs();
+            var entryPath = System.Reflection.Assembly.GetEntryAssembly()?.Location;
+            var isDotnetHost = exePath.EndsWith("dotnet", StringComparison.OrdinalIgnoreCase) ||
+                               exePath.EndsWith("dotnet.exe", StringComparison.OrdinalIgnoreCase);
+
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                UseShellExecute = true
+            };
+
+            if (isDotnetHost && !string.IsNullOrWhiteSpace(entryPath))
+            {
+                var newArgs = new string[args.Length];
+                newArgs[0] = entryPath;
+                if (args.Length > 1)
+                {
+                    Array.Copy(args, 1, newArgs, 1, args.Length - 1);
+                }
+                psi.FileName = exePath;
+                psi.Arguments = BuildArgs(newArgs, 0);
+                psi.WorkingDirectory = Path.GetDirectoryName(entryPath) ?? AppContext.BaseDirectory;
+            }
+            else
+            {
+                psi.FileName = exePath;
+                psi.Arguments = BuildArgs(args, 1);
+                psi.WorkingDirectory = AppContext.BaseDirectory;
+            }
+
+            System.Diagnostics.Process.Start(psi);
+            Environment.Exit(0);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "重启应用失败");
+            _logger.LogError(ex, "Restart application failed");
         }
     }
 
@@ -406,7 +456,7 @@ public partial class SettingsViewModel : ObservableObject
         try
         {
             // 保存设置到 appsettings.json
-            var settingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+            var settingsPath = Infrastructure.Configuration.AppSettingsPaths.EnsureUserSettingsFile();
             if (File.Exists(settingsPath))
             {
                 var json = await File.ReadAllTextAsync(settingsPath);
