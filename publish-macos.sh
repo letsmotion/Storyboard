@@ -88,6 +88,11 @@ dotnet publish Storyboard.csproj \
 # 确保配置文件随包发布
 cp -f "./appsettings.json" "$OUTPUT_DIR/appsettings.json"
 
+# 确保 macOS 下 FFmpeg/FFprobe 可执行
+if [ -d "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME" ]; then
+    chmod +x "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME/ffmpeg" "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME/ffprobe" 2>/dev/null || true
+fi
+
 echo ""
 echo -e "${GREEN}步骤 5/5: 打包 ZIP${NC}"
 
