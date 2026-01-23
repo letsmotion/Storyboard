@@ -37,6 +37,11 @@ public static class AppSettingsPaths
             {
                 File.Copy(BundledSettingsFilePath, UserSettingsFilePath, overwrite: false);
             }
+            else
+            {
+                // Create a minimal config to avoid first-launch crash when bundled config is missing.
+                File.WriteAllText(UserSettingsFilePath, "{\n}\n");
+            }
         }
 
         return UserSettingsFilePath;

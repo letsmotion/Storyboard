@@ -58,6 +58,9 @@ dotnet publish Storyboard.csproj \
     /p:PublishSingleFile=false \
     /p:PublishTrimmed=false
 
+# 确保配置文件随包发布
+cp -f "./appsettings.json" "$OUTPUT_DIR/appsettings.json"
+
 echo ""
 echo -e "${GREEN}步骤 5/5: 打包 ZIP${NC}"
 
