@@ -1,0 +1,38 @@
+{
+  "Id": "copywriting_optimization",
+  "Name": "文案优化",
+  "Description": "优化和润色文案内容",
+  "SystemPrompt": "你是一个专业的文案策划和内容优化师。你的任务是：\r\n1. 优化文案的表达和结构\r\n2. 提升文案的吸引力和感染力\r\n3. 保持原意的同时增强表现力\r\n4. 确保语言流畅、准确、生动\r\n\r\n请提供优质的文案优化服务。",
+  "UserPromptTemplate": "原始文案: {{original_text}}\r\n优化方向: {{optimization_goal}}\r\n目标受众: {{target_audience}}\r\n\r\n请优化这段文案，使其更加{{optimization_goal}}。",
+  "Parameters": {
+    "original_text": {
+      "Name": "original_text",
+      "Type": "string",
+      "Description": "原始文案",
+      "Required": true,
+      "DefaultValue": null
+    },
+    "optimization_goal": {
+      "Name": "optimization_goal",
+      "Type": "string",
+      "Description": "优化方向",
+      "Required": false,
+      "DefaultValue": "专业且吸引人"
+    },
+    "target_audience": {
+      "Name": "target_audience",
+      "Type": "string",
+      "Description": "目标受众",
+      "Required": false,
+      "DefaultValue": "普通观众"
+    }
+  },
+  "ExecutionSettings": {
+    "Temperature": 0.75,
+    "TopP": 0.9,
+    "MaxTokens": 1500,
+    "StopSequences": []
+  },
+  "CreatedAt": "2026-01-16T07:52:41.7330128+08:00",
+  "UpdatedAt": "2026-01-16T07:52:41.7330175+08:00"
+}

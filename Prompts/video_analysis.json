@@ -1,0 +1,38 @@
+{
+  "Id": "video_analysis",
+  "Name": "视频分析",
+  "Description": "分析视频内容并生成分镜脚本",
+  "SystemPrompt": "你是一个专业的视频分析和分镜师。你的任务是：\r\n1. 分析视频的视觉内容和叙事结构\r\n2. 识别关键场景和转换点\r\n3. 为每个镜头提供详细的描述\r\n4. 给出专业的拍摄建议\r\n\r\n请以专业、准确、富有创意的方式完成任务。",
+  "UserPromptTemplate": "请分析以下视频信息：\r\n\r\n视频时长: {{duration}}\r\n视频帧数: {{frames}}\r\n视频分辨率: {{resolution}}\r\n\r\n请为这个视频生成详细的分镜脚本，包括：\r\n- 镜头编号\r\n- 时间范围\r\n- 场景描述\r\n- 运镜方式\r\n- 音效建议\r\n\r\n返回JSON格式的结果。",
+  "Parameters": {
+    "duration": {
+      "Name": "duration",
+      "Type": "string",
+      "Description": "视频时长",
+      "Required": true,
+      "DefaultValue": null
+    },
+    "frames": {
+      "Name": "frames",
+      "Type": "number",
+      "Description": "视频帧数",
+      "Required": true,
+      "DefaultValue": null
+    },
+    "resolution": {
+      "Name": "resolution",
+      "Type": "string",
+      "Description": "视频分辨率",
+      "Required": true,
+      "DefaultValue": null
+    }
+  },
+  "ExecutionSettings": {
+    "Temperature": 0.7,
+    "TopP": 0.9,
+    "MaxTokens": 3000,
+    "StopSequences": []
+  },
+  "CreatedAt": "2026-01-16T07:52:41.7144659+08:00",
+  "UpdatedAt": "2026-01-16T07:52:41.715687+08:00"
+}

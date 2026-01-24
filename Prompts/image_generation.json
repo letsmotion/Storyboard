@@ -1,0 +1,38 @@
+{
+  "Id": "image_generation",
+  "Name": "图像生成",
+  "Description": "根据场景描述生成图像提示词",
+  "SystemPrompt": "你是一个专业的AI图像生成提示词工程师。你的任务是：\r\n1. 将场景描述转换为详细的图像生成提示词\r\n2. 包含风格、构图、光照、色彩等细节\r\n3. 使用专业的摄影和艺术术语\r\n4. 确保提示词清晰、具体、易于理解\r\n\r\n【重要】所有生成的提示词必须使用中文，不要使用英文。包括场景描述、风格术语、专业参数等都要用中文表达。\r\n\r\n请生成高质量的中文图像提示词。",
+  "UserPromptTemplate": "场景描述: {{scene_description}}\r\n镜头类型: {{shot_type}}\r\n风格要求: {{style}}\r\n\r\n请生成详细的图像生成提示词（使用中文）。",
+  "Parameters": {
+    "scene_description": {
+      "Name": "scene_description",
+      "Type": "string",
+      "Description": "场景描述",
+      "Required": true,
+      "DefaultValue": null
+    },
+    "shot_type": {
+      "Name": "shot_type",
+      "Type": "string",
+      "Description": "镜头类型",
+      "Required": false,
+      "DefaultValue": "中景"
+    },
+    "style": {
+      "Name": "style",
+      "Type": "string",
+      "Description": "风格要求",
+      "Required": false,
+      "DefaultValue": "写实"
+    }
+  },
+  "ExecutionSettings": {
+    "Temperature": 0.8,
+    "TopP": 0.95,
+    "MaxTokens": 1000,
+    "StopSequences": []
+  },
+  "CreatedAt": "2026-01-16T07:52:41.7308078+08:00",
+  "UpdatedAt": "2026-01-16T07:52:41.7309198+08:00"
+}
