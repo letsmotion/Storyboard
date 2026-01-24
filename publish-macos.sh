@@ -88,17 +88,6 @@ dotnet publish Storyboard.csproj \
 # 确保配置文件随包发布
 cp -f "./appsettings.json" "$OUTPUT_DIR/appsettings.json"
 
-# Copy prompt templates (avoid macOS read-only base dir)
-if [ -d "./Release/Prompts" ]; then
-    mkdir -p "$OUTPUT_DIR/Prompts"
-    cp -f "./Release/Prompts/"*.json "$OUTPUT_DIR/Prompts/"
-elif [ -d "./Prompts" ]; then
-    mkdir -p "$OUTPUT_DIR/Prompts"
-    cp -f "./Prompts/"*.json "$OUTPUT_DIR/Prompts/"
-else
-    echo -e "${YELLOW}WARN: Prompts template dir not found; AI params may be missing${NC}"
-fi
-
 
 # 确保 macOS 下 FFmpeg/FFprobe 可执行
 # Ensure bundled FFmpeg/FFprobe (if present) are executable
@@ -108,6 +97,9 @@ if [ -d "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME" ]; then
 fi
 chmod +x "$OUTPUT_DIR/Storyboard" 2>/dev/null || true
 xattr -d com.apple.quarantine "$OUTPUT_DIR/Storyboard" 2>/dev/null || true
+
+chmod -R u+rwX,go+rwX "$OUTPUT_DIR" 2>/dev/null || true
+xattr -dr com.apple.quarantine "$OUTPUT_DIR" 2>/dev/null || true
 
 echo ""
 echo -e "${GREEN}步骤 5/5: 打包 ZIP${NC}"
