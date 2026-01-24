@@ -91,10 +91,11 @@ cp -f "./appsettings.json" "$OUTPUT_DIR/appsettings.json"
 # 确保 macOS 下 FFmpeg/FFprobe 可执行
 # Ensure bundled FFmpeg/FFprobe (if present) are executable
 if [ -d "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME" ]; then
-    chmod +x "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME/ffmpeg" "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME/ffprobe" 2>/dev/null || true
-    xattr -d com.apple.quarantine "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME/ffmpeg" 2>/dev/null || true
-    xattr -d com.apple.quarantine "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME/ffprobe" 2>/dev/null || true
+    chmod +x "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME/"* 2>/dev/null || true
+    xattr -dr com.apple.quarantine "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME" 2>/dev/null || true
 fi
+chmod +x "$OUTPUT_DIR/Storyboard" 2>/dev/null || true
+xattr -d com.apple.quarantine "$OUTPUT_DIR/Storyboard" 2>/dev/null || true
 
 echo ""
 echo -e "${GREEN}步骤 5/5: 打包 ZIP${NC}"

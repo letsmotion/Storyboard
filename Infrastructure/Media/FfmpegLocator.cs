@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
@@ -35,7 +37,10 @@ internal static class FfmpegLocator
             try
             {
                 if (File.Exists(p))
+                {
+                    TryFixBundledToolPermissions(baseDir, p);
                     return p;
+                }
             }
             catch
             {
@@ -77,6 +82,58 @@ internal static class FfmpegLocator
             yield return Path.Combine("/usr/local/bin", exeName);
             yield return Path.Combine("/usr/bin", exeName);
             yield return Path.Combine("/snap/bin", exeName);
+        }
+    }
+
+    private static void TryFixBundledToolPermissions(string baseDir, string path)
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        if (!Path.IsPathRooted(path))
+            return;
+
+        try
+        {
+            var full = Path.GetFullPath(path);
+            var baseFull = Path.GetFullPath(baseDir);
+            if (!full.StartsWith(baseFull, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var mode = File.GetUnixFileMode(full);
+            var exec = UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute;
+            if ((mode & exec) == 0)
+                File.SetUnixFileMode(full, mode | exec);
+        }
+        catch
+        {
+            // ignore
+        }
+
+        if (OperatingSystem.IsMacOS())
+            TryRemoveMacQuarantine(path);
+    }
+
+    private static void TryRemoveMacQuarantine(string path)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "/usr/bin/xattr",
+                Arguments = $"-d com.apple.quarantine \"{path}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var proc = Process.Start(psi);
+            proc?.WaitForExit(2000);
+        }
+        catch
+        {
+            // ignore
         }
     }
 
