@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Storyboard.Application.Abstractions;
 using Storyboard.Infrastructure.Media;
 using Storyboard.Models;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -296,6 +297,9 @@ public sealed class VideoAnalysisService : IVideoAnalysisService, IVideoMetadata
         CancellationToken cancellationToken,
         Action<string>? onStderrLine = null)
     {
+        if (Path.IsPathRooted(fileName) && !File.Exists(fileName))
+            throw new FileNotFoundException("ffmpeg tool not found", fileName);
+
         var psi = new ProcessStartInfo
         {
             FileName = fileName,
@@ -324,8 +328,15 @@ public sealed class VideoAnalysisService : IVideoAnalysisService, IVideoMetadata
             onStderrLine?.Invoke(e.Data);
         };
 
-        if (!proc.Start())
-            throw new InvalidOperationException($"无法启动进程: {fileName}");
+        try
+        {
+            if (!proc.Start())
+                throw new InvalidOperationException($"无法启动进程: {fileName}");
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 13)
+        {
+            throw new InvalidOperationException($"ffprobe 无执行权限，请执行 chmod +x: {fileName}", ex);
+        }
 
         proc.BeginOutputReadLine();
         proc.BeginErrorReadLine();

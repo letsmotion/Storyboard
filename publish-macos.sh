@@ -92,6 +92,8 @@ cp -f "./appsettings.json" "$OUTPUT_DIR/appsettings.json"
 # Ensure bundled FFmpeg/FFprobe (if present) are executable
 if [ -d "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME" ]; then
     chmod +x "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME/ffmpeg" "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME/ffprobe" 2>/dev/null || true
+    xattr -d com.apple.quarantine "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME/ffmpeg" 2>/dev/null || true
+    xattr -d com.apple.quarantine "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME/ffprobe" 2>/dev/null || true
 fi
 
 echo ""
