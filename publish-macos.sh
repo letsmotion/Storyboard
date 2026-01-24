@@ -89,6 +89,7 @@ dotnet publish Storyboard.csproj \
 cp -f "./appsettings.json" "$OUTPUT_DIR/appsettings.json"
 
 # 确保 macOS 下 FFmpeg/FFprobe 可执行
+# Ensure bundled FFmpeg/FFprobe (if present) are executable
 if [ -d "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME" ]; then
     chmod +x "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME/ffmpeg" "$OUTPUT_DIR/Tools/ffmpeg/$RUNTIME/ffprobe" 2>/dev/null || true
 fi
@@ -104,20 +105,19 @@ cd "$OUTPUT_DIR"
 zip -r "../../publish/${ZIP_NAME}" . -x "*.pdb" -x "*.xml"
 cd ../..
 
-echo ""
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}✅ 发布完成！${NC}"
+echo -e "${GREEN}Publish complete.${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
-echo -e "📦 输出文件: ${YELLOW}./publish/${ZIP_NAME}${NC}"
-echo -e "📂 输出目录: ${YELLOW}${OUTPUT_DIR}${NC}"
+echo -e "Output archive: ${YELLOW}./publish/${ZIP_NAME}${NC}"
+echo -e "Output folder: ${YELLOW}${OUTPUT_DIR}${NC}"
 echo ""
-echo -e "${YELLOW}⚠️  注意事项:${NC}"
-echo -e "1. ${RED}必须先安装 VLC:${NC} ${YELLOW}brew install --cask vlc${NC}"
-echo -e "2. 首次运行需要右键 → 打开（macOS 安全限制）"
-echo -e "3. 需要安装 FFmpeg: ${YELLOW}brew install ffmpeg${NC}"
+echo -e "${YELLOW}Notes:${NC}"
+echo -e "1. Install VLC: ${YELLOW}brew install --cask vlc${NC}"
+echo -e "2. First run may need right-click -> Open (Gatekeeper)."
+echo -e "3. Install FFmpeg: ${YELLOW}brew install ffmpeg${NC}"
 echo ""
-echo -e "${GREEN}运行应用:${NC}"
+echo -e "${GREEN}Run:${NC}"
 echo -e "  cd ${OUTPUT_DIR}"
 echo -e "  ./Storyboard"
 echo ""

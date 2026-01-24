@@ -80,10 +80,26 @@ public sealed class VideoAnalysisService : IVideoAnalysisService, IVideoMetadata
     private async Task<VideoProbe> ProbeAsync(string videoPath, CancellationToken cancellationToken)
     {
         var args = $"-v error -print_format json -show_format -show_streams \"{videoPath}\"";
-        var (exitCode, stdout, stderr) = await RunProcessCaptureAsync(FfmpegLocator.GetFfprobePath(), args, cancellationToken).ConfigureAwait(false);
-        if (exitCode != 0)
-            throw new InvalidOperationException($"ffprobe 失败（请确保已安装 ffmpeg/ffprobe 并加入 PATH）。\n{stderr}");
+        var ffprobePath = FfmpegLocator.GetFfprobePath();
+        _logger.LogInformation("Using ffprobe: {Path}", ffprobePath);
 
+        var (exitCode, stdout, stderr) = await RunProcessCaptureAsync(ffprobePath, args, cancellationToken).ConfigureAwait(false);
+        if (exitCode != 0 && ShouldRetryWithSystemFfprobe(ffprobePath, exitCode, stderr))
+        {
+            _logger.LogWarning("Bundled ffprobe failed (exit {ExitCode}), retrying with system ffprobe", exitCode);
+            try
+            {
+                (exitCode, stdout, stderr) = await RunProcessCaptureAsync("ffprobe", args, cancellationToken).ConfigureAwait(false);
+                ffprobePath = "ffprobe";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("System ffprobe retry failed: {Error}", ex.Message);
+            }
+        }
+
+        if (exitCode != 0)
+            throw new InvalidOperationException($"ffprobe 失败（请确保已安装 ffmpeg/ffprobe 并加入 PATH）。\nPath: {ffprobePath}\nExitCode: {exitCode}\n{stderr}");
         using var doc = JsonDocument.Parse(stdout);
 
         double duration = 0;
@@ -256,6 +272,22 @@ public sealed class VideoAnalysisService : IVideoAnalysisService, IVideoMetadata
             });
         }
         return list;
+    }
+
+    private static bool ShouldRetryWithSystemFfprobe(string ffprobePath, int exitCode, string stderr)
+    {
+        if (string.Equals(ffprobePath, "ffprobe", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!Path.IsPathRooted(ffprobePath))
+            return false;
+
+        if (string.IsNullOrWhiteSpace(stderr) && exitCode < 0)
+            return true;
+
+        return ffprobePath.Contains($"{Path.DirectorySeparatorChar}Tools{Path.DirectorySeparatorChar}ffmpeg{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+               && string.IsNullOrWhiteSpace(stderr)
+               && exitCode != 0;
     }
 
     private static async Task<(int ExitCode, string Stdout, string Stderr)> RunProcessCaptureAsync(
