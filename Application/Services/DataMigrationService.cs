@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Storyboard.Infrastructure.Configuration;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -201,52 +202,27 @@ public class DataMigrationService
         });
     }
 
-    private async Task UpdateConfigurationAsync(string newDataDir, string newOutputDir)
+    private Task UpdateConfigurationAsync(string newDataDir, string newOutputDir)
     {
         try
         {
-            var settingsPath = Infrastructure.Configuration.AppSettingsPaths.EnsureUserSettingsFile();
-            if (!File.Exists(settingsPath))
-            {
-                _logger.LogWarning("配置文件不存在: {Path}", settingsPath);
-                return;
-            }
+            var store = new UserSettingsStore();
+            var settings = store.Load();
+            settings.Storage.DataDirectory = newDataDir;
+            settings.Storage.OutputDirectory = newOutputDir;
+            settings.Storage.UseCustomLocation = true;
+            settings.Storage.Configured = true;
+            store.Save(settings);
 
-            var json = await File.ReadAllTextAsync(settingsPath);
-            var jsonDoc = System.Text.Json.JsonDocument.Parse(json);
-
-            // 使用 JsonNode 来修改 JSON
-            var jsonNode = System.Text.Json.Nodes.JsonNode.Parse(json);
-            if (jsonNode == null) return;
-
-            var root = jsonNode.AsObject();
-            if (!root.ContainsKey("Storage"))
-            {
-                root["Storage"] = new System.Text.Json.Nodes.JsonObject();
-            }
-
-            var storage = root["Storage"]!.AsObject();
-            storage["DataDirectory"] = newDataDir;
-            storage["OutputDirectory"] = newOutputDir;
-            storage["UseCustomLocation"] = true;
-            storage["_Configured"] = true;
-
-            var options = new System.Text.Json.JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-            };
-
-            var updatedJson = root.ToJsonString(options);
-            await File.WriteAllTextAsync(settingsPath, updatedJson);
-
-            _logger.LogInformation("配置文件已更新");
+            _logger.LogInformation("User settings updated.");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "更新配置文件失败");
+            _logger.LogError(ex, "Failed to update user settings.");
             throw;
         }
+
+        return Task.CompletedTask;
     }
 
     private long CalculateDirectorySize(string directory)

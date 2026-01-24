@@ -19,7 +19,8 @@ public partial class SettingsViewModel : ObservableObject
     private readonly UpdateService _updateService;
     private readonly StoragePathService _storagePathService;
     private readonly DataMigrationService _dataMigrationService;
-    private readonly IOptions<StorageOptions> _storageOptions;
+    private readonly UserSettingsStore _userSettingsStore;
+    private UserSettings _userSettings;
 
     [ObservableProperty]
     private bool _isDialogOpen;
@@ -80,13 +81,15 @@ public partial class SettingsViewModel : ObservableObject
         UpdateService updateService,
         StoragePathService storagePathService,
         DataMigrationService dataMigrationService,
-        IOptions<StorageOptions> storageOptions)
+        UserSettingsStore userSettingsStore,
+        UserSettings userSettings)
     {
         _logger = logger;
         _updateService = updateService;
         _storagePathService = storagePathService;
         _dataMigrationService = dataMigrationService;
-        _storageOptions = storageOptions;
+        _userSettingsStore = userSettingsStore;
+        _userSettings = userSettings;
 
         LoadSettings();
     }
@@ -97,9 +100,8 @@ public partial class SettingsViewModel : ObservableObject
         CurrentVersion = _updateService.GetCurrentVersion();
         CurrentUpdateSource = _updateService.GetCurrentSourceName();
 
-        // 加载存储位置设置
-        var options = _storageOptions.Value;
-        UseCustomLocation = options.UseCustomLocation;
+        // 加载存储位置设置（从 UserSettings）
+        UseCustomLocation = _userSettings.Storage.UseCustomLocation;
         DataDirectory = _storagePathService.GetDataDirectory();
         OutputDirectory = _storagePathService.GetOutputDirectory();
 
@@ -455,42 +457,25 @@ public partial class SettingsViewModel : ObservableObject
     {
         try
         {
-            // 保存设置到 appsettings.json
-            var settingsPath = Infrastructure.Configuration.AppSettingsPaths.EnsureUserSettingsFile();
-            if (File.Exists(settingsPath))
+            // V2 架构：直接保存到 UserSettings，不需要重启
+            _userSettings.Storage.UseCustomLocation = UseCustomLocation;
+            _userSettings.Storage.DataDirectory = DataDirectory;
+            _userSettings.Storage.OutputDirectory = OutputDirectory;
+            _userSettings.Storage.Configured = true;
+
+            _userSettingsStore.Save(_userSettings);
+
+            _logger.LogInformation("设置已保存: UseCustom={UseCustom}, DataPath={DataPath}, OutputPath={OutputPath}",
+                UseCustomLocation, DataDirectory, OutputDirectory);
+
+            // V2: 如果存储路径变更，仍需重启（因为数据库连接已建立）
+            if (UseCustomLocation)
             {
-                var json = await File.ReadAllTextAsync(settingsPath);
-                var root = System.Text.Json.Nodes.JsonNode.Parse(json) as System.Text.Json.Nodes.JsonObject;
-
-                if (root != null)
-                {
-                    // 更新 Storage 配置
-                    var storage = new System.Text.Json.Nodes.JsonObject
-                    {
-                        ["UseCustomLocation"] = UseCustomLocation,
-                        ["DataDirectory"] = DataDirectory,
-                        ["OutputDirectory"] = OutputDirectory,
-                        ["_Configured"] = true // 标记已配置
-                    };
-
-                    root["Storage"] = storage;
-
-                    // 保存配置
-                    var options = new System.Text.Json.JsonSerializerOptions
-                    {
-                        WriteIndented = true,
-                        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                    };
-
-                    var updatedJson = System.Text.Json.JsonSerializer.Serialize(root, options);
-                    await File.WriteAllTextAsync(settingsPath, updatedJson);
-
-                    _logger.LogInformation("设置已保存: UseCustom={UseCustom}, DataPath={DataPath}, OutputPath={OutputPath}",
-                        UseCustomLocation, DataDirectory, OutputDirectory);
-
-                    // 提示用户需要重启应用
-                    await ShowRestartConfirmationAsync();
-                }
+                await ShowRestartConfirmationAsync();
+            }
+            else
+            {
+                CloseDialog();
             }
         }
         catch (Exception ex)

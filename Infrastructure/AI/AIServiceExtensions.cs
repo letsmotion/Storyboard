@@ -1,19 +1,24 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Storyboard.AI.Core;
 using Storyboard.AI.Prompts;
 using Storyboard.AI.Providers;
+using Storyboard.Infrastructure.Configuration;
 
 namespace Storyboard.AI;
 
 public static class AIServiceExtensions
 {
-    public static IServiceCollection AddAIServices(
-        this IServiceCollection services,
-        IConfiguration configuration)
+    public static IServiceCollection AddAIServices(this IServiceCollection services)
     {
-        services.Configure<AIServicesConfiguration>(
-            configuration.GetSection("AIServices"));
+        services.AddSingleton<UserSettingsStore>();
+        services.AddSingleton<UserAIOverridesStore>();
+        services.AddSingleton<AIConfigurationComposer>();
+        services.AddSingleton<IOptionsMonitor<AIServicesConfiguration>>(sp =>
+        {
+            var composer = sp.GetRequiredService<AIConfigurationComposer>();
+            return new SimpleOptionsMonitor<AIServicesConfiguration>(composer);
+        });
 
         services.AddSingleton<IAIServiceProvider, QwenServiceProvider>();
         services.AddSingleton<IAIServiceProvider, VolcengineServiceProvider>();
@@ -21,5 +26,12 @@ public static class AIServiceExtensions
         services.AddSingleton<AIServiceManager>();
 
         return services;
+    }
+
+    public static IServiceCollection AddAIServices(
+        this IServiceCollection services,
+        Microsoft.Extensions.Configuration.IConfiguration _)
+    {
+        return AddAIServices(services);
     }
 }

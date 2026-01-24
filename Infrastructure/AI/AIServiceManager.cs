@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Storyboard.AI.Core;
 using Storyboard.AI.Prompts;
+using Storyboard.Infrastructure.Configuration;
 using System.Linq;
 
 namespace Storyboard.AI;
@@ -13,7 +14,7 @@ public class AIServiceManager
 {
     private readonly ILogger<AIServiceManager> _logger;
     private readonly IEnumerable<IAIServiceProvider> _providers;
-    private readonly IOptionsMonitor<AIServicesConfiguration> _configMonitor;
+    private readonly AIConfigurationComposer _configComposer;
     private readonly PromptManagementService _promptService;
     private IAIServiceProvider? _currentProvider;
     private AIProviderType? _overrideProvider;
@@ -21,12 +22,12 @@ public class AIServiceManager
     public AIServiceManager(
         ILogger<AIServiceManager> logger,
         IEnumerable<IAIServiceProvider> providers,
-        IOptionsMonitor<AIServicesConfiguration> configMonitor,
+        AIConfigurationComposer configComposer,
         PromptManagementService promptService)
     {
         _logger = logger;
         _providers = providers;
-        _configMonitor = configMonitor;
+        _configComposer = configComposer;
         _promptService = promptService;
     }
 
@@ -62,7 +63,9 @@ public class AIServiceManager
 
     public IAIServiceProvider GetCurrentProvider()
     {
-        var configuredDefault = _overrideProvider ?? _configMonitor.CurrentValue.Defaults.Text.Provider;
+        var config = _configComposer.LoadConfiguration();
+        var configuredDefault = _overrideProvider ?? config.Defaults.Text.Provider;
+
         if (_currentProvider == null || _currentProvider.ProviderType != configuredDefault || !_currentProvider.IsConfigured)
         {
             _currentProvider = _providers.FirstOrDefault(p => p.ProviderType == configuredDefault && p.IsConfigured);
@@ -304,7 +307,7 @@ public class AIServiceManager
             return overrideModel;
         }
 
-        var config = _configMonitor.CurrentValue;
+        var config = _configComposer.LoadConfiguration();
         if (config.Defaults.Text.Provider == providerType && !string.IsNullOrWhiteSpace(config.Defaults.Text.Model))
         {
             return config.Defaults.Text.Model;

@@ -1,0 +1,15 @@
+{
+  "SchemaVersion": 1,
+  "Providers": {
+    "Qwen": {
+      "Supports": ["Text", "Image", "Video"],
+      "RequiredFields": ["ApiKey", "Endpoint"],
+      "OptionalFields": ["TimeoutSeconds", "DefaultModels"]
+    },
+    "Volcengine": {
+      "Supports": ["Text", "Image", "Video"],
+      "RequiredFields": ["ApiKey", "Endpoint"],
+      "OptionalFields": ["TimeoutSeconds", "DefaultModels"]
+    }
+  }
+}

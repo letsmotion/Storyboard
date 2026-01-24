@@ -10,6 +10,7 @@ using Storyboard.Models;
 using Storyboard.ViewModels.Project;
 using Storyboard.ViewModels.Queue;
 using Storyboard.ViewModels.Import;
+using Storyboard.Infrastructure.Configuration;
 using Storyboard.ViewModels.Shot;
 using Storyboard.ViewModels.Generation;
 using Storyboard.ViewModels.Shared;
@@ -451,38 +452,23 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            // 延迟一点时间，确保主窗口已经显示
+            // Delay to ensure main window is visible.
             await Task.Delay(500);
 
-            var settingsPath = Infrastructure.Configuration.AppSettingsPaths.EnsureUserSettingsFile();
-            if (!System.IO.File.Exists(settingsPath))
-            {
-                _logger.LogWarning("配置文件不存在，跳过首次启动检查");
-                return;
-            }
+            var userSettingsStore = new UserSettingsStore();
+            var userSettings = userSettingsStore.Load();
 
-            var json = await System.IO.File.ReadAllTextAsync(settingsPath);
-            var doc = System.Text.Json.JsonDocument.Parse(json);
-
-            // 检查是否已配置存储位置
-            bool isConfigured = false;
-            if (doc.RootElement.TryGetProperty("Storage", out var storage))
-            {
-                if (storage.TryGetProperty("_Configured", out var configured))
-                {
-                    isConfigured = configured.GetBoolean();
-                }
-            }
+            var isConfigured = userSettings.Storage.Configured;
 
             if (!isConfigured)
             {
-                _logger.LogInformation("首次启动，显示设置对话框");
+                _logger.LogInformation("First launch detected; opening settings dialog.");
                 await ShowSettingsDialogAsync(true);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "检查首次启动时出错");
+            _logger.LogError(ex, "Failed to check first launch.");
         }
     }
 

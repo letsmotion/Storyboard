@@ -31,34 +31,29 @@ public partial class App : Avalonia.Application
 {
     public static IServiceProvider Services { get; private set; } = null!;
 
-    public override void Initialize()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
-
     public override void OnFrameworkInitializationCompleted()
     {
-        // 合并配置文件（如果有更新）
-        MergeAppSettingsAsync().GetAwaiter().GetResult();
+        _ = MigrateProviderSchemaIfNeededAsync(); // Run asynchronously; do not block startup.
 
-        // 配置依赖注入
         var services = new ServiceCollection();
         ConfigureServices(services);
         Services = services.BuildServiceProvider();
 
-        // 应用数据库迁移
         ApplyDatabaseMigrations().GetAwaiter().GetResult();
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.Exit += (_, __) => Log.CloseAndFlush();
 
-            desktop.MainWindow = new MainWindow
+            var mainWindow = new MainWindow
             {
                 DataContext = Services.GetRequiredService<MainViewModel>()
             };
 
-            // 启动后检查更新（异步执行，不阻塞启动）
+            mainWindow.Show();
+            mainWindow.Activate();
+            desktop.MainWindow = mainWindow;
+
             _ = CheckForUpdatesAsync();
         }
 
@@ -89,21 +84,22 @@ public partial class App : Avalonia.Application
         }
     }
 
-    private async System.Threading.Tasks.Task MergeAppSettingsAsync()
+    private async System.Threading.Tasks.Task MigrateProviderSchemaIfNeededAsync()
     {
         try
         {
-            var loggerFactory = LoggerFactory.Create(builder =>
-            {
-                builder.AddSerilog(Log.Logger);
-            });
-            var logger = loggerFactory.CreateLogger<AppSettingsMergeService>();
-            var mergeService = new AppSettingsMergeService(logger);
-            await mergeService.MergeSettingsAsync();
+            var loggerFactory = LoggerFactory.Create(builder => { });
+            var stateLogger = loggerFactory.CreateLogger<ProviderStateStore>();
+            var migratorLogger = loggerFactory.CreateLogger<ProviderSchemaMigrator>();
+
+            var stateStore = new ProviderStateStore(stateLogger);
+            var migrator = new ProviderSchemaMigrator(migratorLogger, stateStore);
+
+            await System.Threading.Tasks.Task.Run(() => migrator.MigrateIfNeeded());
         }
-        catch (Exception ex)
+        catch
         {
-            Log.Warning(ex, "合并配置文件时出错");
+            // Migration failure should not block startup.
         }
     }
 
@@ -129,16 +125,45 @@ public partial class App : Avalonia.Application
 
     private void ConfigureServices(IServiceCollection services)
     {
-        // Configuration
-        var settingsPath = AppSettingsPaths.EnsureUserSettingsFile();
+        // ========== V2 配置架构 ==========
+
+        // 1. 应用配置（只读，Logging/Update）
+        var appConfigPath = ConfigurationPaths.AppConfigPath;
         var configuration = new ConfigurationBuilder()
-            .AddJsonFile(settingsPath, optional: false, reloadOnChange: true)
+            .AddJsonFile(appConfigPath, optional: true, reloadOnChange: true)  // optional: true 防止文件不存在时崩溃
             .Build();
 
         services.AddSingleton<IConfiguration>(configuration);
-        services.Configure<AIServicesConfiguration>(configuration.GetSection("AIServices"));
         services.Configure<StoryboardUpdateOptions>(configuration.GetSection("Update"));
-        services.Configure<StorageOptions>(configuration.GetSection("Storage"));
+
+        // 2. 用户设置存储器
+        services.AddSingleton<UserSettingsStore>();
+        services.AddSingleton<UserAIOverridesStore>();
+        services.AddSingleton<ProviderStateStore>();
+
+        // 3. AI 配置合成器
+        services.AddSingleton<AIConfigurationComposer>();
+
+        // 3.1. 提供 AIServicesConfiguration（通过合成器动态获取）
+        services.AddSingleton<IOptionsMonitor<AIServicesConfiguration>>(sp =>
+        {
+            var composer = sp.GetRequiredService<AIConfigurationComposer>();
+            return new SimpleOptionsMonitor<AIServicesConfiguration>(composer);
+        });
+
+        // 4. 加载用户设置
+        var userSettingsStore = new UserSettingsStore();
+        var userSettings = userSettingsStore.Load();
+        services.AddSingleton(userSettings);
+
+        // 5. 从用户设置中提取 StorageOptions（兼容旧代码）
+        var storageOptions = new StorageOptions
+        {
+            DataDirectory = userSettings.Storage.DataDirectory,
+            OutputDirectory = userSettings.Storage.OutputDirectory,
+            UseCustomLocation = userSettings.Storage.UseCustomLocation
+        };
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(storageOptions));
 
         // Storage Path Service - 统一管理数据存储路径
         services.AddSingleton<StoragePathService>();
@@ -148,15 +173,13 @@ public partial class App : Avalonia.Application
 
         // Persistence (SQLite + EF Core) - 使用 StoragePathService 获取数据库路径
         var storagePathService = new StoragePathService(
-            Microsoft.Extensions.Options.Options.Create(
-                configuration.GetSection("Storage").Get<StorageOptions>() ?? new StorageOptions()
-            )
+            Microsoft.Extensions.Options.Options.Create(storageOptions)
         );
         var dbPath = storagePathService.GetDatabasePath();
         services.AddStoryboardPersistence(dbPath);
 
         // Logging
-        var logPath = Path.Combine(AppContext.BaseDirectory, "logs", "app-.log");
+        var logPath = Path.Combine(ConfigurationPaths.UserDataDirectory, "logs", "app-.log");
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
             .Enrich.FromLogContext()
@@ -203,7 +226,6 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IVideoGenerationProvider, VolcengineVideoGenerationProvider>();
         services.AddSingleton<IVideoGenerationService, VideoGenerationService>();
         services.AddSingleton<IFinalRenderService, FinalRenderService>();
-        services.AddSingleton<AppSettingsStore>();
 
         services.AddSingleton<IUiDispatcher, AvaloniaUiDispatcher>();
         services.AddSingleton<IJobQueueService>(sp =>

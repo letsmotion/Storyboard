@@ -1,0 +1,48 @@
+{
+  "Providers": {
+    "Qwen": {
+      "Endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "TimeoutSeconds": 120,
+      "Enabled": true,
+      "DefaultModels": {
+        "Text": "qwen-max",
+        "Image": "YOUR_IMAGE_MODEL",
+        "Video": "wan2.6-i2v"
+      }
+    },
+    "Volcengine": {
+      "Endpoint": "https://ark.cn-beijing.volces.com/api/v3",
+      "TimeoutSeconds": 120,
+      "Enabled": true,
+      "DefaultModels": {
+        "Text": "doubao-seed-1-6-251015",
+        "Image": "doubao-seedream-4-5-251128",
+        "Video": "doubao-seedance-1-0-lite-i2v-250428"
+      }
+    }
+  },
+  "Image": {
+    "Providers": {
+      "Volcengine": {
+        "Size": "2K",
+        "ResponseFormat": "b64_json",
+        "Watermark": false,
+        "Stream": false
+      }
+    }
+  },
+  "Video": {
+    "Providers": {
+      "Volcengine": {
+        "Resolution": "1080p",
+        "Ratio": "",
+        "DurationSeconds": 0,
+        "Watermark": false,
+        "ReturnLastFrame": false,
+        "ServiceTier": "default",
+        "GenerateAudio": false,
+        "Draft": false
+      }
+    }
+  }
+}

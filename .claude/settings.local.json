@@ -31,7 +31,9 @@
       "Bash(Select-Object -First 20)",
       "Bash(du:*)",
       "Bash(dotnet list:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(ls:*)",
+      "Bash(tasklist:*)"
     ],
     "additionalDirectories": [
       "d:\\project\\分镜大师"

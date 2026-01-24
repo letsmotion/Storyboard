@@ -90,6 +90,19 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- V2 配置文件：复制到输出目录 -->
+    <None Include="ai.defaults.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="ai.providers.schema.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="nul" />
   </ItemGroup>
 

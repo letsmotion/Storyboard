@@ -12,6 +12,7 @@ public class StoragePathService
     private readonly StorageOptions _options;
     private readonly string _defaultDataDir;
     private readonly string _defaultOutputDir;
+    private const string DataFileName = "storyboard.db";
 
     public StoragePathService(IOptions<StorageOptions> options)
     {
@@ -31,11 +32,7 @@ public class StoragePathService
     /// </summary>
     public string GetDataDirectory()
     {
-        if (_options.UseCustomLocation && !string.IsNullOrWhiteSpace(_options.DataDirectory))
-        {
-            return _options.DataDirectory;
-        }
-        return _defaultDataDir;
+        return ResolveDirectory(_options.DataDirectory, _defaultDataDir);
     }
 
     /// <summary>
@@ -43,11 +40,7 @@ public class StoragePathService
     /// </summary>
     public string GetOutputDirectory()
     {
-        if (_options.UseCustomLocation && !string.IsNullOrWhiteSpace(_options.OutputDirectory))
-        {
-            return _options.OutputDirectory;
-        }
-        return _defaultOutputDir;
+        return ResolveDirectory(_options.OutputDirectory, _defaultOutputDir);
     }
 
     /// <summary>
@@ -56,8 +49,12 @@ public class StoragePathService
     public string GetDatabasePath()
     {
         var dataDir = GetDataDirectory();
-        EnsureDirectoryExists(dataDir);
-        return Path.Combine(dataDir, "storyboard.db");
+        if (!EnsureDirectoryExistsSafe(dataDir) && dataDir != _defaultDataDir)
+        {
+            dataDir = _defaultDataDir;
+            EnsureDirectoryExistsSafe(dataDir);
+        }
+        return Path.Combine(dataDir, DataFileName);
     }
 
     /// <summary>
@@ -67,7 +64,7 @@ public class StoragePathService
     {
         var outputDir = GetOutputDirectory();
         var imagesDir = Path.Combine(outputDir, "images");
-        EnsureDirectoryExists(imagesDir);
+        EnsureDirectoryExistsSafe(imagesDir);
         return imagesDir;
     }
 
@@ -78,7 +75,7 @@ public class StoragePathService
     {
         var outputDir = GetOutputDirectory();
         var videosDir = Path.Combine(outputDir, "videos");
-        EnsureDirectoryExists(videosDir);
+        EnsureDirectoryExistsSafe(videosDir);
         return videosDir;
     }
 
@@ -89,7 +86,7 @@ public class StoragePathService
     {
         var outputDir = GetOutputDirectory();
         var shotsDir = Path.Combine(outputDir, "shots");
-        EnsureDirectoryExists(shotsDir);
+        EnsureDirectoryExistsSafe(shotsDir);
         return shotsDir;
     }
 
@@ -100,7 +97,7 @@ public class StoragePathService
     {
         var outputDir = GetOutputDirectory();
         var framesDir = Path.Combine(outputDir, "frames", projectId);
-        EnsureDirectoryExists(framesDir);
+        EnsureDirectoryExistsSafe(framesDir);
         return framesDir;
     }
 
@@ -111,7 +108,7 @@ public class StoragePathService
     {
         var outputDir = GetOutputDirectory();
         var thumbDir = Path.Combine(outputDir, "projects", projectId, "video-thumbnails");
-        EnsureDirectoryExists(thumbDir);
+        EnsureDirectoryExistsSafe(thumbDir);
         return thumbDir;
     }
 
@@ -121,18 +118,43 @@ public class StoragePathService
     public string GetFinalRenderOutputDirectory()
     {
         var outputDir = GetOutputDirectory();
-        EnsureDirectoryExists(outputDir);
+        EnsureDirectoryExistsSafe(outputDir);
         return outputDir;
     }
 
     /// <summary>
     /// 确保目录存在
     /// </summary>
-    private void EnsureDirectoryExists(string path)
+    private bool EnsureDirectoryExistsSafe(string path)
     {
-        if (!Directory.Exists(path))
+        try
         {
-            Directory.CreateDirectory(path);
+            if (!Directory.Exists(path))
+            {
+                Directory.CreateDirectory(path);
+            }
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private string ResolveDirectory(string? configuredPath, string fallback)
+    {
+        if (!_options.UseCustomLocation || string.IsNullOrWhiteSpace(configuredPath))
+        {
+            return fallback;
+        }
+
+        try
+        {
+            return Path.GetFullPath(configuredPath);
+        }
+        catch
+        {
+            return fallback;
         }
     }
 

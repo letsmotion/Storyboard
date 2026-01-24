@@ -5,6 +5,7 @@ using Storyboard.AI.Core;
 using Storyboard.Infrastructure.Configuration;
 using Storyboard.Models;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,12 +14,17 @@ namespace Storyboard.ViewModels;
 
 public partial class ApiKeyViewModel : ObservableObject
 {
-    private readonly AppSettingsStore _settingsStore;
+    private readonly AIConfigurationComposer _configComposer;
+    private readonly UserSettingsStore _userSettingsStore;
     private readonly AIServiceManager _aiManager;
 
-    public ApiKeyViewModel(AppSettingsStore settingsStore, AIServiceManager aiManager)
+    public ApiKeyViewModel(
+        AIConfigurationComposer configComposer,
+        UserSettingsStore userSettingsStore,
+        AIServiceManager aiManager)
     {
-        _settingsStore = settingsStore;
+        _configComposer = configComposer;
+        _userSettingsStore = userSettingsStore;
         _aiManager = aiManager;
 
         AvailableProviderTypes = Enum.GetValues(typeof(AIProviderType)).Cast<AIProviderType>().ToList();
@@ -83,7 +89,7 @@ public partial class ApiKeyViewModel : ObservableObject
 
     private void LoadFromFile()
     {
-        var cfg = _settingsStore.LoadAIServices();
+        var cfg = _configComposer.LoadConfiguration();
 
         DefaultTextProvider = cfg.Defaults.Text.Provider;
         DefaultTextModel = cfg.Defaults.Text.Model;
@@ -113,71 +119,80 @@ public partial class ApiKeyViewModel : ObservableObject
         VolcengineDefaultVideoModel = volc.DefaultModels.Video;
     }
 
-    private AIServicesConfiguration BuildConfig()
-    {
-        return new AIServicesConfiguration
-        {
-            Providers = new AIProvidersConfiguration
-            {
-                Qwen = new AIProviderConfiguration
-                {
-                    Enabled = QwenEnabled,
-                    ApiKey = QwenApiKey?.Trim() ?? string.Empty,
-                    Endpoint = QwenEndpoint?.Trim() ?? string.Empty,
-                    TimeoutSeconds = QwenTimeoutSeconds,
-                    DefaultModels = new AIProviderModelDefaults
-                    {
-                        Text = QwenDefaultTextModel?.Trim() ?? string.Empty,
-                        Image = QwenDefaultImageModel?.Trim() ?? string.Empty,
-                        Video = QwenDefaultVideoModel?.Trim() ?? string.Empty
-                    }
-                },
-                Volcengine = new AIProviderConfiguration
-                {
-                    Enabled = VolcengineEnabled,
-                    ApiKey = VolcengineApiKey?.Trim() ?? string.Empty,
-                    Endpoint = VolcengineEndpoint?.Trim() ?? string.Empty,
-                    TimeoutSeconds = VolcengineTimeoutSeconds,
-                    DefaultModels = new AIProviderModelDefaults
-                    {
-                        Text = VolcengineDefaultTextModel?.Trim() ?? string.Empty,
-                        Image = VolcengineDefaultImageModel?.Trim() ?? string.Empty,
-                        Video = VolcengineDefaultVideoModel?.Trim() ?? string.Empty
-                    }
-                }
-            },
-            Defaults = new AIServiceDefaults
-            {
-                Text = new AIServiceDefaultSelection
-                {
-                    Provider = DefaultTextProvider,
-                    Model = DefaultTextModel?.Trim() ?? string.Empty
-                },
-                Image = new AIServiceDefaultSelection
-                {
-                    Provider = DefaultImageProvider,
-                    Model = DefaultImageModel?.Trim() ?? string.Empty
-                },
-                Video = new AIServiceDefaultSelection
-                {
-                    Provider = DefaultVideoProvider,
-                    Model = DefaultVideoModel?.Trim() ?? string.Empty
-                }
-            }
-        };
-    }
-
     partial void OnSelectedProviderChanged(AIProviderType value)
     {
         OnPropertyChanged(nameof(IsQwenSelected));
         OnPropertyChanged(nameof(IsVolcengineSelected));
     }
 
+    partial void OnDefaultTextProviderChanged(AIProviderType value)
+    {
+        DefaultTextModel = value switch
+        {
+            AIProviderType.Volcengine => VolcengineDefaultTextModel,
+            _ => QwenDefaultTextModel
+        };
+    }
+
+    partial void OnDefaultTextModelChanged(string value)
+    {
+        if (DefaultTextProvider == AIProviderType.Volcengine)
+        {
+            VolcengineDefaultTextModel = value;
+        }
+        else
+        {
+            QwenDefaultTextModel = value;
+        }
+    }
+
+    partial void OnDefaultImageProviderChanged(AIProviderType value)
+    {
+        DefaultImageModel = value switch
+        {
+            AIProviderType.Volcengine => VolcengineDefaultImageModel,
+            _ => QwenDefaultImageModel
+        };
+    }
+
+    partial void OnDefaultImageModelChanged(string value)
+    {
+        if (DefaultImageProvider == AIProviderType.Volcengine)
+        {
+            VolcengineDefaultImageModel = value;
+        }
+        else
+        {
+            QwenDefaultImageModel = value;
+        }
+    }
+
+    partial void OnDefaultVideoProviderChanged(AIProviderType value)
+    {
+        DefaultVideoModel = value switch
+        {
+            AIProviderType.Volcengine => VolcengineDefaultVideoModel,
+            _ => QwenDefaultVideoModel
+        };
+    }
+
+    partial void OnDefaultVideoModelChanged(string value)
+    {
+        if (DefaultVideoProvider == AIProviderType.Volcengine)
+        {
+            VolcengineDefaultVideoModel = value;
+        }
+        else
+        {
+            QwenDefaultVideoModel = value;
+        }
+    }
+
     [RelayCommand]
     private void Reload()
     {
         LoadFromFile();
-        StatusMessage = "已从 appsettings.json 重新加载。";
+        StatusMessage = "已从 user.ai.settings.json 重新加载。";
     }
 
     [RelayCommand]
@@ -185,7 +200,7 @@ public partial class ApiKeyViewModel : ObservableObject
     {
         if (TrySave(out var error))
         {
-            StatusMessage = "配置已保存到 appsettings.json。";
+            StatusMessage = "配置已保存到 user.ai.settings.json。";
             return;
         }
 
@@ -196,8 +211,33 @@ public partial class ApiKeyViewModel : ObservableObject
     {
         try
         {
-            var cfg = BuildConfig();
-            _settingsStore.SaveAIServices(cfg);
+            var qwenConfig = BuildProviderUserConfig(
+                QwenApiKey,
+                QwenEnabled,
+                QwenEndpoint,
+                QwenTimeoutSeconds,
+                QwenDefaultTextModel,
+                QwenDefaultImageModel,
+                QwenDefaultVideoModel);
+
+            var volcConfig = BuildProviderUserConfig(
+                VolcengineApiKey,
+                VolcengineEnabled,
+                VolcengineEndpoint,
+                VolcengineTimeoutSeconds,
+                VolcengineDefaultTextModel,
+                VolcengineDefaultImageModel,
+                VolcengineDefaultVideoModel);
+
+            _configComposer.SaveUserConfiguration("Qwen", qwenConfig);
+            _configComposer.SaveUserConfiguration("Volcengine", volcConfig);
+
+            var userSettings = _userSettingsStore.Load();
+            userSettings.DefaultProviders.TextProvider = DefaultTextProvider.ToString();
+            userSettings.DefaultProviders.ImageProvider = DefaultImageProvider.ToString();
+            userSettings.DefaultProviders.VideoProvider = DefaultVideoProvider.ToString();
+            _userSettingsStore.Save(userSettings);
+
             error = null;
             return true;
         }
@@ -206,6 +246,48 @@ public partial class ApiKeyViewModel : ObservableObject
             error = ex.Message;
             return false;
         }
+    }
+
+    private static ProviderUserConfig BuildProviderUserConfig(
+        string apiKey,
+        bool enabled,
+        string endpoint,
+        int timeoutSeconds,
+        string defaultTextModel,
+        string defaultImageModel,
+        string defaultVideoModel)
+    {
+        var config = new ProviderUserConfig
+        {
+            ApiKey = string.IsNullOrWhiteSpace(apiKey) ? null : apiKey.Trim(),
+            Enabled = enabled,
+            Endpoint = string.IsNullOrWhiteSpace(endpoint) ? null : endpoint.Trim(),
+            TimeoutSeconds = timeoutSeconds
+        };
+
+        var defaultModels = new Dictionary<string, string>();
+
+        if (!string.IsNullOrWhiteSpace(defaultTextModel))
+        {
+            defaultModels["Text"] = defaultTextModel.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(defaultImageModel))
+        {
+            defaultModels["Image"] = defaultImageModel.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(defaultVideoModel))
+        {
+            defaultModels["Video"] = defaultVideoModel.Trim();
+        }
+
+        if (defaultModels.Count > 0)
+        {
+            config.DefaultModels = defaultModels;
+        }
+
+        return config;
     }
 
     [RelayCommand]
