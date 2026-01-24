@@ -3,9 +3,9 @@ using Avalonia.Controls;
 using Avalonia.Threading;
 using LibVLCSharp.Shared;
 using Microsoft.Extensions.Logging;
+using Storyboard.Views;
 using Storyboard.ViewModels.Timeline;
 using System;
-using System.IO;
 using System.Threading;
 
 namespace Storyboard.Views.Timeline;
@@ -21,59 +21,7 @@ public partial class TimelineEditorView : UserControl, IDisposable
     // 静态初始化 LibVLC Core
     static TimelineEditorView()
     {
-        try
-        {
-            // macOS: 尝试使用系统安装的 VLC
-            if (OperatingSystem.IsMacOS())
-            {
-                var systemVlcPaths = new[]
-                {
-                    "/Applications/VLC.app/Contents/MacOS/lib",  // 系统安装的 VLC
-                    "/opt/homebrew/lib",                          // Homebrew ARM64
-                    "/usr/local/lib",                             // Homebrew Intel
-                    "/opt/homebrew/Cellar/libvlc/3.0.21/lib"     // Homebrew libvlc 包
-                };
-
-                foreach (var path in systemVlcPaths)
-                {
-                    // 检查目录和关键库文件是否存在
-                    var libvlcPath = Path.Combine(path, "libvlc.dylib");
-                    var libvlccorePath = Path.Combine(path, "libvlccore.dylib");
-
-                    if (File.Exists(libvlcPath) && File.Exists(libvlccorePath))
-                    {
-                        try
-                        {
-                            Core.Initialize(path);
-                            System.Diagnostics.Debug.WriteLine($"[LibVLC] 使用系统 VLC: {path}");
-                            return;
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"[LibVLC] 初始化失败 ({path}): {ex.Message}");
-                            continue;
-                        }
-                    }
-                }
-
-                // macOS 上未找到系统 VLC，抛出友好错误
-                throw new InvalidOperationException(
-                    "未找到 VLC 安装。请运行: brew install --cask vlc\n" +
-                    $"已检查路径: {string.Join(", ", systemVlcPaths)}");
-            }
-
-            // Windows: 使用默认初始化（从 NuGet 包）
-            Core.Initialize();
-        }
-        catch (InvalidOperationException ex)
-        {
-            // Core 已经初始化过，或者是我们抛出的友好错误
-            if (ex.Message.Contains("VLC"))
-            {
-                throw; // 重新抛出 VLC 未找到的错误
-            }
-            // 否则忽略（已初始化）
-        }
+        VlcCoreInitializer.EnsureInitialized();
     }
 
     public TimelineEditorView()

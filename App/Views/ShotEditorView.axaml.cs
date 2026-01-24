@@ -33,16 +33,8 @@ public partial class ShotEditorView : UserControl, IDisposable
     // 添加静态初始化确保 Core.Initialize() 只调用一次
     static ShotEditorView()
     {
-        try
-        {
-            Core.Initialize();
-            System.Diagnostics.Debug.WriteLine("[ShotEditorView] LibVLCSharp core initialized (static)");
-        }
-        catch (InvalidOperationException)
-        {
-            // Core 已经初始化过，忽略这个异常
-            System.Diagnostics.Debug.WriteLine("[ShotEditorView] LibVLCSharp core already initialized");
-        }
+        VlcCoreInitializer.EnsureInitialized();
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] LibVLCSharp core ensured (static)");
     }
 
     public ShotEditorView()

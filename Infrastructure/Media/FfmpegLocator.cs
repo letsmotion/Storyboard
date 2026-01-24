@@ -1,5 +1,6 @@
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Collections.Generic;
 
 namespace Storyboard.Infrastructure.Media;
 
@@ -17,7 +18,7 @@ internal static class FfmpegLocator
         var os = GetOsName();
         var arch = GetArchName();
 
-        var candidates = new[]
+        var candidates = new List<string>
         {
             Path.Combine(baseDir, "Tools", "ffmpeg", $"{os}-{arch}", exeName),
             Path.Combine(baseDir, "ffmpeg", $"{os}-{arch}", exeName),
@@ -25,6 +26,9 @@ internal static class FfmpegLocator
             Path.Combine(baseDir, "ffmpeg", exeName),
             Path.Combine(baseDir, "Tools", "ffmpeg", exeName),
         };
+
+        candidates.AddRange(GetPathCandidates(exeName));
+        candidates.AddRange(GetOsSpecificCandidates(exeName));
 
         foreach (var p in candidates)
         {
@@ -40,6 +44,40 @@ internal static class FfmpegLocator
         }
 
         return null;
+    }
+
+    private static IEnumerable<string> GetPathCandidates(string exeName)
+    {
+        var path = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrWhiteSpace(path))
+            yield break;
+
+        foreach (var dir in path.Split(Path.PathSeparator))
+        {
+            if (string.IsNullOrWhiteSpace(dir))
+                continue;
+
+            yield return Path.Combine(dir.Trim(), exeName);
+        }
+    }
+
+    private static IEnumerable<string> GetOsSpecificCandidates(string exeName)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            yield return Path.Combine("/opt/homebrew/bin", exeName);
+            yield return Path.Combine("/usr/local/bin", exeName);
+            yield return Path.Combine("/usr/bin", exeName);
+            yield return Path.Combine("/opt/local/bin", exeName);
+            yield break;
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            yield return Path.Combine("/usr/local/bin", exeName);
+            yield return Path.Combine("/usr/bin", exeName);
+            yield return Path.Combine("/snap/bin", exeName);
+        }
     }
 
     private static string GetExecutableName(string baseName)
