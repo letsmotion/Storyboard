@@ -40,6 +40,7 @@ public sealed class AiShotService : IAiShotService
 
     public async Task<IReadOnlyList<AiShotDescription>> GenerateShotsFromTextAsync(
         string prompt,
+        int? shotCount = null,
         string? creativeGoal = null,
         string? targetAudience = null,
         string? videoTone = null,
@@ -55,6 +56,10 @@ public sealed class AiShotService : IAiShotService
         {
             ["story_text"] = prompt.Trim()
         };
+        if (shotCount.HasValue && shotCount.Value > 0)
+        {
+            parameters["shot_count"] = shotCount.Value;
+        }
 
         var response = await _ai.ChatAsync(
             "text_to_shots",
@@ -67,6 +72,58 @@ public sealed class AiShotService : IAiShotService
             cancellationToken: cancellationToken).ConfigureAwait(false);
         var json = ExtractJson(response);
         return ParseShotList(json);
+    }
+
+    public async Task<AiShotDescription> GenerateIntermediateShotAsync(
+        string previousShotContext,
+        string? nextShotContext = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync().ConfigureAwait(false);
+
+        var parameters = new Dictionary<string, object>
+        {
+            ["previous_shot"] = previousShotContext.Trim(),
+            ["next_shot"] = string.IsNullOrWhiteSpace(nextShotContext) ? "无（作为结尾补充）" : nextShotContext.Trim()
+        };
+
+        var response = await _ai.ChatAsync(
+            "insert_shot_between",
+            parameters,
+            modelId: null,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        var json = ExtractJson(response);
+        return ParseShotDescription(json);
+    }
+
+    public async Task<IReadOnlyList<AiShotSegment>> AnalyzeStoryboardFromContactSheetAsync(
+        string contactSheetPath,
+        string mappingText,
+        VideoMetadata metadata,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync().ConfigureAwait(false);
+
+        var additionalContext = new StringBuilder();
+        additionalContext.AppendLine("视频信息：");
+        additionalContext.AppendLine($"- 时长: {metadata.DurationSeconds:0.###} 秒");
+        additionalContext.AppendLine($"- 帧率: {metadata.Fps:0.##} fps");
+        additionalContext.AppendLine($"- 分辨率: {metadata.Width} x {metadata.Height}");
+        if (metadata.FrameCount.HasValue)
+            additionalContext.AppendLine($"- 总帧数: {metadata.FrameCount.Value}");
+        additionalContext.AppendLine();
+        additionalContext.AppendLine("关键帧网格时间映射：");
+        additionalContext.AppendLine(mappingText);
+
+        var response = await _ai.ChatWithImageAsync(
+            "smart_storyboard",
+            contactSheetPath,
+            additionalContext.ToString(),
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        var json = ExtractJson(response);
+        return ParseShotSegments(json);
     }
 
     private async Task EnsureInitializedAsync()
@@ -213,7 +270,7 @@ public sealed class AiShotService : IAiShotService
             GetString(root, "sceneSettings", "scene_settings", "场景设定"),
             GetString(root, "firstFramePrompt", "first_frame_prompt", "首帧提示词"),
             GetString(root, "lastFramePrompt", "last_frame_prompt", "尾帧提示词"),
-            DurationSeconds: null,
+            DurationSeconds: GetDouble(root, "duration", "durationSeconds", "时长"),
             // Image professional parameters
             Composition: GetStringOrNull(root, "composition", "构图"),
             LightingType: GetStringOrNull(root, "lightingType", "lighting_type", "光线类型"),
@@ -291,6 +348,77 @@ public sealed class AiShotService : IAiShotService
                 ImageSize: GetStringOrNull(item, "imageSize", "image_size", "图片尺寸"),
                 VideoResolution: GetStringOrNull(item, "videoResolution", "video_resolution", "视频分辨率"),
                 VideoRatio: GetStringOrNull(item, "videoRatio", "video_ratio", "视频比例")));
+        }
+
+        return list;
+    }
+
+    private static IReadOnlyList<AiShotSegment> ParseShotSegments(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        JsonElement arrayElement;
+        if (root.ValueKind == JsonValueKind.Array)
+        {
+            arrayElement = root;
+        }
+        else if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("shots", out var shots))
+        {
+            arrayElement = shots;
+        }
+        else
+        {
+            throw new InvalidOperationException("AI 返回格式不正确（需要 JSON 数组）。");
+        }
+
+        if (arrayElement.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("AI 返回格式不正确（需要 JSON 数组）。");
+
+        var list = new List<AiShotSegment>();
+        foreach (var item in arrayElement.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+                continue;
+
+            var start = GetDouble(item, "startTime", "start_time", "start", "startTimeSeconds", "开始时间");
+            var end = GetDouble(item, "endTime", "end_time", "end", "endTimeSeconds", "结束时间");
+            var duration = GetDouble(item, "duration", "durationSeconds", "时长");
+
+            if (!start.HasValue && end.HasValue && duration.HasValue)
+                start = end - duration.Value;
+            if (!end.HasValue && start.HasValue && duration.HasValue)
+                end = start + duration.Value;
+
+            if (!start.HasValue || !end.HasValue)
+                continue;
+
+            var shot = new AiShotDescription(
+                GetString(item, "shotType", "shot_type", "镜头类型"),
+                GetString(item, "coreContent", "core_content", "核心画面"),
+                GetString(item, "actionCommand", "action_command", "动作指令"),
+                GetString(item, "sceneSettings", "scene_settings", "场景设定"),
+                GetString(item, "firstFramePrompt", "first_frame_prompt", "首帧提示词"),
+                GetString(item, "lastFramePrompt", "last_frame_prompt", "尾帧提示词"),
+                duration,
+                Composition: GetStringOrNull(item, "composition", "构图"),
+                LightingType: GetStringOrNull(item, "lightingType", "lighting_type", "光线类型"),
+                TimeOfDay: GetStringOrNull(item, "timeOfDay", "time_of_day", "时间段"),
+                ColorStyle: GetStringOrNull(item, "colorStyle", "color_style", "色调风格"),
+                NegativePrompt: GetStringOrNull(item, "negativePrompt", "negative_prompt", "负面提示词"),
+                VideoPrompt: GetStringOrNull(item, "videoPrompt", "video_prompt", "视频提示词"),
+                SceneDescription: GetStringOrNull(item, "sceneDescription", "scene_description", "场景描述"),
+                ActionDescription: GetStringOrNull(item, "actionDescription", "action_description", "动作描述"),
+                StyleDescription: GetStringOrNull(item, "styleDescription", "style_description", "风格描述"),
+                CameraMovement: GetStringOrNull(item, "cameraMovement", "camera_movement", "运镜方式"),
+                ShootingStyle: GetStringOrNull(item, "shootingStyle", "shooting_style", "拍摄风格"),
+                VideoEffect: GetStringOrNull(item, "videoEffect", "video_effect", "视频特效"),
+                VideoNegativePrompt: GetStringOrNull(item, "videoNegativePrompt", "video_negative_prompt", "视频负面提示词"),
+                ImageSize: GetStringOrNull(item, "imageSize", "image_size", "图片尺寸"),
+                VideoResolution: GetStringOrNull(item, "videoResolution", "video_resolution", "视频分辨率"),
+                VideoRatio: GetStringOrNull(item, "videoRatio", "video_ratio", "视频比例"));
+
+            list.Add(new AiShotSegment(start.Value, end.Value, shot));
         }
 
         return list;

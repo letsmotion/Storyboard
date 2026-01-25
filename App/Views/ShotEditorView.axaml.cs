@@ -2,7 +2,11 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.Platform.Storage;
 using Storyboard.Models;
+using Storyboard.Application.Services;
+using Storyboard.Domain.Entities;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.ComponentModel;
 using System.IO;
@@ -11,6 +15,7 @@ using LibVLCSharp.Avalonia;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.VisualTree;
+using System.Linq;
 
 namespace Storyboard.Views;
 
@@ -912,5 +917,148 @@ public partial class ShotEditorView : UserControl, IDisposable
             System.Diagnostics.Debug.WriteLine($"[ShotEditorView] File not playable: {ex.Message}");
             return false;
         }
+    }
+
+    private async void OnUploadFirstFrameClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShotItem shot)
+            return;
+
+        var path = await PickImagePathAsync("选择首帧图片");
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        var imported = await ImportToLibraryAsync(path);
+        ApplyImageToShot(shot, imported ?? path, isFirstFrame: true);
+    }
+
+    private async void OnPickFirstFrameFromLibraryClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShotItem shot)
+            return;
+
+        var libraryDir = GetResourceLibraryDirectory();
+        var path = await PickImagePathAsync("从资源库选择首帧", libraryDir);
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        ApplyImageToShot(shot, path, isFirstFrame: true);
+    }
+
+    private async void OnUploadLastFrameClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShotItem shot)
+            return;
+
+        var path = await PickImagePathAsync("选择尾帧图片");
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        var imported = await ImportToLibraryAsync(path);
+        ApplyImageToShot(shot, imported ?? path, isFirstFrame: false);
+    }
+
+    private async void OnPickLastFrameFromLibraryClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShotItem shot)
+            return;
+
+        var libraryDir = GetResourceLibraryDirectory();
+        var path = await PickImagePathAsync("从资源库选择尾帧", libraryDir);
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        ApplyImageToShot(shot, path, isFirstFrame: false);
+    }
+
+    private async Task<string?> PickImagePathAsync(string title, string? initialDirectory = null)
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.StorageProvider == null)
+            return null;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("图片文件")
+                {
+                    Patterns = new[] { "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp" }
+                },
+                new FilePickerFileType("所有文件")
+                {
+                    Patterns = new[] { "*.*" }
+                }
+            }
+        });
+
+        return files?.FirstOrDefault()?.Path.LocalPath;
+    }
+
+    private string GetResourceLibraryDirectory()
+    {
+        try
+        {
+            var storagePathService = App.Services.GetRequiredService<StoragePathService>();
+            return storagePathService.GetResourceLibraryDirectory();
+        }
+        catch
+        {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "StoryboardLibrary");
+        }
+    }
+
+    private async Task<string?> ImportToLibraryAsync(string sourcePath)
+    {
+        try
+        {
+            var libraryDir = GetResourceLibraryDirectory();
+            Directory.CreateDirectory(libraryDir);
+
+            var fileName = Path.GetFileName(sourcePath);
+            var name = Path.GetFileNameWithoutExtension(fileName);
+            var ext = Path.GetExtension(fileName);
+            var destPath = Path.Combine(libraryDir, $"{name}_{DateTime.Now:yyyyMMdd_HHmmssfff}{ext}");
+
+            await Task.Run(() => File.Copy(sourcePath, destPath, overwrite: false));
+            return destPath;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void ApplyImageToShot(ShotItem shot, string path, bool isFirstFrame)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        var assets = isFirstFrame ? shot.FirstFrameAssets : shot.LastFrameAssets;
+        var existing = assets.FirstOrDefault(a =>
+            string.Equals(a.FilePath, path, StringComparison.OrdinalIgnoreCase));
+
+        if (existing == null)
+        {
+            existing = new ShotAssetItem
+            {
+                FilePath = path,
+                ThumbnailPath = path,
+                Type = isFirstFrame ? ShotAssetType.FirstFrameImage : ShotAssetType.LastFrameImage,
+                CreatedAt = DateTimeOffset.Now,
+                IsSelected = true
+            };
+            assets.Add(existing);
+        }
+
+        foreach (var asset in assets)
+            asset.IsSelected = ReferenceEquals(asset, existing);
+
+        if (isFirstFrame)
+            shot.FirstFrameImagePath = path;
+        else
+            shot.LastFrameImagePath = path;
     }
 }

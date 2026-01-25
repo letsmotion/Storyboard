@@ -6,6 +6,7 @@ using Storyboard.Application.Abstractions;
 using Storyboard.Messages;
 using Storyboard.Models;
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -142,6 +143,7 @@ public partial class AiAnalysisViewModel : ObservableObject
     /// </summary>
     public async Task<IReadOnlyList<AiShotDescription>> GenerateShotsFromTextAsync(
         string prompt,
+        int? shotCount = null,
         string? creativeGoal = null,
         string? targetAudience = null,
         string? videoTone = null,
@@ -152,6 +154,7 @@ public partial class AiAnalysisViewModel : ObservableObject
             _logger.LogInformation("开始文本生成分镜");
             var result = await _aiShotService.GenerateShotsFromTextAsync(
                 prompt,
+                shotCount,
                 creativeGoal,
                 targetAudience,
                 videoTone,
@@ -172,7 +175,16 @@ public partial class AiAnalysisViewModel : ObservableObject
 
         try
         {
+            shot.AiParseStatusMessage = null;
             shot.IsAiParsing = true;
+
+            if (string.IsNullOrWhiteSpace(shot.MaterialFilePath) || !File.Exists(shot.MaterialFilePath))
+            {
+                shot.AiParseStatusMessage = "请先关联素材图片或截图，才能进行 AI 解析。";
+                shot.IsAiParsing = false;
+                _messenger.Send(new AiParseCompletedMessage(shot, false));
+                return;
+            }
 
             // 创建 AI 解析任务
             _jobQueue.Enqueue(
@@ -231,6 +243,7 @@ public partial class AiAnalysisViewModel : ObservableObject
 
                                 // 使用批量更新方法，避免多次触发 PropertyChanged
                                 shot.ApplyAiAnalysisResult(result);
+                                shot.AiParseStatusMessage = null;
 
                                 _messenger.Send(new AiParseCompletedMessage(shot, true));
                                 _logger.LogInformation("AI 解析完成并已应用到 Shot {ShotNumber}", shot.ShotNumber);
@@ -239,6 +252,7 @@ public partial class AiAnalysisViewModel : ObservableObject
                             {
                                 _messenger.Send(new AiParseCompletedMessage(shot, false));
                                 _logger.LogWarning("AI 解析失败: Shot {ShotNumber}", shot.ShotNumber);
+                                shot.AiParseStatusMessage = "AI 解析未返回结果，请稍后再试。";
                             }
                         });
                     }
@@ -248,7 +262,9 @@ public partial class AiAnalysisViewModel : ObservableObject
                         await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
                         {
                             _messenger.Send(new AiParseCompletedMessage(shot, false));
+                            shot.AiParseStatusMessage = ex.Message;
                         });
+                        throw;
                     }
                     finally
                     {
@@ -265,6 +281,7 @@ public partial class AiAnalysisViewModel : ObservableObject
             _logger.LogError(ex, "AI 解析入队异常: Shot {ShotNumber}", shot.ShotNumber);
             _messenger.Send(new AiParseCompletedMessage(shot, false));
             shot.IsAiParsing = false;
+            shot.AiParseStatusMessage = ex.Message;
         }
     }
 }

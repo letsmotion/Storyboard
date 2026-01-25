@@ -28,14 +28,6 @@
                 HorizontalAlignment="Center">
             <PathIcon Data="M4 11h5V5H4v6zm0 7h5v-6H4v6zm6 0h5v-6h-5v6zm6 0h5v-6h-5v6zm-6-7h5V5h-5v6zm6-6v6h5V5h-5z" Width="20" Height="20" />
         </Button>
-
-        <Button Classes="Secondary"
-                Command="{Binding ToggleTaskManagerCommand}"
-                ToolTip.Tip="任务管理器"
-                HorizontalAlignment="Center">
-            <PathIcon Data="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" Width="20" Height="20" />
-        </Button>
-
         <Separator Height="1" Background="#3f3f46" Margin="8,8" />
 
         <!-- 设置 -->

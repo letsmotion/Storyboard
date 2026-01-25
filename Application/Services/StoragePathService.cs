@@ -113,6 +113,17 @@ public class StoragePathService
     }
 
     /// <summary>
+    /// 获取资源库目录
+    /// </summary>
+    public string GetResourceLibraryDirectory()
+    {
+        var outputDir = GetOutputDirectory();
+        var libraryDir = Path.Combine(outputDir, "library");
+        EnsureDirectoryExistsSafe(libraryDir);
+        return libraryDir;
+    }
+
+    /// <summary>
     /// 获取最终渲染输出目录
     /// </summary>
     public string GetFinalRenderOutputDirectory()

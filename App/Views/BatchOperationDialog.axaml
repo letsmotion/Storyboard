@@ -1,0 +1,332 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Storyboard.ViewModels.Batch"
+        xmlns:m="using:Storyboard.Models"
+        xmlns:conv="using:Storyboard.Converters"
+        x:Class="Storyboard.Views.BatchOperationDialog"
+        x:DataType="vm:BatchOperationViewModel"
+        Title="批量操作"
+        Width="860"
+        Height="600"
+        WindowStartupLocation="CenterOwner"
+        Background="#0a0a0a"
+        CanResize="False"
+        DataContextChanged="OnDataContextChanged">
+
+    <Grid RowDefinitions="Auto,*" Margin="20">
+
+        <!-- Header -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+            <TextBlock Text="批量操作"
+                       FontSize="22"
+                       FontWeight="SemiBold"
+                       Foreground="#f5f5f5" />
+            <Button Grid.Column="1"
+                    Classes="Ghost"
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    Click="OnCloseClick">
+                <PathIcon Data="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                          Width="16"
+                          Height="16"
+                          Foreground="#a1a1aa" />
+            </Button>
+        </Grid>
+
+        <Grid Grid.Row="1" ColumnDefinitions="300,24,*">
+
+            <!-- Left Panel -->
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="16">
+
+                <!-- Shot Selection -->
+                <Border Background="#141417"
+                        BorderBrush="#27272a"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="12">
+                    <Grid RowDefinitions="Auto,*,Auto">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,10">
+                            <TextBlock Text="选择分镜"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="#f5f5f5" />
+                            <Button Grid.Column="1"
+                                    Classes="Ghost"
+                                    Padding="8,4"
+                                    FontSize="12"
+                                    Command="{Binding SelectAllShotsCommand}">
+                                <TextBlock Text="全选" />
+                            </Button>
+                            <Button Grid.Column="2"
+                                    Classes="Ghost"
+                                    Padding="8,4"
+                                    FontSize="12"
+                                    Command="{Binding ClearSelectionCommand}">
+                                <TextBlock Text="取消" />
+                            </Button>
+                        </Grid>
+
+                        <ScrollViewer Grid.Row="1"
+                                      Height="260"
+                                      VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Shots}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="m:ShotItem">
+                                        <Border Background="#18181b"
+                                                BorderBrush="#27272a"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Padding="12"
+                                                Margin="0,0,0,8">
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <CheckBox IsChecked="{Binding IsChecked}"
+                                                          VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="1"
+                                                            Margin="8,0,0,0"
+                                                            Spacing="4">
+                                                    <TextBlock Text="{Binding ShotNumber, StringFormat='分镜 #{0}'}"
+                                                               FontSize="13"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#f5f5f5" />
+                                                    <TextBlock Text="{Binding CoreContent, Converter={StaticResource StringFallbackConverter}, ConverterParameter='未设置场景'}"
+                                                               FontSize="12"
+                                                               Foreground="#71717a"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <TextBlock Grid.Row="2"
+                                   Margin="0,8,0,0"
+                                   Text="{Binding SelectedShotsCountText}"
+                                   FontSize="12"
+                                   Foreground="#71717a" />
+                    </Grid>
+                </Border>
+
+                <!-- Operation Selection -->
+                <Border Background="#141417"
+                        BorderBrush="#27272a"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="12">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="选择操作"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="#f5f5f5" />
+
+                        <CheckBox IsChecked="{Binding IsAiAnalysisSelected}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <PathIcon Data="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5z"
+                                          Width="16"
+                                          Height="16"
+                                          Foreground="#a78bfa" />
+                                <TextBlock Text="AI 解析" FontSize="13" />
+                            </StackPanel>
+                        </CheckBox>
+
+                        <CheckBox IsChecked="{Binding IsFirstFrameSelected}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <PathIcon Data="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"
+                                          Width="16"
+                                          Height="16"
+                                          Foreground="#60a5fa" />
+                                <TextBlock Text="生成首帧图" FontSize="13" />
+                            </StackPanel>
+                        </CheckBox>
+
+                        <CheckBox IsChecked="{Binding IsLastFrameSelected}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <PathIcon Data="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"
+                                          Width="16"
+                                          Height="16"
+                                          Foreground="#38bdf8" />
+                                <TextBlock Text="生成尾帧图" FontSize="13" />
+                            </StackPanel>
+                        </CheckBox>
+
+                        <CheckBox IsChecked="{Binding IsVideoSelected}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <PathIcon Data="M8 5v14l11-7z"
+                                          Width="16"
+                                          Height="16"
+                                          Foreground="#f472b6" />
+                                <TextBlock Text="生成视频" FontSize="13" />
+                            </StackPanel>
+                        </CheckBox>
+                    </StackPanel>
+                </Border>
+
+                <!-- Execute Button -->
+                <Button Classes="Primary"
+                        Command="{Binding ExecuteBatchCommand}"
+                        IsEnabled="{Binding CanExecute}">
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Center"
+                                Spacing="8">
+                        <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 5h2v6h-2V7zm0 8h2v2h-2v-2z"
+                                  Width="16"
+                                  Height="16" />
+                        <TextBlock Text="{Binding ExecuteButtonText}" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+            </ScrollViewer>
+
+            <!-- Right Panel -->
+            <Border Grid.Column="2"
+                    Background="#141417"
+                    BorderBrush="#27272a"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Padding="16">
+                <StackPanel Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="执行进度"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="#f5f5f5" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding TaskCounterText}"
+                                   FontSize="12"
+                                   Foreground="#71717a"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+
+                    <ProgressBar Minimum="0"
+                                 Maximum="1"
+                                 Value="{Binding OverallProgress}"
+                                 Height="6" />
+                    <TextBlock Text="{Binding OverallProgressText}"
+                               FontSize="12"
+                               Foreground="#71717a" />
+
+                    <Border IsVisible="{Binding HasSkippedItems}"
+                            Background="#121216"
+                            BorderBrush="#27272a"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding SkippedCountText}"
+                                       FontSize="12"
+                                       Foreground="#a1a1aa" />
+                            <ScrollViewer Height="140"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding SkippedItems}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:BatchSkipItem">
+                                            <Border Background="#18181b"
+                                                    BorderBrush="#27272a"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6"
+                                                    Padding="10"
+                                                    Margin="0,0,0,6">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Text="{Binding Title}"
+                                                               FontSize="12"
+                                                               Foreground="#e4e4e7" />
+                                                    <TextBlock Text="{Binding Reason}"
+                                                               FontSize="11"
+                                                               Foreground="#71717a" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Border>
+
+                    <Border IsVisible="{Binding BatchJobs.Count, Converter={x:Static conv:IntConverters.IsZero}}"
+                            Background="#18181b"
+                            BorderBrush="#27272a"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="24">
+                        <StackPanel HorizontalAlignment="Center" Spacing="8">
+                            <PathIcon Data="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"
+                                      Width="36"
+                                      Height="36"
+                                      Foreground="#27272a"
+                                      Opacity="0.6" />
+                            <TextBlock Text="暂无执行任务"
+                                       FontSize="12"
+                                       Foreground="#71717a" />
+                        </StackPanel>
+                    </Border>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  IsVisible="{Binding BatchJobs.Count, Converter={x:Static conv:IntConverters.IsNotZero}}">
+                        <ItemsControl ItemsSource="{Binding BatchJobs}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:BatchJobItem">
+                                    <Border Background="#18181b"
+                                            BorderBrush="#27272a"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Padding="12"
+                                            Margin="0,0,0,10">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <Border Width="36"
+                                                    Height="36"
+                                                    Background="#1e1b4b"
+                                                    CornerRadius="8">
+                                                <PathIcon Data="{Binding IconData}"
+                                                          Width="18"
+                                                          Height="18"
+                                                          Foreground="#a78bfa"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center" />
+                                            </Border>
+
+                                            <StackPanel Grid.Column="1"
+                                                        Margin="12,0,0,0"
+                                                        Spacing="6">
+                                                <TextBlock Text="{Binding Title}"
+                                                           FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#f5f5f5" />
+                                                <ProgressBar Minimum="0"
+                                                             Maximum="1"
+                                                             Value="{Binding Progress}"
+                                                             Height="4" />
+                                                <TextBlock Text="{Binding Error}"
+                                                           FontSize="11"
+                                                           Foreground="{StaticResource ErrorBrush}"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,4,0,0"
+                                                           IsVisible="{Binding HasError}" />
+                                            </StackPanel>
+
+                                            <Border Grid.Column="2"
+                                                    CornerRadius="6"
+                                                    Padding="8,4"
+                                                    VerticalAlignment="Top">
+                                                <Border.Background>
+                                                    <MultiBinding Converter="{StaticResource StatusColorConverter}">
+                                                        <Binding Path="Status" />
+                                                    </MultiBinding>
+                                                </Border.Background>
+                                                <TextBlock Text="{Binding StatusText}"
+                                                           FontSize="11"
+                                                           Foreground="White" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

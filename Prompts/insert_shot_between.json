@@ -1,0 +1,31 @@
+{
+  "Id": "insert_shot_between",
+  "Name": "中间镜头生成",
+  "Description": "根据前后镜头生成一个承接镜头",
+  "SystemPrompt": "你是专业编导与分镜师。请根据前后镜头内容生成一个承接的中间镜头。\r\n输出必须是严格 JSON 对象，仅包含以下字段：\r\nshotType, coreContent, actionCommand, sceneSettings, firstFramePrompt, lastFramePrompt, durationSeconds。",
+  "UserPromptTemplate": "前一镜头：{{previous_shot}}\r\n后一镜头：{{next_shot}}\r\n\r\n请输出 JSON 对象：",
+  "Parameters": {
+    "previous_shot": {
+      "Name": "previous_shot",
+      "Type": "string",
+      "Description": "前一镜头信息",
+      "Required": true,
+      "DefaultValue": null
+    },
+    "next_shot": {
+      "Name": "next_shot",
+      "Type": "string",
+      "Description": "后一镜头信息（可选）",
+      "Required": false,
+      "DefaultValue": "无（作为结尾补充）"
+    }
+  },
+  "ExecutionSettings": {
+    "Temperature": 0.7,
+    "TopP": 0.9,
+    "MaxTokens": 1200,
+    "StopSequences": []
+  },
+  "CreatedAt": "2026-01-24T00:00:00.0000000+08:00",
+  "UpdatedAt": "2026-01-24T00:00:00.0000000+08:00"
+}

@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 using Storyboard;
 using Storyboard.ViewModels;
@@ -14,6 +15,11 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+    }
+
+    private void InitializeComponent()
+    {
+        AvaloniaXamlLoader.Load(this);
     }
 
     private void OnDataContextChanged(object? sender, System.EventArgs e)
@@ -52,15 +58,6 @@ public partial class MainWindow : Window
                 }
                 break;
 
-            case nameof(MainViewModel.IsTaskManagerDialogOpen):
-                if (viewModel.IsTaskManagerDialogOpen)
-                {
-                    var dialog = new TaskManagerDialog { DataContext = viewModel };
-                    await dialog.ShowDialog(this);
-                    viewModel.IsTaskManagerDialogOpen = false;
-                }
-                break;
-
             case nameof(MainViewModel.IsProviderSettingsDialogOpen):
                 if (viewModel.IsProviderSettingsDialogOpen)
                 {
@@ -77,6 +74,25 @@ public partial class MainWindow : Window
                     var dialog = new TextToShotDialog { DataContext = viewModel };
                     await dialog.ShowDialog(this);
                     viewModel.IsTextToShotDialogOpen = false;
+                }
+                break;
+
+            case nameof(MainViewModel.IsBatchOperationDialogOpen):
+                if (viewModel.IsBatchOperationDialogOpen)
+                {
+                    var dialog = new BatchOperationDialog { DataContext = viewModel.BatchOperation };
+                    await dialog.ShowDialog(this);
+                    viewModel.IsBatchOperationDialogOpen = false;
+                }
+                break;
+
+            case nameof(MainViewModel.IsResourceLibraryDialogOpen):
+                if (viewModel.IsResourceLibraryDialogOpen)
+                {
+                    await viewModel.ResourceLibrary.RefreshAsync();
+                    var dialog = new ResourceLibraryDialog { DataContext = viewModel.ResourceLibrary };
+                    await dialog.ShowDialog(this);
+                    viewModel.IsResourceLibraryDialogOpen = false;
                 }
                 break;
         }

@@ -130,18 +130,24 @@
             </Grid>
 
             <!-- Row 1: Core Scene Description -->
-            <TextBlock Grid.Row="1" 
-                       Text="{Binding CoreContent}" 
-                       FontSize="14" 
-                       Foreground="#e4e4e7" 
-                       TextWrapping="Wrap" 
-                       MaxLines="2"
-                       TextTrimming="CharacterEllipsis"
-                       Margin="0,0,0,12"
-                       IsVisible="{Binding CoreContent, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+            <TextBox Grid.Row="1"
+                     Text="{Binding CoreContent, Mode=TwoWay}"
+                     FontSize="14"
+                     Foreground="#e4e4e7"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     TextWrapping="Wrap"
+                     AcceptsReturn="False"
+                     MaxLines="2"
+                     Watermark="核心画面描述..."
+                     Margin="0,0,0,12"
+                     Padding="4,2" />
 
             <!-- Row 2: Thumbnails Grid -->
-            <Grid Grid.Row="2" ColumnDefinitions="*,8,*" Margin="0,0,0,12">
+            <Grid Grid.Row="2"
+                  x:Name="MediaPreviewGrid"
+                  ColumnDefinitions="*,8,*"
+                  Margin="0,0,0,12">
                 
                 <!-- First Frame -->
                 <Border Grid.Column="0" 
@@ -293,6 +299,39 @@
                     </Panel>
                 </Border>
 
+                <!-- Hover Quick-Insert Button -->
+                <Button x:Name="QuickInsertButton"
+                        Grid.ColumnSpan="3"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Width="40"
+                        Height="40"
+                        Padding="0"
+                        Classes="Ghost"
+                        IsVisible="{Binding IsPointerOver, ElementName=MediaPreviewGrid}"
+                        IsHitTestVisible="{Binding IsPointerOver, ElementName=MediaPreviewGrid}"
+                        Command="{Binding InsertAfterCommand}"
+                        ToolTip.Tip="å¿«é€Ÿæ·»åŠ åˆ†é•œ">
+                    <Border Width="36"
+                            Height="36"
+                            Background="#1c1917cc"
+                            BorderBrush="#3f3f46"
+                            BorderThickness="1"
+                            CornerRadius="18">
+                        <Border.Styles>
+                            <Style Selector="Border:pointerover">
+                                <Setter Property="Background" Value="#312e81" />
+                                <Setter Property="BorderBrush" Value="#8b5cf6" />
+                            </Style>
+                        </Border.Styles>
+                        <PathIcon Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"
+                                  Width="16"
+                                  Height="16"
+                                  Foreground="#c4b5fd"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center" />
+                    </Border>
+                </Button>
             </Grid>
 
             <!-- Row 3: Status Indicators -->
@@ -323,6 +362,25 @@
                                Foreground="#3b82f6" />
                 </StackPanel>
             </StackPanel>
+
+            <!-- Row 4: Insert After Button -->
+            <Button Grid.Row="4"
+                    Classes="Ghost"
+                    HorizontalAlignment="Center"
+                    Command="{Binding InsertAfterCommand}"
+                    Margin="0,4,0,0"
+                    Padding="8,4"
+                    ToolTip.Tip="在此分镜后插入新分镜(AI生成)">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <PathIcon Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"
+                              Width="14"
+                              Height="14"
+                              Foreground="#8b5cf6" />
+                    <TextBlock Text="插入分镜"
+                               FontSize="12"
+                               Foreground="#a1a1aa" />
+                </StackPanel>
+            </Button>
 
             </Grid>
         </Panel>

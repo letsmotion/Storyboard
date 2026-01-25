@@ -3,11 +3,13 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Storyboard.Messages;
+using Storyboard.Application.Abstractions;
 using Storyboard.Models;
 using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Storyboard.ViewModels.Shot;
 
@@ -18,6 +20,7 @@ public partial class ShotListViewModel : ObservableObject
 {
     private readonly IMessenger _messenger;
     private readonly ILogger<ShotListViewModel> _logger;
+    private readonly IAiShotService _aiShotService;
 
     [ObservableProperty]
     private ObservableCollection<ShotItem> _shots = new();
@@ -67,10 +70,12 @@ public partial class ShotListViewModel : ObservableObject
 
     public ShotListViewModel(
         IMessenger messenger,
-        ILogger<ShotListViewModel> logger)
+        ILogger<ShotListViewModel> logger,
+        IAiShotService aiShotService)
     {
         _messenger = messenger;
         _logger = logger;
+        _aiShotService = aiShotService;
 
         // 监听镜头集合变化
         Shots.CollectionChanged += Shots_CollectionChanged;
@@ -244,6 +249,7 @@ public partial class ShotListViewModel : ObservableObject
         shot.DuplicateRequested += OnShotDuplicateRequestedEvent;
         shot.DeleteRequested += OnShotDeleteRequestedEvent;
         shot.AiParseRequested += OnShotAiParseRequestedEvent;
+        shot.InsertAfterRequested += OnShotInsertAfterRequestedEvent;
         shot.GenerateFirstFrameRequested += OnShotGenerateFirstFrameRequestedEvent;
         shot.GenerateLastFrameRequested += OnShotGenerateLastFrameRequestedEvent;
         shot.GenerateVideoRequested += OnShotGenerateVideoRequestedEvent;
@@ -255,6 +261,7 @@ public partial class ShotListViewModel : ObservableObject
         shot.DuplicateRequested -= OnShotDuplicateRequestedEvent;
         shot.DeleteRequested -= OnShotDeleteRequestedEvent;
         shot.AiParseRequested -= OnShotAiParseRequestedEvent;
+        shot.InsertAfterRequested -= OnShotInsertAfterRequestedEvent;
         shot.GenerateFirstFrameRequested -= OnShotGenerateFirstFrameRequestedEvent;
         shot.GenerateLastFrameRequested -= OnShotGenerateLastFrameRequestedEvent;
         shot.GenerateVideoRequested -= OnShotGenerateVideoRequestedEvent;
@@ -279,6 +286,14 @@ public partial class ShotListViewModel : ObservableObject
             _messenger.Send(new AiParseRequestedMessage(shot));
     }
 
+    private async void OnShotInsertAfterRequestedEvent(object? sender, EventArgs e)
+    {
+        if (sender is not ShotItem shot)
+            return;
+
+        await InsertShotAfterAsync(shot);
+    }
+
     private void OnShotGenerateFirstFrameRequestedEvent(object? sender, EventArgs e)
     {
         if (sender is ShotItem shot)
@@ -298,6 +313,68 @@ public partial class ShotListViewModel : ObservableObject
             _logger.LogInformation("镜头请求生成视频: Shot {ShotNumber}", shot.ShotNumber);
             _messenger.Send(new VideoGenerationRequestedMessage(shot));
         }
+    }
+
+    private async Task InsertShotAfterAsync(ShotItem anchor)
+    {
+        var index = Shots.IndexOf(anchor);
+        if (index < 0)
+            return;
+
+        var nextShot = index + 1 < Shots.Count ? Shots[index + 1] : null;
+        AiShotDescription? aiResult = null;
+
+        try
+        {
+            var prevContext = BuildShotContext(anchor, "前一镜头");
+            var nextContext = nextShot == null ? "无（作为结尾补充）" : BuildShotContext(nextShot, "后一镜头");
+
+            aiResult = await _aiShotService.GenerateIntermediateShotAsync(
+                prevContext,
+                nextContext);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "智能插入失败，使用空白分镜: Shot {ShotNumber}", anchor.ShotNumber);
+        }
+
+        var duration = aiResult?.DurationSeconds ?? 3.5;
+        var startTime = anchor.EndTime;
+        var newShot = new ShotItem(anchor.ShotNumber + 1)
+        {
+            Duration = duration,
+            StartTime = startTime,
+            EndTime = startTime + duration
+        };
+
+        if (aiResult != null)
+            newShot.ApplyAiAnalysisResult(aiResult);
+
+        AttachShotEventHandlers(newShot);
+        Shots.Insert(index + 1, newShot);
+        RenumberShots();
+
+        _messenger.Send(new ShotAddedMessage(newShot));
+        _messenger.Send(new MarkUndoableChangeMessage());
+
+        SelectedShot = newShot;
+    }
+
+    private static string BuildShotContext(ShotItem shot, string label)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"{label} #{shot.ShotNumber}");
+        if (!string.IsNullOrWhiteSpace(shot.CoreContent))
+            sb.AppendLine($"核心画面: {shot.CoreContent}");
+        if (!string.IsNullOrWhiteSpace(shot.ActionCommand))
+            sb.AppendLine($"动作指令: {shot.ActionCommand}");
+        if (!string.IsNullOrWhiteSpace(shot.SceneSettings))
+            sb.AppendLine($"场景设定: {shot.SceneSettings}");
+        if (!string.IsNullOrWhiteSpace(shot.FirstFramePrompt))
+            sb.AppendLine($"首帧提示词: {shot.FirstFramePrompt}");
+        if (!string.IsNullOrWhiteSpace(shot.LastFramePrompt))
+            sb.AppendLine($"尾帧提示词: {shot.LastFramePrompt}");
+        return sb.ToString().Trim();
     }
 
     private void Shot_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

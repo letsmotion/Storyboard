@@ -197,6 +197,7 @@ public partial class App : Avalonia.Application
         services.AddTransient<ApiKeyViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddSingleton<UpdateNotificationViewModel>();
+        services.AddSingleton<ViewModels.Resources.ResourceLibraryViewModel>();
 
         // 新的子 ViewModels
         services.AddTransient<ViewModels.Project.ProjectManagementViewModel>();
@@ -210,6 +211,7 @@ public partial class App : Avalonia.Application
         services.AddTransient<ViewModels.Generation.VideoGenerationViewModel>();
         services.AddTransient<ViewModels.Generation.ExportViewModel>();
         services.AddTransient<ViewModels.Shared.HistoryViewModel>();
+        services.AddTransient<ViewModels.Batch.BatchOperationViewModel>();
 
         // Timeline Editor ViewModels
         services.AddTransient<ViewModels.Timeline.TimelinePlaybackViewModel>();
@@ -220,6 +222,7 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IVideoAnalysisService>(sp => sp.GetRequiredService<VideoAnalysisService>());
         services.AddSingleton<IVideoMetadataService>(sp => sp.GetRequiredService<VideoAnalysisService>());
         services.AddSingleton<IFrameExtractionService, FrameExtractionService>();
+        services.AddSingleton<ISmartStoryboardService, SmartStoryboardService>();
         services.AddSingleton<IAiShotService, AiShotService>();
         services.AddSingleton<IImageGenerationProvider, VolcengineImageGenerationProvider>();
         services.AddSingleton<IImageGenerationService, ImageGenerationService>();

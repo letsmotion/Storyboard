@@ -285,6 +285,18 @@ public partial class ShotItem : ObservableObject
     private bool _isAiParsing;
 
     [ObservableProperty]
+    private string? _aiParseStatusMessage;
+
+    [ObservableProperty]
+    private string? _firstFrameGenerationMessage;
+
+    [ObservableProperty]
+    private string? _lastFrameGenerationMessage;
+
+    [ObservableProperty]
+    private string? _videoGenerationMessage;
+
+    [ObservableProperty]
     private string? _materialThumbnailPath;
 
     [ObservableProperty]
@@ -393,6 +405,7 @@ public partial class ShotItem : ObservableObject
     public event EventHandler? DuplicateRequested;
     public event EventHandler? DeleteRequested;
     public event EventHandler? AiParseRequested;
+    public event EventHandler? InsertAfterRequested;
     public event EventHandler? GenerateFirstFrameRequested;
     public event EventHandler? GenerateLastFrameRequested;
     public event EventHandler? GenerateVideoRequested;
@@ -428,6 +441,12 @@ public partial class ShotItem : ObservableObject
     private void Delete()
     {
         DeleteRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void InsertAfter()
+    {
+        InsertAfterRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]

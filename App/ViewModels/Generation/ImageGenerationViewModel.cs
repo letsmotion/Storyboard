@@ -93,6 +93,7 @@ public partial class ImageGenerationViewModel : ObservableObject
 
         try
         {
+            SetImageGenerationMessage(shot, isFirstFrame, null);
             if (isFirstFrame)
                 shot.IsFirstFrameGenerating = true;
             else
@@ -103,6 +104,7 @@ public partial class ImageGenerationViewModel : ObservableObject
             {
                 _logger.LogWarning("提示词为空，无法生成图像: Shot {ShotNumber}, IsFirstFrame: {IsFirstFrame}",
                     shot.ShotNumber, isFirstFrame);
+                SetImageGenerationMessage(shot, isFirstFrame, "提示词为空，无法生成图像。");
 
                 // 重置生成状态
                 if (isFirstFrame)
@@ -152,16 +154,25 @@ public partial class ImageGenerationViewModel : ObservableObject
 
                             GeneratedImagesCount++;
 
+                            SetImageGenerationMessage(shot, isFirstFrame, null);
                             _messenger.Send(new ImageGenerationCompletedMessage(shot, isFirstFrame, true, imagePath));
                             _logger.LogInformation("图像生成成功: Shot {ShotNumber}, IsFirstFrame: {IsFirstFrame}",
                                 shot.ShotNumber, isFirstFrame);
                         }
                         else
                         {
+                            SetImageGenerationMessage(shot, isFirstFrame, "图像生成失败，请稍后重试。");
                             _messenger.Send(new ImageGenerationCompletedMessage(shot, isFirstFrame, false, null));
                             _logger.LogWarning("图像生成失败: Shot {ShotNumber}, IsFirstFrame: {IsFirstFrame}",
                                 shot.ShotNumber, isFirstFrame);
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "图像生成任务执行异常: Shot {ShotNumber}, IsFirstFrame: {IsFirstFrame}", shot.ShotNumber, isFirstFrame);
+                        SetImageGenerationMessage(shot, isFirstFrame, $"图像生成失败：{ex.Message}");
+                        _messenger.Send(new ImageGenerationCompletedMessage(shot, isFirstFrame, false, null));
+                        throw;
                     }
                     finally
                     {
@@ -178,6 +189,7 @@ public partial class ImageGenerationViewModel : ObservableObject
             _logger.LogError(ex, "图像生成异常: Shot {ShotNumber}, IsFirstFrame: {IsFirstFrame}",
                 shot.ShotNumber, isFirstFrame);
             _messenger.Send(new ImageGenerationCompletedMessage(shot, isFirstFrame, false, null));
+            SetImageGenerationMessage(shot, isFirstFrame, $"图像生成失败：{ex.Message}");
 
             // 异常时重置生成状态
             if (isFirstFrame)
@@ -185,6 +197,14 @@ public partial class ImageGenerationViewModel : ObservableObject
             else
                 shot.IsLastFrameGenerating = false;
         }
+    }
+
+    private static void SetImageGenerationMessage(ShotItem shot, bool isFirstFrame, string? message)
+    {
+        if (isFirstFrame)
+            shot.FirstFrameGenerationMessage = message;
+        else
+            shot.LastFrameGenerationMessage = message;
     }
 
     private string BuildImagePrompt(ShotItem shot, string basePrompt)

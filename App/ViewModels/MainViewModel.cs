@@ -14,9 +14,13 @@ using Storyboard.Infrastructure.Configuration;
 using Storyboard.ViewModels.Shot;
 using Storyboard.ViewModels.Generation;
 using Storyboard.ViewModels.Shared;
+using Storyboard.ViewModels.Batch;
+using Storyboard.ViewModels.Resources;
 using Avalonia.Controls.ApplicationLifetimes;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Storyboard.Domain.Entities;
 
 namespace Storyboard.ViewModels;
 
@@ -25,6 +29,7 @@ namespace Storyboard.ViewModels;
 /// </summary>
 public partial class MainViewModel : ObservableObject
 {
+    private const int MaxTextToShotLength = 4000;
     private readonly IMessenger _messenger;
     private readonly ILogger<MainViewModel> _logger;
     private readonly IProjectStore _projectStore;
@@ -42,6 +47,8 @@ public partial class MainViewModel : ObservableObject
     public HistoryViewModel History { get; }
     public TimelineViewModel Timeline { get; }
     public Timeline.TimelineEditorViewModel TimelineEditor { get; }
+    public BatchOperationViewModel BatchOperation { get; }
+    public ResourceLibraryViewModel ResourceLibrary { get; }
     // public UpdateNotificationViewModel UpdateNotificationViewModel { get; }
 
     // 全局 UI 状态
@@ -64,10 +71,29 @@ public partial class MainViewModel : ObservableObject
     private bool _isTextToShotDialogOpen;
 
     [ObservableProperty]
+    private bool _isBatchOperationDialogOpen;
+
+    [ObservableProperty]
+    private bool _isResourceLibraryDialogOpen;
+
+    [ObservableProperty]
     private string _textToShotPrompt = string.Empty;
 
     [ObservableProperty]
+    private int? _textToShotCount = 6;
+
+    [ObservableProperty]
     private bool _isGeneratingShots = false;
+
+    public int TextToShotPromptLength => TextToShotPrompt?.Length ?? 0;
+
+    public int TextToShotPromptMaxLength => MaxTextToShotLength;
+
+    public bool IsTextToShotPromptTooLong => TextToShotPromptLength > MaxTextToShotLength;
+
+    public bool CanGenerateShots => !IsGeneratingShots
+        && !IsTextToShotPromptTooLong
+        && !string.IsNullOrWhiteSpace(TextToShotPrompt);
 
     // 创作意图属性
     [ObservableProperty]
@@ -144,7 +170,7 @@ public partial class MainViewModel : ObservableObject
     public bool IsFixedOrDynamicMode => FrameExtraction.IsFixedOrDynamicMode;
     public bool IsIntervalMode => FrameExtraction.IsIntervalMode;
     public bool IsKeyframeMode => FrameExtraction.IsKeyframeMode;
-    public int FrameCount
+    public int? FrameCount
     {
         get => FrameExtraction.FrameCount;
         set => FrameExtraction.FrameCount = value;
@@ -161,11 +187,6 @@ public partial class MainViewModel : ObservableObject
     }
 
     // 任务队列相关属性
-    public bool IsTaskManagerDialogOpen
-    {
-        get => JobQueue.IsTaskManagerDialogOpen;
-        set => JobQueue.IsTaskManagerDialogOpen = value;
-    }
     public System.Collections.ObjectModel.ObservableCollection<Models.GenerationJob> JobHistory => JobQueue.JobHistory;
 
     // 导出相关属性
@@ -193,6 +214,8 @@ public partial class MainViewModel : ObservableObject
 
     public IAsyncRelayCommand ImportVideoCommand => VideoImport.ImportVideoCommand;
     public IAsyncRelayCommand ExtractFramesCommand => FrameExtraction.ExtractFramesCommand;
+    public IAsyncRelayCommand AnalyzeVideoToShotsCommand => FrameExtraction.AnalyzeVideoToShotsCommand;
+    public IAsyncRelayCommand AnalyzeVideoWithAiCommand => FrameExtraction.AnalyzeVideoWithAiCommand;
 
     public IRelayCommand AIAnalyzeAllCommand => AiAnalysis.AIAnalyzeAllCommand;
 
@@ -201,8 +224,6 @@ public partial class MainViewModel : ObservableObject
     public IRelayCommand ShowExportDialogCommand => Export.ShowExportDialogCommand;
     public IAsyncRelayCommand<string?> ExportVideoCommand => Export.ExportVideoCommand;
 
-    public IRelayCommand ShowTaskManagerCommand => JobQueue.ShowTaskManagerCommand;
-    public IRelayCommand ToggleTaskManagerCommand => JobQueue.ToggleTaskManagerCommand;
     public IRelayCommand<Models.GenerationJob?> CancelJobCommand => JobQueue.CancelJobCommand;
     public IRelayCommand<Models.GenerationJob?> RetryJobCommand => JobQueue.RetryJobCommand;
     public IRelayCommand<Models.GenerationJob?> DeleteJobCommand => JobQueue.DeleteJobCommand;
@@ -210,6 +231,7 @@ public partial class MainViewModel : ObservableObject
 
     public IRelayCommand UndoCommand => History.UndoCommand;
     public IRelayCommand RedoCommand => History.RedoCommand;
+
 
     public System.Threading.Tasks.Task ExportVideoAsync(string? outputPath) => Export.ExportVideoCommand.ExecuteAsync(outputPath);
 
@@ -245,6 +267,8 @@ public partial class MainViewModel : ObservableObject
         HistoryViewModel history,
         TimelineViewModel timeline,
         Timeline.TimelineEditorViewModel timelineEditor,
+        BatchOperationViewModel batchOperation,
+        ResourceLibraryViewModel resourceLibrary,
         // UpdateNotificationViewModel updateNotificationViewModel,
         // UpdateService updateService,
         IProjectStore projectStore,
@@ -263,6 +287,8 @@ public partial class MainViewModel : ObservableObject
         History = history;
         Timeline = timeline;
         TimelineEditor = timelineEditor;
+        BatchOperation = batchOperation;
+        ResourceLibrary = resourceLibrary;
         // UpdateNotificationViewModel = updateNotificationViewModel;
         _projectStore = projectStore;
         _messenger = messenger;
@@ -323,12 +349,6 @@ public partial class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsExportDialogOpen));
         };
 
-        JobQueue.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(JobQueue.IsTaskManagerDialogOpen))
-                OnPropertyChanged(nameof(IsTaskManagerDialogOpen));
-        };
-
         // 订阅需要自动保存的消息
         _messenger.Register<VideoImportedMessage>(this, (r, m) => _ = SaveProjectAsync());
         _messenger.Register<FramesExtractedMessage>(this, OnFramesExtracted);
@@ -337,6 +357,7 @@ public partial class MainViewModel : ObservableObject
         _messenger.Register<ShotUpdatedMessage>(this, (r, m) => _ = SaveProjectAsync());
         _messenger.Register<ImageGenerationCompletedMessage>(this, (r, m) => _ = SaveProjectAsync());
         _messenger.Register<VideoGenerationCompletedMessage>(this, (r, m) => _ = SaveProjectAsync());
+        _messenger.Register<ResourceLibraryAssetSelectedMessage>(this, OnResourceLibraryAssetSelected);
 
         // 订阅时间轴片段选中消息
         _messenger.Register<ClipSelectedMessage>(this, OnClipSelected);
@@ -476,6 +497,49 @@ public partial class MainViewModel : ObservableObject
     private void ShowTextToShotDialog()
     {
         IsTextToShotDialogOpen = true;
+    }
+
+    [RelayCommand]
+    private void ShowBatchOperation()
+    {
+        IsBatchOperationDialogOpen = true;
+    }
+
+    [RelayCommand]
+    private void ShowResourceLibrary()
+    {
+        IsResourceLibraryDialogOpen = true;
+    }
+
+    [RelayCommand]
+    private void ShowBatchAiOperationDialog()
+    {
+        BatchOperation.SetOperationSelection(aiAnalysis: true, firstFrame: false, lastFrame: false, video: false);
+        IsBatchOperationDialogOpen = true;
+    }
+
+    partial void OnTextToShotPromptChanged(string value)
+    {
+        OnPropertyChanged(nameof(TextToShotPromptLength));
+        OnPropertyChanged(nameof(IsTextToShotPromptTooLong));
+        OnPropertyChanged(nameof(CanGenerateShots));
+    }
+
+    partial void OnIsGeneratingShotsChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanGenerateShots));
+    }
+
+    partial void OnTextToShotCountChanged(int? value)
+    {
+        if (!value.HasValue)
+            return;
+
+        var clamped = System.Math.Clamp(value.Value, 3, 12);
+        if (clamped != value.Value)
+        {
+            TextToShotCount = clamped;
+        }
     }
 
     // 切换创作模式命令
@@ -649,6 +713,13 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
+        if (IsTextToShotPromptTooLong)
+        {
+            _logger.LogWarning("文本生成分镜：提示词过长 ({Length} 字)", TextToShotPromptLength);
+            StatusMessage = $"生成失败：内容过长（上限 {MaxTextToShotLength} 字）";
+            return;
+        }
+
         if (!HasCurrentProject)
         {
             _logger.LogWarning("文本生成分镜：没有打开的项目");
@@ -670,6 +741,7 @@ public partial class MainViewModel : ObservableObject
             // 调用 AI 服务生成分镜，传入创作意图
             var generatedShots = await AiAnalysis.GenerateShotsFromTextAsync(
                 TextToShotPrompt,
+                TextToShotCount,
                 CreativeGoal,
                 TargetAudience,
                 VideoTone,
@@ -743,6 +815,20 @@ public partial class MainViewModel : ObservableObject
         KeyMessage = null;
 
         _logger.LogInformation("创作意图已清空");
+    }
+
+    private void OnResourceLibraryAssetSelected(object recipient, ResourceLibraryAssetSelectedMessage message)
+    {
+        if (SelectedShot == null)
+        {
+            StatusMessage = "请先选择一个分镜";
+            return;
+        }
+
+        ApplyImageToShot(SelectedShot, message.FilePath, message.IsFirstFrame);
+
+        _messenger.Send(new ShotUpdatedMessage(SelectedShot));
+        _messenger.Send(new MarkUndoableChangeMessage());
     }
 
     /// <summary>
@@ -884,7 +970,7 @@ public partial class MainViewModel : ObservableObject
             VideoImport.VideoFileResolution,
             VideoImport.VideoFileFps,
             FrameExtraction.ExtractModeIndex,
-            FrameExtraction.FrameCount,
+            FrameExtraction.FrameCount ?? 10,
             FrameExtraction.TimeInterval,
             FrameExtraction.DetectionSensitivity,
             shotStates,
@@ -894,5 +980,36 @@ public partial class MainViewModel : ObservableObject
             VideoTone,
             KeyMessage
         );
+    }
+
+    private static void ApplyImageToShot(ShotItem shot, string path, bool isFirstFrame)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        var assets = isFirstFrame ? shot.FirstFrameAssets : shot.LastFrameAssets;
+        var existing = assets.FirstOrDefault(a =>
+            string.Equals(a.FilePath, path, StringComparison.OrdinalIgnoreCase));
+
+        if (existing == null)
+        {
+            existing = new ShotAssetItem
+            {
+                FilePath = path,
+                ThumbnailPath = path,
+                Type = isFirstFrame ? ShotAssetType.FirstFrameImage : ShotAssetType.LastFrameImage,
+                CreatedAt = DateTimeOffset.Now,
+                IsSelected = true
+            };
+            assets.Add(existing);
+        }
+
+        foreach (var asset in assets)
+            asset.IsSelected = ReferenceEquals(asset, existing);
+
+        if (isFirstFrame)
+            shot.FirstFrameImagePath = path;
+        else
+            shot.LastFrameImagePath = path;
     }
 }

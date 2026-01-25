@@ -22,6 +22,8 @@ public partial class FrameExtractionViewModel : ObservableObject
 {
     private readonly IFrameExtractionService _frameExtractionService;
     private readonly IVideoMetadataService _videoMetadataService;
+    private readonly IVideoAnalysisService _videoAnalysisService;
+    private readonly ISmartStoryboardService _smartStoryboardService;
     private readonly IMessenger _messenger;
     private readonly ILogger<FrameExtractionViewModel> _logger;
 
@@ -29,7 +31,7 @@ public partial class FrameExtractionViewModel : ObservableObject
     private int _extractModeIndex = 0; // 0=Fixed, 1=Dynamic, 2=Interval, 3=Keyframe
 
     [ObservableProperty]
-    private int _frameCount = 10;
+    private int? _frameCount = 10;
 
     [ObservableProperty]
     private double _timeInterval = 5.0;
@@ -62,11 +64,15 @@ public partial class FrameExtractionViewModel : ObservableObject
     public FrameExtractionViewModel(
         IFrameExtractionService frameExtractionService,
         IVideoMetadataService videoMetadataService,
+        IVideoAnalysisService videoAnalysisService,
+        ISmartStoryboardService smartStoryboardService,
         IMessenger messenger,
         ILogger<FrameExtractionViewModel> logger)
     {
         _frameExtractionService = frameExtractionService;
         _videoMetadataService = videoMetadataService;
+        _videoAnalysisService = videoAnalysisService;
+        _smartStoryboardService = smartStoryboardService;
         _messenger = messenger;
         _logger = logger;
 
@@ -106,7 +112,7 @@ public partial class FrameExtractionViewModel : ObservableObject
                 videoPath,
                 projectId,
                 mode,
-                FrameCount,
+                FrameCount ?? 10,
                 TimeInterval,
                 DetectionSensitivity);
 
@@ -313,6 +319,76 @@ public partial class FrameExtractionViewModel : ObservableObject
         FrameCount = 10;
         TimeInterval = 5.0;
         DetectionSensitivity = 0.3;
+    }
+
+    [RelayCommand]
+    private async Task AnalyzeVideoToShots()
+    {
+        var videoPath = GetCurrentVideoPath();
+        if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath))
+        {
+            _logger.LogWarning("请先导入视频文件");
+            return;
+        }
+
+        try
+        {
+            IsAnalyzing = true;
+
+            var result = await _videoAnalysisService.AnalyzeVideoAsync(videoPath).ConfigureAwait(false);
+            if (result.Shots == null || result.Shots.Count == 0)
+            {
+                _logger.LogWarning("智能分镜未生成任何镜头");
+                return;
+            }
+
+            _logger.LogInformation("智能分镜完成，生成 {Count} 个分镜", result.Shots.Count);
+            _messenger.Send(new FramesExtractedMessage(result.Shots));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "智能分镜失败");
+        }
+        finally
+        {
+            IsAnalyzing = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task AnalyzeVideoWithAi()
+    {
+        var videoPath = GetCurrentVideoPath();
+        var projectId = GetCurrentProjectId() ?? Guid.NewGuid().ToString("N");
+
+        if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath))
+        {
+            _logger.LogWarning("请先导入视频文件");
+            return;
+        }
+
+        try
+        {
+            IsAnalyzing = true;
+
+            var shots = await _smartStoryboardService.AnalyzeAsync(videoPath, projectId).ConfigureAwait(false);
+            if (shots == null || shots.Count == 0)
+            {
+                _logger.LogWarning("智能分镜未生成任何镜头");
+                return;
+            }
+
+            _logger.LogInformation("智能分镜完成，生成 {Count} 个分镜", shots.Count);
+            _messenger.Send(new FramesExtractedMessage(shots.ToList()));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "智能分镜失败");
+        }
+        finally
+        {
+            IsAnalyzing = false;
+        }
     }
 
     private void OnVideoImported(object recipient, VideoImportedMessage message)

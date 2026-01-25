@@ -47,14 +47,14 @@
                             Spacing="8"
                             VerticalAlignment="Center">
 
-                    <!-- Batch AI Analysis -->
+                    <!-- Batch Operation -->
                     <Button Classes="Secondary"
-                            Command="{Binding AIAnalyzeAllCommand}">
+                            Command="{Binding ShowBatchOperationCommand}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                            <PathIcon Data="M3 5v14h18V5H3zm4 2v2H5V7h2zm-2 4h2v2H5v-2zm0 4h2v2H5v-2zm14 2H9v-2h10v2zm0-4H9v-2h10v2zm0-4H9V7h10v2z"
                                       Width="14"
                                       Height="14" />
-                            <TextBlock Text="批量 AI 分析" FontSize="12" />
+                            <TextBlock Text="批量操作" FontSize="12" />
                         </StackPanel>
                     </Button>
 

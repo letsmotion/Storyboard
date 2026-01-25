@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Storyboard.AI.Core;
 using Storyboard.AI.Prompts;
 using Storyboard.Infrastructure.Configuration;
+using System;
 using System.Linq;
 
 namespace Storyboard.AI;
@@ -75,7 +76,9 @@ public class AIServiceManager
                 var firstAvailable = GetAvailableProviders().FirstOrDefault();
                 if (firstAvailable == null)
                 {
-                    throw new InvalidOperationException("No available AI providers.");
+                    const string friendlyMessage = "未检测到可用的 AI 服务，请先在“AI 服务设置”中配置 API Key 或启用至少一个服务提供商。";
+                    _logger.LogError("No AI providers are configured. Prompting user: {Message}", friendlyMessage);
+                    throw new InvalidOperationException(friendlyMessage);
                 }
                 _currentProvider = firstAvailable;
                 _logger.LogWarning("Default provider unavailable. Switched to {Provider}", _currentProvider.DisplayName);
@@ -227,8 +230,17 @@ public class AIServiceManager
                 ImageBase64: imageBase64));
         }
 
-        // 添加文本提示
-        var textPrompt = $"请分析这张分镜素材图片，并结合以下已有信息生成结构化的分镜描述：\n\n{additionalContext}\n\n请输出 JSON 对象。";
+        // 添加文本提示（允许模板覆盖）
+        string textPrompt;
+        if (!string.IsNullOrWhiteSpace(template.UserPromptTemplate) &&
+            template.UserPromptTemplate.Contains("{{additional_context}}", StringComparison.Ordinal))
+        {
+            textPrompt = template.UserPromptTemplate.Replace("{{additional_context}}", additionalContext ?? string.Empty);
+        }
+        else
+        {
+            textPrompt = $"请分析这张分镜素材图片，并结合以下已有信息生成结构化的分镜描述：\n\n{additionalContext}\n\n请输出 JSON 对象。";
+        }
         contentParts.Add(new Core.MessageContent(
             Core.MessageContentType.Text,
             Text: textPrompt));

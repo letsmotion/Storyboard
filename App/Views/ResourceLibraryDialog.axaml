@@ -1,0 +1,153 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Storyboard.ViewModels.Resources"
+        xmlns:m="using:Storyboard.Models"
+        xmlns:conv="using:Storyboard.Converters"
+        x:Class="Storyboard.Views.ResourceLibraryDialog"
+        x:DataType="vm:ResourceLibraryViewModel"
+        Title="资源库"
+        Width="900"
+        Height="650"
+        WindowStartupLocation="CenterOwner"
+        Background="#0a0a0a"
+        CanResize="False">
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="20">
+
+        <!-- Header -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <PathIcon Data="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"
+                          Width="24"
+                          Height="24"
+                          Foreground="#8b5cf6" />
+                <TextBlock Text="资源库"
+                           FontSize="22"
+                           FontWeight="SemiBold"
+                           Foreground="#f5f5f5"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+            <Button Grid.Column="1"
+                    Classes="Ghost"
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    Click="OnCloseClick">
+                <PathIcon Data="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                          Width="16"
+                          Height="16"
+                          Foreground="#a1a1aa" />
+            </Button>
+        </Grid>
+
+        <!-- Content -->
+        <Border Grid.Row="1"
+                Background="#141417"
+                BorderBrush="#27272a"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="16">
+            <Grid RowDefinitions="Auto,*">
+                <!-- Toolbar -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,16">
+                    <Button Classes="Primary"
+                            Command="{Binding ImportCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"
+                                      Width="14"
+                                      Height="14" />
+                            <TextBlock Text="导入图片" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="Secondary"
+                            Command="{Binding RefreshCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
+                                      Width="14"
+                                      Height="14" />
+                            <TextBlock Text="刷新" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock Text="{Binding Items.Count, StringFormat='共 {0} 张图片'}"
+                               FontSize="12"
+                               Foreground="#71717a"
+                               VerticalAlignment="Center"
+                               Margin="8,0,0,0" />
+                </StackPanel>
+
+                <!-- Image Grid -->
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Items}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="m:ResourceLibraryItem">
+                                <Border Background="#18181b"
+                                        BorderBrush="#3f3f46"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="8"
+                                        Margin="0,0,12,12"
+                                        Width="180">
+                                    <StackPanel Spacing="8">
+                                        <!-- Image Preview -->
+                                        <Border Height="120"
+                                                CornerRadius="6"
+                                                ClipToBounds="True"
+                                                Background="#0a0a0a">
+                                            <Image Source="{Binding FilePath, Converter={StaticResource PathToBitmapConverter}}"
+                                                   Stretch="UniformToFill" />
+                                        </Border>
+
+                                        <!-- File Name -->
+                                        <TextBlock Text="{Binding DisplayName}"
+                                                   FontSize="11"
+                                                   Foreground="#e4e4e7"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   HorizontalAlignment="Center" />
+
+                                        <!-- Action Buttons -->
+                                        <Grid ColumnDefinitions="*,*">
+                                            <Button Grid.Column="0"
+                                                    Classes="Secondary"
+                                                    HorizontalAlignment="Stretch"
+                                                    Margin="0,0,4,0"
+                                                    Padding="4"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ResourceLibraryViewModel)DataContext).UseAsFirstFrameCommand}"
+                                                    CommandParameter="{Binding}">
+                                                <TextBlock Text="用作首帧" FontSize="10" />
+                                            </Button>
+                                            <Button Grid.Column="1"
+                                                    Classes="Secondary"
+                                                    HorizontalAlignment="Stretch"
+                                                    Margin="4,0,0,0"
+                                                    Padding="4"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ResourceLibraryViewModel)DataContext).UseAsLastFrameCommand}"
+                                                    CommandParameter="{Binding}">
+                                                <TextBlock Text="用作尾帧" FontSize="10" />
+                                            </Button>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- Footer -->
+        <StackPanel Grid.Row="2" Margin="0,16,0,0">
+            <TextBlock Text="提示: 导入的图片将自动保存到资源库目录,可在图片生成时选择使用"
+                       FontSize="12"
+                       Foreground="#71717a"
+                       TextAlignment="Center" />
+        </StackPanel>
+
+    </Grid>
+</Window>

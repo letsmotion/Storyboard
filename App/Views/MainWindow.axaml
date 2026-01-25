@@ -110,29 +110,24 @@
                         </Button>
                         
                         <!-- Separator -->
-                        <Border Width="1" 
-                                Height="24" 
-                                Background="#3f3f46" 
+                        <Border Width="1"
+                                Height="24"
+                                Background="#3f3f46"
                                 IsVisible="{Binding HasCurrentProject}" />
 
-                        <!-- Export -->
+                        <!-- Resource Library -->
                         <Button Classes="Ghost"
                                 IsVisible="{Binding HasCurrentProject}"
-                                Command="{Binding ShowExportDialogCommand}">
+                                Command="{Binding ShowResourceLibraryCommand}"
+                                ToolTip.Tip="资源库">
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <PathIcon Data="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z" 
-                                          Width="16" 
+                                <PathIcon Data="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"
+                                          Width="16"
                                           Height="16" />
-                                <TextBlock Text="导出" />
+                                <TextBlock Text="资源库" />
                             </StackPanel>
                         </Button>
-                        
-                        <!-- Task Manager -->
-                        <Button Classes="Ghost" 
-                                Command="{Binding ShowTaskManagerCommand}">
-                            <TextBlock Text="任务管理" />
-                        </Button>
-                        
+
                         <!-- Provider Settings -->
                         <Button Classes="Ghost"
                                 Command="{Binding ShowProviderSettingsCommand}"
@@ -238,6 +233,20 @@
                                             </StackPanel>
                                         </Button>
                                     </StackPanel>
+
+                                    <Button Grid.Column="1"
+                                            Classes="Ghost"
+                                            Margin="12,0,0,0"
+                                            IsVisible="{Binding HasCurrentProject}"
+                                            Command="{Binding ShowExportDialogCommand}"
+                                            ToolTip.Tip="导出">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <PathIcon Data="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"
+                                                      Width="16"
+                                                      Height="16" />
+                                            <TextBlock Text="导出" />
+                                        </StackPanel>
+                                    </Button>
                                 </Grid>
                             </Border>
                             

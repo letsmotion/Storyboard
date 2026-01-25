@@ -99,12 +99,14 @@ public partial class VideoGenerationViewModel : ObservableObject
 
         try
         {
+            shot.VideoGenerationMessage = null;
             shot.IsVideoGenerating = true;
 
             var prompt = shot.VideoPrompt;
             if (string.IsNullOrWhiteSpace(prompt))
             {
                 _logger.LogWarning("视频提示词为空，无法生成视频: Shot {ShotNumber}", shot.ShotNumber);
+                shot.VideoGenerationMessage = "请先填写视频提示词，才能生成视频。";
 
                 // 重置生成状态
                 shot.IsVideoGenerating = false;
@@ -164,9 +166,11 @@ public partial class VideoGenerationViewModel : ObservableObject
 
                             _messenger.Send(new VideoGenerationCompletedMessage(shot, true, videoPath));
                             _logger.LogInformation("视频生成成功: Shot {ShotNumber}", shot.ShotNumber);
+                            shot.VideoGenerationMessage = null;
                         }
                         else
                         {
+                            shot.VideoGenerationMessage = "视频生成失败，请稍后重试。";
                             _messenger.Send(new VideoGenerationCompletedMessage(shot, false, null));
                             _logger.LogWarning("视频生成失败: Shot {ShotNumber}", shot.ShotNumber);
                         }
@@ -175,6 +179,7 @@ public partial class VideoGenerationViewModel : ObservableObject
                     {
                         _logger.LogError(ex, "视频生成任务执行异常: Shot {ShotNumber}, 错误信息: {Message}", shot.ShotNumber, ex.Message);
                         _messenger.Send(new VideoGenerationCompletedMessage(shot, false, null));
+                        shot.VideoGenerationMessage = $"视频生成失败：{ex.Message}";
                         throw; // 重新抛出异常，让任务队列知道任务失败
                     }
                     finally
@@ -192,6 +197,7 @@ public partial class VideoGenerationViewModel : ObservableObject
         {
             _logger.LogError(ex, "视频生成异常: Shot {ShotNumber}", shot.ShotNumber);
             _messenger.Send(new VideoGenerationCompletedMessage(shot, false, null));
+            shot.VideoGenerationMessage = $"视频生成失败：{ex.Message}";
 
             // 异常时重置生成状态
             shot.IsVideoGenerating = false;

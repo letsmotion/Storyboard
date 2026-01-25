@@ -11,6 +11,8 @@
         <conv:AiParseButtonTextConverter x:Key="AiParseButtonTextConverter" />
         <conv:BoolToFontWeightConverter x:Key="BoolToFontWeightConverter" />
         <conv:CreationModeToBackgroundConverter x:Key="CreationModeToBackgroundConverter" />
+        <conv:StringFallbackConverter x:Key="StringFallbackConverter" />
+        <conv:BoolToColorConverter x:Key="BoolToColorConverter" />
     </Application.Resources>
     <Application.Styles>
         <FluentTheme />

@@ -21,6 +21,9 @@ public partial class TextToShotDialog : Window
         if (DataContext is not MainViewModel viewModel)
             return;
 
+        if (!viewModel.CanGenerateShots)
+            return;
+
         await viewModel.GenerateShotsFromTextPromptAsync();
         Close();
     }
