@@ -129,4 +129,30 @@ public partial class MainWindow : Window
     {
         Close();
     }
+
+    private void OnLeftSplitterDragCompleted(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
+        {
+            var grid = this.FindControl<Grid>("WorkspaceGrid");
+            if (grid?.ColumnDefinitions.Count > 0)
+            {
+                var actualWidth = grid.ColumnDefinitions[0].ActualWidth;
+                viewModel.LeftSidebarWidth = actualWidth;
+            }
+        }
+    }
+
+    private void OnRightSplitterDragCompleted(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
+        {
+            var grid = this.FindControl<Grid>("WorkspaceGrid");
+            if (grid?.ColumnDefinitions.Count > 4)
+            {
+                var actualWidth = grid.ColumnDefinitions[4].ActualWidth;
+                viewModel.RightPanelWidth = actualWidth;
+            }
+        }
+    }
 }

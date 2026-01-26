@@ -27,6 +27,12 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Ctrl+B" Command="{Binding ToggleLeftSidebarCommand}" />
+        <KeyBinding Gesture="Ctrl+Alt+B" Command="{Binding ToggleRightPanelCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+L" Command="{Binding RestoreDefaultLayoutCommand}" />
+    </Window.KeyBindings>
+
     <Grid RowDefinitions="56,*,Auto" Background="#0a0a0a">
 
         <!-- Header -->
@@ -108,7 +114,32 @@
                                       Width="16" 
                                       Height="16" />
                         </Button>
-                        
+
+                        <!-- Separator -->
+                        <Border Width="1"
+                                Height="24"
+                                Background="#3f3f46"
+                                IsVisible="{Binding HasCurrentProject}" />
+
+                        <!-- Sidebar Toggle Buttons -->
+                        <Button Classes="Ghost"
+                                IsVisible="{Binding HasCurrentProject}"
+                                Command="{Binding ToggleLeftSidebarCommand}"
+                                ToolTip.Tip="切换左侧栏 (Ctrl+B)">
+                            <PathIcon Data="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2zm16 0h2v-2h-2v2zm0-10v2h2V7h-2zm0 6h2v-2h-2v2z"
+                                      Width="16"
+                                      Height="16" />
+                        </Button>
+
+                        <Button Classes="Ghost"
+                                IsVisible="{Binding HasCurrentProject}"
+                                Command="{Binding ToggleRightPanelCommand}"
+                                ToolTip.Tip="切换右侧栏 (Ctrl+Alt+B)">
+                            <PathIcon Data="M3 15h14v-2H3v2zm0 4h14v-2H3v2zm0-8h14V9H3v2zm0-6v2h14V5H3zm16 0h2v2h-2V5zm0 10h2v2h-2v-2zm0-6h2v2h-2V9z"
+                                      Width="16"
+                                      Height="16" />
+                        </Button>
+
                         <!-- Separator -->
                         <Border Width="1"
                                 Height="24"
@@ -188,18 +219,41 @@
             <v:ProjectHistoryView IsVisible="{Binding HasCurrentProject, Converter={StaticResource BoolNot}}" />
             
             <!-- Project Workspace View (when project is open) -->
-            <Grid ColumnDefinitions="320,*,384" IsVisible="{Binding HasCurrentProject}">
-                
+            <Grid x:Name="WorkspaceGrid" IsVisible="{Binding HasCurrentProject}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="{Binding LeftSidebarGridLength}" MinWidth="0" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" MinWidth="400" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="{Binding RightPanelGridLength}" MinWidth="0" />
+                </Grid.ColumnDefinitions>
+
                 <!-- Left Sidebar - Project & Video Import -->
-                <Border Grid.Column="0" 
-                        Background="#0f0f0f" 
-                        BorderBrush="#27272a" 
-                        BorderThickness="0,0,1,0">
+                <Border Grid.Column="0"
+                        Background="#0f0f0f"
+                        BorderBrush="#27272a"
+                        BorderThickness="0,0,1,0"
+                        IsVisible="{Binding IsLeftSidebarVisible}">
                     <v:ProjectSidebarView />
                 </Border>
-                
+
+                <!-- Left GridSplitter -->
+                <GridSplitter Grid.Column="1"
+                              Width="4"
+                              Background="Transparent"
+                              ResizeDirection="Columns"
+                              IsVisible="{Binding IsLeftSidebarVisible}"
+                              Cursor="SizeWestEast"
+                              DragCompleted="OnLeftSplitterDragCompleted">
+                    <GridSplitter.Styles>
+                        <Style Selector="GridSplitter:pointerover">
+                            <Setter Property="Background" Value="#8b5cf6" />
+                        </Style>
+                    </GridSplitter.Styles>
+                </GridSplitter>
+
                 <!-- Center - Shot List or Timeline -->
-                <Grid Grid.Column="1" RowDefinitions="48,*">
+                <Grid Grid.Column="2" RowDefinitions="48,*">
                             
                             <!-- View Mode Switcher -->
                             <Border Grid.Row="0" 
@@ -259,22 +313,38 @@
                                                DataContext="{Binding TimelineEditor}" />
                     </Panel>
                 </Grid>
-                
+
+                <!-- Right GridSplitter -->
+                <GridSplitter Grid.Column="3"
+                              Width="4"
+                              Background="Transparent"
+                              ResizeDirection="Columns"
+                              IsVisible="{Binding IsRightPanelVisible}"
+                              Cursor="SizeWestEast"
+                              DragCompleted="OnRightSplitterDragCompleted">
+                    <GridSplitter.Styles>
+                        <Style Selector="GridSplitter:pointerover">
+                            <Setter Property="Background" Value="#8b5cf6" />
+                        </Style>
+                    </GridSplitter.Styles>
+                </GridSplitter>
+
                 <!-- Right Panel - Shot Editor -->
-                <Border Grid.Column="2" 
-                        Background="#0f0f0f" 
-                        BorderBrush="#27272a" 
-                        BorderThickness="1,0,0,0">
+                <Border Grid.Column="4"
+                        Background="#0f0f0f"
+                        BorderBrush="#27272a"
+                        BorderThickness="1,0,0,0"
+                        IsVisible="{Binding IsRightPanelVisible}">
                     <Grid>
                         <!-- Editor when shot selected -->
-                        <v:ShotEditorView IsVisible="{Binding DataContext, RelativeSource={RelativeSource Self}, Converter={x:Static conv:ObjectConverters.IsNotNull}}" 
+                        <v:ShotEditorView IsVisible="{Binding DataContext, RelativeSource={RelativeSource Self}, Converter={x:Static conv:ObjectConverters.IsNotNull}}"
                                           DataContext="{Binding SelectedShot}" />
                         <!-- Empty state -->
                         <Border IsVisible="{Binding SelectedShot, Converter={x:Static conv:ObjectConverters.IsNull}}">
-                            <TextBlock Text="选择一个分镜以查看和编辑详情" 
-                                       Foreground="#71717a" 
-                                       HorizontalAlignment="Center" 
-                                       VerticalAlignment="Center" 
+                            <TextBlock Text="选择一个分镜以查看和编辑详情"
+                                       Foreground="#71717a"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
                                        TextAlignment="Center"
                                        Padding="32" />
                         </Border>

@@ -31,6 +31,24 @@ public class UiSettings
 {
     public string Theme { get; set; } = "Light";
     public string Language { get; set; } = "zh-CN";
+    public LayoutSettings Layout { get; set; } = new();
+}
+
+/// <summary>
+/// 布局设置
+/// </summary>
+public class LayoutSettings
+{
+    public bool IsLeftSidebarVisible { get; set; } = true;
+    public double LeftSidebarWidth { get; set; } = 320;
+    public bool IsRightPanelVisible { get; set; } = true;
+    public double RightPanelWidth { get; set; } = 384;
+
+    // 约束常量
+    public const double LeftSidebarMinWidth = 200;
+    public const double LeftSidebarMaxWidth = 500;
+    public const double RightPanelMinWidth = 300;
+    public const double RightPanelMaxWidth = 600;
 }
 
 /// <summary>

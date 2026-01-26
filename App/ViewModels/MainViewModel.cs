@@ -33,6 +33,9 @@ public partial class MainViewModel : ObservableObject
     private readonly IMessenger _messenger;
     private readonly ILogger<MainViewModel> _logger;
     private readonly IProjectStore _projectStore;
+    private readonly UserSettingsStore _userSettingsStore;
+    private System.Threading.Timer? _layoutSaveTimer;
+    private Action? _debouncedSaveLayoutSettings;
 
     // 子 ViewModels
     public ProjectManagementViewModel ProjectManagement { get; }
@@ -111,6 +114,27 @@ public partial class MainViewModel : ObservableObject
     // 版本信息
     [ObservableProperty]
     private string _versionText = GetVersionText();
+
+    // 布局状态属性
+    [ObservableProperty]
+    private bool _isLeftSidebarVisible = true;
+
+    [ObservableProperty]
+    private double _leftSidebarWidth = 320;
+
+    [ObservableProperty]
+    private bool _isRightPanelVisible = true;
+
+    [ObservableProperty]
+    private double _rightPanelWidth = 384;
+
+    public Avalonia.Controls.GridLength LeftSidebarGridLength => IsLeftSidebarVisible
+        ? new Avalonia.Controls.GridLength(LeftSidebarWidth, Avalonia.Controls.GridUnitType.Pixel)
+        : new Avalonia.Controls.GridLength(0, Avalonia.Controls.GridUnitType.Pixel);
+
+    public Avalonia.Controls.GridLength RightPanelGridLength => IsRightPanelVisible
+        ? new Avalonia.Controls.GridLength(RightPanelWidth, Avalonia.Controls.GridUnitType.Pixel)
+        : new Avalonia.Controls.GridLength(0, Avalonia.Controls.GridUnitType.Pixel);
 
     // 创作模式属性
     [ObservableProperty]
@@ -272,6 +296,7 @@ public partial class MainViewModel : ObservableObject
         // UpdateNotificationViewModel updateNotificationViewModel,
         // UpdateService updateService,
         IProjectStore projectStore,
+        UserSettingsStore userSettingsStore,
         IMessenger messenger,
         ILogger<MainViewModel> logger)
     {
@@ -291,11 +316,26 @@ public partial class MainViewModel : ObservableObject
         ResourceLibrary = resourceLibrary;
         // UpdateNotificationViewModel = updateNotificationViewModel;
         _projectStore = projectStore;
+        _userSettingsStore = userSettingsStore;
         _messenger = messenger;
         _logger = logger;
 
         // 设置版本号（从程序集读取）
         VersionText = GetVersionText();
+
+        // 设置防抖保存（500ms 延迟）
+        _debouncedSaveLayoutSettings = () =>
+        {
+            _layoutSaveTimer?.Dispose();
+            _layoutSaveTimer = new System.Threading.Timer(
+                _ => _ = SaveLayoutSettingsAsync(),
+                null,
+                500,
+                System.Threading.Timeout.Infinite);
+        };
+
+        // 加载布局设置
+        LoadLayoutSettings();
 
         // 检查是否首次启动，如果是则自动打开设置对话框
         _ = CheckFirstLaunchAsync();
@@ -426,6 +466,31 @@ public partial class MainViewModel : ObservableObject
         TimelineEditor.BuildTimelineFromShots();
     }
 
+    // 侧边栏切换命令
+    [RelayCommand]
+    private void ToggleLeftSidebar()
+    {
+        IsLeftSidebarVisible = !IsLeftSidebarVisible;
+        _logger.LogInformation("左侧栏切换: {Visible}", IsLeftSidebarVisible);
+    }
+
+    [RelayCommand]
+    private void ToggleRightPanel()
+    {
+        IsRightPanelVisible = !IsRightPanelVisible;
+        _logger.LogInformation("右侧面板切换: {Visible}", IsRightPanelVisible);
+    }
+
+    [RelayCommand]
+    private void RestoreDefaultLayout()
+    {
+        IsLeftSidebarVisible = true;
+        LeftSidebarWidth = 320;
+        IsRightPanelVisible = true;
+        RightPanelWidth = 384;
+        _logger.LogInformation("布局已恢复为默认值");
+    }
+
     // 对话框命令
     [RelayCommand]
     private void ToggleProviderSettings()
@@ -540,6 +605,43 @@ public partial class MainViewModel : ObservableObject
         {
             TextToShotCount = clamped;
         }
+    }
+
+    // 布局属性变更处理
+    partial void OnIsLeftSidebarVisibleChanged(bool value)
+    {
+        OnPropertyChanged(nameof(LeftSidebarGridLength));
+        _ = SaveLayoutSettingsAsync();
+    }
+
+    partial void OnLeftSidebarWidthChanged(double value)
+    {
+        var clamped = Math.Clamp(value, LayoutSettings.LeftSidebarMinWidth, LayoutSettings.LeftSidebarMaxWidth);
+        if (Math.Abs(clamped - value) > 0.1)
+        {
+            LeftSidebarWidth = clamped;
+            return;
+        }
+        OnPropertyChanged(nameof(LeftSidebarGridLength));
+        _debouncedSaveLayoutSettings?.Invoke();
+    }
+
+    partial void OnIsRightPanelVisibleChanged(bool value)
+    {
+        OnPropertyChanged(nameof(RightPanelGridLength));
+        _ = SaveLayoutSettingsAsync();
+    }
+
+    partial void OnRightPanelWidthChanged(double value)
+    {
+        var clamped = Math.Clamp(value, LayoutSettings.RightPanelMinWidth, LayoutSettings.RightPanelMaxWidth);
+        if (Math.Abs(clamped - value) > 0.1)
+        {
+            RightPanelWidth = clamped;
+            return;
+        }
+        OnPropertyChanged(nameof(RightPanelGridLength));
+        _debouncedSaveLayoutSettings?.Invoke();
     }
 
     // 切换创作模式命令
@@ -980,6 +1082,46 @@ public partial class MainViewModel : ObservableObject
             VideoTone,
             KeyMessage
         );
+    }
+
+    // 布局设置加载和保存
+    private void LoadLayoutSettings()
+    {
+        try
+        {
+            var settings = _userSettingsStore.Load();
+            var layout = settings.UI.Layout;
+
+            IsLeftSidebarVisible = layout.IsLeftSidebarVisible;
+            LeftSidebarWidth = layout.LeftSidebarWidth;
+            IsRightPanelVisible = layout.IsRightPanelVisible;
+            RightPanelWidth = layout.RightPanelWidth;
+
+            _logger.LogInformation("布局设置已加载");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "加载布局设置失败");
+        }
+    }
+
+    private async Task SaveLayoutSettingsAsync()
+    {
+        try
+        {
+            var settings = _userSettingsStore.Load();
+            settings.UI.Layout.IsLeftSidebarVisible = IsLeftSidebarVisible;
+            settings.UI.Layout.LeftSidebarWidth = LeftSidebarWidth;
+            settings.UI.Layout.IsRightPanelVisible = IsRightPanelVisible;
+            settings.UI.Layout.RightPanelWidth = RightPanelWidth;
+
+            await Task.Run(() => _userSettingsStore.Save(settings));
+            _logger.LogDebug("布局设置已保存");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "保存布局设置失败");
+        }
     }
 
     private static void ApplyImageToShot(ShotItem shot, string path, bool isFirstFrame)

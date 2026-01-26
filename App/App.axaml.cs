@@ -154,6 +154,7 @@ public partial class App : Avalonia.Application
         // 4. 加载用户设置
         var userSettingsStore = new UserSettingsStore();
         var userSettings = userSettingsStore.Load();
+        services.AddSingleton(userSettingsStore);
         services.AddSingleton(userSettings);
 
         // 5. 从用户设置中提取 StorageOptions（兼容旧代码）

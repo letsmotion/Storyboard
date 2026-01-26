@@ -87,6 +87,7 @@ public class UserSettingsStore
     {
         settings.Storage ??= new StorageSettings();
         settings.UI ??= new UiSettings();
+        settings.UI.Layout ??= new LayoutSettings();
         settings.DefaultProviders ??= new DefaultProviderSettings();
     }
 }
