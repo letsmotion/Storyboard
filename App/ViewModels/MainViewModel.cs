@@ -80,6 +80,15 @@ public partial class MainViewModel : ObservableObject
     private bool _isResourceLibraryDialogOpen;
 
     [ObservableProperty]
+    private bool _isBatchInsertDialogOpen;
+
+    [ObservableProperty]
+    private ShotItem? _batchInsertAnchorShot;
+
+    [ObservableProperty]
+    private bool _batchInsertAfter;
+
+    [ObservableProperty]
     private string _textToShotPrompt = string.Empty;
 
     [ObservableProperty]
@@ -398,6 +407,7 @@ public partial class MainViewModel : ObservableObject
         _messenger.Register<ImageGenerationCompletedMessage>(this, (r, m) => _ = SaveProjectAsync());
         _messenger.Register<VideoGenerationCompletedMessage>(this, (r, m) => _ = SaveProjectAsync());
         _messenger.Register<ResourceLibraryAssetSelectedMessage>(this, OnResourceLibraryAssetSelected);
+        _messenger.Register<BatchInsertShotRequestedMessage>(this, OnBatchInsertShotRequested);
 
         // 订阅时间轴片段选中消息
         _messenger.Register<ClipSelectedMessage>(this, OnClipSelected);
@@ -1153,5 +1163,137 @@ public partial class MainViewModel : ObservableObject
             shot.FirstFrameImagePath = path;
         else
             shot.LastFrameImagePath = path;
+    }
+
+    public async System.Threading.Tasks.Task BatchGenerateShotsAsync(ShotItem? anchorShot, bool insertAfter, string[] prompts)
+    {
+        if (anchorShot == null)
+        {
+            _logger.LogWarning("批量插入分镜:锚点分镜为空");
+            return;
+        }
+
+        if (prompts == null || prompts.Length == 0)
+        {
+            _logger.LogWarning("批量插入分镜:提示词为空");
+            return;
+        }
+
+        if (!HasCurrentProject)
+        {
+            _logger.LogWarning("批量插入分镜:没有打开的项目");
+            return;
+        }
+
+        if (IsGeneratingShots)
+        {
+            _logger.LogWarning("批量插入分镜:正在生成中,忽略重复请求");
+            return;
+        }
+
+        try
+        {
+            IsGeneratingShots = true;
+            _logger.LogInformation("开始批量插入分镜:{Count}个提示词", prompts.Length);
+            StatusMessage = $"正在生成 {prompts.Length} 个分镜...";
+
+            var generatedShots = new List<ShotItem>();
+            int successCount = 0;
+            int failCount = 0;
+
+            // 逐个生成分镜
+            for (int i = 0; i < prompts.Length; i++)
+            {
+                var prompt = prompts[i].Trim();
+                if (string.IsNullOrWhiteSpace(prompt))
+                    continue;
+
+                try
+                {
+                    StatusMessage = $"正在生成分镜 {i + 1}/{prompts.Length}...";
+                    _logger.LogInformation("生成分镜 {Index}/{Total}: {Prompt}", i + 1, prompts.Length, prompt);
+
+                    // 调用 AI 服务生成单个分镜,传入创作意图
+                    var shots = await AiAnalysis.GenerateShotsFromTextAsync(
+                        prompt,
+                        1, // 每次生成一个
+                        CreativeGoal,
+                        TargetAudience,
+                        VideoTone,
+                        KeyMessage);
+
+                    if (shots != null && shots.Count > 0)
+                    {
+                        var shotDesc = shots[0];
+                        var shot = new ShotItem(0); // 临时编号,稍后重新编号
+                        shot.ApplyAiAnalysisResult(shotDesc);
+                        generatedShots.Add(shot);
+                        successCount++;
+                    }
+                    else
+                    {
+                        _logger.LogWarning("生成分镜 {Index} 失败:未返回结果", i + 1);
+                        failCount++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "生成分镜 {Index} 失败: {Prompt}", i + 1, prompt);
+                    failCount++;
+                }
+            }
+
+            if (generatedShots.Count == 0)
+            {
+                _logger.LogWarning("批量插入分镜:未生成任何分镜");
+                StatusMessage = "生成失败:未生成任何分镜";
+                return;
+            }
+
+            // 找到锚点分镜的索引
+            var anchorIndex = Shots.IndexOf(anchorShot);
+            if (anchorIndex == -1)
+            {
+                _logger.LogWarning("批量插入分镜:找不到锚点分镜");
+                StatusMessage = "插入失败:找不到锚点分镜";
+                return;
+            }
+
+            // 计算插入位置
+            var insertIndex = insertAfter ? anchorIndex + 1 : anchorIndex;
+
+            // 插入新分镜
+            foreach (var shot in generatedShots)
+            {
+                ShotList.InsertShot(insertIndex++, shot);
+            }
+
+            // 重新编号所有分镜
+            ShotList.RenumberShots();
+
+            _logger.LogInformation("批量插入分镜完成:生成了 {Success} 个分镜,失败 {Fail} 个",
+                successCount, failCount);
+            StatusMessage = $"成功生成 {successCount} 个分镜" +
+                (failCount > 0 ? $",失败 {failCount} 个" : "");
+
+            // 保存项目
+            await SaveProjectAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "批量插入分镜失败");
+            StatusMessage = $"生成失败:{ex.Message}";
+        }
+        finally
+        {
+            IsGeneratingShots = false;
+        }
+    }
+
+    private async void OnBatchInsertShotRequested(object recipient, BatchInsertShotRequestedMessage message)
+    {
+        BatchInsertAnchorShot = message.AnchorShot;
+        BatchInsertAfter = message.insertAfter;
+        IsBatchInsertDialogOpen = true;
     }
 }

@@ -1,0 +1,110 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Storyboard.ViewModels.Shot"
+        x:Class="Storyboard.Views.BatchInsertShotDialog"
+        x:DataType="vm:BatchInsertShotViewModel"
+        Title="添加分镜"
+        Width="600"
+        Height="450"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#18181b"
+        TransparencyLevelHint="AcrylicBlur">
+
+    <Border Padding="24"
+            Background="#18181b"
+            CornerRadius="12">
+        <Grid RowDefinitions="Auto,*,Auto">
+
+            <!-- 标题区域 -->
+            <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,16">
+                <TextBlock Text="添加分镜"
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           Foreground="#f5f5f5" />
+                <TextBlock Text="在此输入分镜描述,每行一个分镜场景"
+                           FontSize="13"
+                           Foreground="#a1a1aa" />
+            </StackPanel>
+
+            <!-- 文本输入区域 -->
+            <Border Grid.Row="1"
+                    Background="#27272a"
+                    BorderBrush="#3f3f46"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="0,0,0,16">
+                <Grid RowDefinitions="*,Auto">
+                    <TextBox Grid.Row="0"
+                             Text="{Binding TextInput, Mode=TwoWay}"
+                             FontSize="14"
+                             Foreground="#e4e4e7"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             TextWrapping="Wrap"
+                             AcceptsReturn="True"
+                             Watermark="例如:&#x0a;白色长毛猫眯着双眼,抬起脚掌伸懒腰,镜头正对着它,展开毛茸茸的爪子,腰带也露出来&#x0a;双手挥舞着荧光棒,在空中旋转,延时拍摄&#x0a;一个人骑着摩托车穿过森林&#x0a;..." />
+
+                    <!-- 底部统计信息 -->
+                    <StackPanel Grid.Row="1"
+                                Orientation="Horizontal"
+                                Spacing="8"
+                                Margin="0,8,0,0"
+                                HorizontalAlignment="Right">
+                        <PathIcon Data="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"
+                                  Width="14"
+                                  Height="14"
+                                  Foreground="#8b5cf6" />
+                        <TextBlock FontSize="12"
+                                   Foreground="#a1a1aa">
+                            <Run Text="预计生成" />
+                            <Run Text="{Binding ExpectedShotCount}"
+                                 Foreground="#8b5cf6"
+                                 FontWeight="SemiBold" />
+                            <Run Text="个分镜" />
+                        </TextBlock>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 按钮区域 -->
+            <Grid Grid.Row="2"
+                  ColumnDefinitions="*,Auto,Auto"
+                  HorizontalAlignment="Stretch">
+
+                <Button Grid.Column="1"
+                        Content="取消"
+                        Classes="Ghost"
+                        Width="100"
+                        Height="36"
+                        Margin="0,0,8,0"
+                        Command="{Binding CancelCommand}"
+                        Click="OnCancelClick" />
+
+                <Button Grid.Column="2"
+                        Content="确定"
+                        Width="100"
+                        Height="36"
+                        Background="#8b5cf6"
+                        Foreground="#f5f5f5"
+                        BorderThickness="0"
+                        CornerRadius="6"
+                        Command="{Binding ConfirmCommand}"
+                        Click="OnConfirmClick"
+                        IsEnabled="{Binding ExpectedShotCount, Converter={StaticResource GreaterThanZeroConverter}}">
+                    <Button.Styles>
+                        <Style Selector="Button:pointerover">
+                            <Setter Property="Background" Value="#7c3aed" />
+                        </Style>
+                        <Style Selector="Button:pressed">
+                            <Setter Property="Background" Value="#6d28d9" />
+                        </Style>
+                    </Button.Styles>
+                </Button>
+            </Grid>
+
+        </Grid>
+    </Border>
+
+</Window>

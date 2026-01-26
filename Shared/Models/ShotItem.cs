@@ -405,6 +405,7 @@ public partial class ShotItem : ObservableObject
     public event EventHandler? DuplicateRequested;
     public event EventHandler? DeleteRequested;
     public event EventHandler? AiParseRequested;
+    public event EventHandler? InsertBeforeRequested;
     public event EventHandler? InsertAfterRequested;
     public event EventHandler? GenerateFirstFrameRequested;
     public event EventHandler? GenerateLastFrameRequested;
@@ -441,6 +442,12 @@ public partial class ShotItem : ObservableObject
     private void Delete()
     {
         DeleteRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void InsertBefore()
+    {
+        InsertBeforeRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]

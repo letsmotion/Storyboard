@@ -132,11 +132,12 @@
                             <UniformGrid Columns="3" />
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
-                    
+
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="m:ShotItem">
-                            <v:ShotCardView DataContext="{Binding}" 
-                                            Margin="8" />
+                            <v:ShotCardView DataContext="{Binding}"
+                                            Margin="16,8,16,8"
+                                            ClipToBounds="False" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -154,10 +155,12 @@
                             <StackPanel Spacing="8" />
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
-                    
+
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="m:ShotItem">
-                            <v:ShotCardView DataContext="{Binding}" />
+                            <v:ShotCardView DataContext="{Binding}"
+                                            Margin="16,0,16,0"
+                                            ClipToBounds="False" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

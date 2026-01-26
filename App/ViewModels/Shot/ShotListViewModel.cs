@@ -94,6 +94,16 @@ public partial class ShotListViewModel : ObservableObject
         _messenger.Register<GetAllShotsQuery>(this, (r, m) => m.Shots = Shots.ToList());
     }
 
+    partial void OnSelectedShotChanged(ShotItem? value)
+    {
+        foreach (var shot in Shots)
+        {
+            var shouldSelect = ReferenceEquals(shot, value);
+            if (shot.IsSelected != shouldSelect)
+                shot.IsSelected = shouldSelect;
+        }
+    }
+
     [RelayCommand]
     private void AddShot()
     {
@@ -125,6 +135,20 @@ public partial class ShotListViewModel : ObservableObject
         _messenger.Send(new MarkUndoableChangeMessage());
 
         _logger.LogInformation("添加镜头: Shot {ShotNumber}", shot.ShotNumber);
+    }
+
+    /// <summary>
+    /// 在指定索引位置插入一个已创建的分镜
+    /// </summary>
+    public void InsertShot(int index, ShotItem shot)
+    {
+        AttachShotEventHandlers(shot);
+        Shots.Insert(index, shot);
+
+        _messenger.Send(new ShotAddedMessage(shot));
+        _messenger.Send(new MarkUndoableChangeMessage());
+
+        _logger.LogInformation("插入镜头: Shot {ShotNumber} at index {Index}", shot.ShotNumber, index);
     }
 
     public void RenumberShots()
@@ -249,6 +273,7 @@ public partial class ShotListViewModel : ObservableObject
         shot.DuplicateRequested += OnShotDuplicateRequestedEvent;
         shot.DeleteRequested += OnShotDeleteRequestedEvent;
         shot.AiParseRequested += OnShotAiParseRequestedEvent;
+        shot.InsertBeforeRequested += OnShotInsertBeforeRequestedEvent;
         shot.InsertAfterRequested += OnShotInsertAfterRequestedEvent;
         shot.GenerateFirstFrameRequested += OnShotGenerateFirstFrameRequestedEvent;
         shot.GenerateLastFrameRequested += OnShotGenerateLastFrameRequestedEvent;
@@ -261,6 +286,7 @@ public partial class ShotListViewModel : ObservableObject
         shot.DuplicateRequested -= OnShotDuplicateRequestedEvent;
         shot.DeleteRequested -= OnShotDeleteRequestedEvent;
         shot.AiParseRequested -= OnShotAiParseRequestedEvent;
+        shot.InsertBeforeRequested -= OnShotInsertBeforeRequestedEvent;
         shot.InsertAfterRequested -= OnShotInsertAfterRequestedEvent;
         shot.GenerateFirstFrameRequested -= OnShotGenerateFirstFrameRequestedEvent;
         shot.GenerateLastFrameRequested -= OnShotGenerateLastFrameRequestedEvent;
@@ -286,12 +312,20 @@ public partial class ShotListViewModel : ObservableObject
             _messenger.Send(new AiParseRequestedMessage(shot));
     }
 
+    private async void OnShotInsertBeforeRequestedEvent(object? sender, EventArgs e)
+    {
+        if (sender is not ShotItem shot)
+            return;
+
+        _messenger.Send(new BatchInsertShotRequestedMessage(shot, insertAfter: false));
+    }
+
     private async void OnShotInsertAfterRequestedEvent(object? sender, EventArgs e)
     {
         if (sender is not ShotItem shot)
             return;
 
-        await InsertShotAfterAsync(shot);
+        _messenger.Send(new BatchInsertShotRequestedMessage(shot, insertAfter: true));
     }
 
     private void OnShotGenerateFirstFrameRequestedEvent(object? sender, EventArgs e)
@@ -352,6 +386,51 @@ public partial class ShotListViewModel : ObservableObject
 
         AttachShotEventHandlers(newShot);
         Shots.Insert(index + 1, newShot);
+        RenumberShots();
+
+        _messenger.Send(new ShotAddedMessage(newShot));
+        _messenger.Send(new MarkUndoableChangeMessage());
+
+        SelectedShot = newShot;
+    }
+
+    private async Task InsertShotBeforeAsync(ShotItem anchor)
+    {
+        var index = Shots.IndexOf(anchor);
+        if (index < 0)
+            return;
+
+        var prevShot = index > 0 ? Shots[index - 1] : null;
+        AiShotDescription? aiResult = null;
+
+        try
+        {
+            var prevContext = prevShot == null ? "无（作为开头补充）" : BuildShotContext(prevShot, "前一镜头");
+            var nextContext = BuildShotContext(anchor, "后一镜头");
+
+            aiResult = await _aiShotService.GenerateIntermediateShotAsync(
+                prevContext,
+                nextContext);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "智能插入失败，使用空白分镜: Shot {ShotNumber}", anchor.ShotNumber);
+        }
+
+        var duration = aiResult?.DurationSeconds ?? 3.5;
+        var startTime = prevShot?.EndTime ?? 0;
+        var newShot = new ShotItem(anchor.ShotNumber)
+        {
+            Duration = duration,
+            StartTime = startTime,
+            EndTime = startTime + duration
+        };
+
+        if (aiResult != null)
+            newShot.ApplyAiAnalysisResult(aiResult);
+
+        AttachShotEventHandlers(newShot);
+        Shots.Insert(index, newShot);
         RenumberShots();
 
         _messenger.Send(new ShotAddedMessage(newShot));

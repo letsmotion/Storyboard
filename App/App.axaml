@@ -5,6 +5,7 @@
              RequestedThemeVariant="Dark">
     <Application.Resources>
         <conv:BooleanNotConverter x:Key="BoolNot" />
+        <conv:GreaterThanZeroConverter x:Key="GreaterThanZeroConverter" />
         <conv:StatusColorConverter x:Key="StatusColorConverter" />
         <conv:SelectedBorderConverter x:Key="SelectedBorderConverter" />
         <conv:PathToBitmapConverter x:Key="PathToBitmapConverter" />

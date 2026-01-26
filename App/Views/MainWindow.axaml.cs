@@ -95,6 +95,26 @@ public partial class MainWindow : Window
                     viewModel.IsResourceLibraryDialogOpen = false;
                 }
                 break;
+
+            case nameof(MainViewModel.IsBatchInsertDialogOpen):
+                if (viewModel.IsBatchInsertDialogOpen)
+                {
+                    var batchInsertVm = App.Services.GetRequiredService<ViewModels.Shot.BatchInsertShotViewModel>();
+                    batchInsertVm.AnchorShot = viewModel.BatchInsertAnchorShot;
+                    batchInsertVm.InsertAfter = viewModel.BatchInsertAfter;
+                    var dialog = new BatchInsertShotDialog { DataContext = batchInsertVm };
+                    await dialog.ShowDialog(this);
+
+                    // 如果用户确认,则调用批量生成逻辑
+                    if (batchInsertVm.IsConfirmed && !string.IsNullOrWhiteSpace(batchInsertVm.TextInput))
+                    {
+                        var lines = batchInsertVm.TextInput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                        await viewModel.BatchGenerateShotsAsync(batchInsertVm.AnchorShot, batchInsertVm.InsertAfter, lines);
+                    }
+
+                    viewModel.IsBatchInsertDialogOpen = false;
+                }
+                break;
         }
     }
 

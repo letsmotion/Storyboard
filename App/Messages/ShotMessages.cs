@@ -23,6 +23,12 @@ public record ShotDuplicateRequestedMessage(ShotItem Shot);
 // 镜头删除请求消息
 public record ShotDeleteRequestedMessage(ShotItem Shot);
 
+// 批量插入分镜请求消息
+public record BatchInsertShotRequestedMessage(ShotItem AnchorShot, bool insertAfter);
+
+// 显示批量插入对话框消息
+public record ShowBatchInsertDialogMessage(ShotItem AnchorShot, bool insertAfter);
+
 // 抽帧完成消息
 public record FramesExtractedMessage(IReadOnlyList<ShotItem> Shots);
 
