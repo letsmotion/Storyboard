@@ -33,7 +33,12 @@
       "Bash(dotnet list:*)",
       "Bash(taskkill:*)",
       "Bash(ls:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(dotnet run)",
+      "Bash(git restore App/Views/ShotListView.axaml)",
+      "Bash(dotnet clean:*)",
+      "Bash(git checkout:*)",
+      "Bash(ping:*)"
     ],
     "additionalDirectories": [
       "d:\\project\\分镜大师"

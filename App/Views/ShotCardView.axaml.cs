@@ -157,6 +157,35 @@ public partial class ShotCardView : UserControl
         }
     }
 
+    private void OnLastFrameImagePressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is ShotItem shot && !string.IsNullOrEmpty(shot.LastFrameImagePath))
+        {
+            ShowImageDialog(shot.LastFrameImagePath, "尾帧图片");
+        }
+    }
+
+    private void OnVideoThumbnailPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is ShotItem shot && !string.IsNullOrEmpty(shot.GeneratedVideoPath))
+        {
+            try
+            {
+                // Open video with default system player
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = shot.GeneratedVideoPath,
+                    UseShellExecute = true
+                };
+                System.Diagnostics.Process.Start(psi);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error opening video: {ex.Message}");
+            }
+        }
+    }
+
     private void ShowImageDialog(string imagePath, string title)
     {
         try

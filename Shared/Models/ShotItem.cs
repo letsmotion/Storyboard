@@ -407,6 +407,8 @@ public partial class ShotItem : ObservableObject
     public event EventHandler? AiParseRequested;
     public event EventHandler? InsertBeforeRequested;
     public event EventHandler? InsertAfterRequested;
+    public event EventHandler? MoveUpRequested;
+    public event EventHandler? MoveDownRequested;
     public event EventHandler? GenerateFirstFrameRequested;
     public event EventHandler? GenerateLastFrameRequested;
     public event EventHandler? GenerateVideoRequested;
@@ -454,6 +456,18 @@ public partial class ShotItem : ObservableObject
     private void InsertAfter()
     {
         InsertAfterRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void MoveUp()
+    {
+        MoveUpRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void MoveDown()
+    {
+        MoveDownRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]

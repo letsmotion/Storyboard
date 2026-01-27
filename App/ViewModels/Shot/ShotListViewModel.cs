@@ -275,6 +275,8 @@ public partial class ShotListViewModel : ObservableObject
         shot.AiParseRequested += OnShotAiParseRequestedEvent;
         shot.InsertBeforeRequested += OnShotInsertBeforeRequestedEvent;
         shot.InsertAfterRequested += OnShotInsertAfterRequestedEvent;
+        shot.MoveUpRequested += OnShotMoveUpRequestedEvent;
+        shot.MoveDownRequested += OnShotMoveDownRequestedEvent;
         shot.GenerateFirstFrameRequested += OnShotGenerateFirstFrameRequestedEvent;
         shot.GenerateLastFrameRequested += OnShotGenerateLastFrameRequestedEvent;
         shot.GenerateVideoRequested += OnShotGenerateVideoRequestedEvent;
@@ -288,6 +290,8 @@ public partial class ShotListViewModel : ObservableObject
         shot.AiParseRequested -= OnShotAiParseRequestedEvent;
         shot.InsertBeforeRequested -= OnShotInsertBeforeRequestedEvent;
         shot.InsertAfterRequested -= OnShotInsertAfterRequestedEvent;
+        shot.MoveUpRequested -= OnShotMoveUpRequestedEvent;
+        shot.MoveDownRequested -= OnShotMoveDownRequestedEvent;
         shot.GenerateFirstFrameRequested -= OnShotGenerateFirstFrameRequestedEvent;
         shot.GenerateLastFrameRequested -= OnShotGenerateLastFrameRequestedEvent;
         shot.GenerateVideoRequested -= OnShotGenerateVideoRequestedEvent;
@@ -326,6 +330,38 @@ public partial class ShotListViewModel : ObservableObject
             return;
 
         _messenger.Send(new BatchInsertShotRequestedMessage(shot, insertAfter: true));
+    }
+
+    private void OnShotMoveUpRequestedEvent(object? sender, EventArgs e)
+    {
+        if (sender is not ShotItem shot)
+            return;
+
+        var index = Shots.IndexOf(shot);
+        if (index <= 0)
+            return;
+
+        Shots.Move(index, index - 1);
+        RenumberShots();
+
+        _messenger.Send(new MarkUndoableChangeMessage());
+        _logger.LogInformation("向上移动镜头: Shot {ShotNumber}", shot.ShotNumber);
+    }
+
+    private void OnShotMoveDownRequestedEvent(object? sender, EventArgs e)
+    {
+        if (sender is not ShotItem shot)
+            return;
+
+        var index = Shots.IndexOf(shot);
+        if (index < 0 || index >= Shots.Count - 1)
+            return;
+
+        Shots.Move(index, index + 1);
+        RenumberShots();
+
+        _messenger.Send(new MarkUndoableChangeMessage());
+        _logger.LogInformation("向下移动镜头: Shot {ShotNumber}", shot.ShotNumber);
     }
 
     private void OnShotGenerateFirstFrameRequestedEvent(object? sender, EventArgs e)

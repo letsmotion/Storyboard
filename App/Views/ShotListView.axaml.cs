@@ -63,15 +63,7 @@ public partial class ShotListView : UserControl
 
     private ItemsControl? GetActiveItemsControl()
     {
-        if (DataContext is not MainViewModel vm)
-            return null;
-
-        if (vm.IsGridView)
-            return GridItemsControl;
-        if (vm.IsListView)
-            return ListItemsControl;
-
-        return null;
+        return ListItemsControl;
     }
 
     internal void BeginInternalDrag(ShotCardView sourceCard, ShotItem shot, PointerEventArgs e)
@@ -179,76 +171,38 @@ public partial class ShotListView : UserControl
         var pointer = pos;
 
         // LIST VIEW: compute insertion purely by Y midpoints (stable & symmetric).
-        if (vm.IsListView)
-        {
-            var sorted = containers.OrderBy(c => c.rect.Y).ToList();
-            if (sorted.Count == 0)
-                return;
-
-            var insertPos = sorted.Count; // append by default (post-removal list size = sorted.Count)
-            Rect? highlightRect = null;
-            bool insertAfter = true;
-
-            for (var i = 0; i < sorted.Count; i++)
-            {
-                var r = sorted[i].rect;
-                var midY = r.Y + (r.Height / 2);
-                if (probe.Y < midY)
-                {
-                    insertPos = i;
-                    highlightRect = r;
-                    insertAfter = false;
-                    break;
-                }
-            }
-
-            if (highlightRect == null)
-            {
-                // Appending: highlight last item and show bottom line.
-                highlightRect = sorted[^1].rect;
-                insertAfter = true;
-            }
-
-            ShowTargetHighlight(highlightRect.Value);
-            ShowInsertIndicator(highlightRect.Value, insertAfter, vertical: false);
-
-            _pendingDropIndex = Math.Clamp(insertPos, 0, Math.Max(0, vm.Shots.Count - 1));
-            UpdateAutoScrollVelocity(pos);
+        var sorted = containers.OrderBy(c => c.rect.Y).ToList();
+        if (sorted.Count == 0)
             return;
+
+        var insertPos = sorted.Count; // append by default (post-removal list size = sorted.Count)
+        Rect? highlightRect = null;
+        bool insertAfter = true;
+
+        for (var i = 0; i < sorted.Count; i++)
+        {
+            var r = sorted[i].rect;
+            var midY = r.Y + (r.Height / 2);
+            if (probe.Y < midY)
+            {
+                insertPos = i;
+                highlightRect = r;
+                insertAfter = false;
+                break;
+            }
         }
 
-        // GRID VIEW: prefer item under pointer; otherwise choose nearest by center.
-        (ShotItem item, Control container, Rect rect) best;
-        var under = containers.FirstOrDefault(c => c.rect.Contains(probe));
-        if (under.item != null)
-            best = under;
-        else
-            best = containers.OrderBy(c => DistanceSquared(Center(c.rect), probe)).First();
+        if (highlightRect == null)
+        {
+            // Appending: highlight last item and show bottom line.
+            highlightRect = sorted[^1].rect;
+            insertAfter = true;
+        }
 
-        var targetIndex = GetIndexInCollection(best.item);
-        if (targetIndex < 0)
-            return;
+        ShowTargetHighlight(highlightRect.Value);
+        ShowInsertIndicator(highlightRect.Value, insertAfter, vertical: false);
 
-        var fromIndex = GetIndexInCollection(_dragShot);
-        if (fromIndex < 0)
-            return;
-
-        // Grid: left/right when moving more horizontally than vertically.
-        var center = Center(best.rect);
-        var dxFromCenter = probe.X - center.X;
-        var dyFromCenter = probe.Y - center.Y;
-        var useHorizontalAxis = Math.Abs(dxFromCenter) >= Math.Abs(dyFromCenter);
-        var insertAfterGrid = useHorizontalAxis ? (dxFromCenter >= 0) : (dyFromCenter >= 0);
-        ShowTargetHighlight(best.rect);
-        ShowInsertIndicator(best.rect, insertAfterGrid, vertical: useHorizontalAxis);
-
-        var overIndexWithoutDrag = targetIndex;
-        if (targetIndex > fromIndex)
-            overIndexWithoutDrag--;
-
-        var candidateGrid = insertAfterGrid ? overIndexWithoutDrag + 1 : overIndexWithoutDrag;
-        candidateGrid = Math.Clamp(candidateGrid, 0, Math.Max(0, vm.Shots.Count - 1));
-        _pendingDropIndex = candidateGrid;
+        _pendingDropIndex = Math.Clamp(insertPos, 0, Math.Max(0, vm.Shots.Count - 1));
         UpdateAutoScrollVelocity(pos);
     }
 
@@ -323,14 +277,6 @@ public partial class ShotListView : UserControl
         if (DataContext is not MainViewModel vm)
             return -1;
         return vm.Shots.IndexOf(item);
-    }
-
-    private static Point Center(Rect r) => new Point(r.X + r.Width / 2, r.Y + r.Height / 2);
-    private static double DistanceSquared(Point a, Point b)
-    {
-        var dx = a.X - b.X;
-        var dy = a.Y - b.Y;
-        return dx * dx + dy * dy;
     }
 
     private IEnumerable<(ShotItem item, Control container, Rect rect)> GetVisibleContainers(ItemsControl itemsControl)
@@ -485,15 +431,7 @@ public partial class ShotListView : UserControl
 
     private ScrollViewer? GetActiveScrollViewer()
     {
-        if (DataContext is not MainViewModel vm)
-            return null;
-
-        if (vm.IsGridView)
-            return GridScrollViewer;
-        if (vm.IsListView)
-            return ListScrollViewer;
-
-        return null;
+        return ListScrollViewer;
     }
 
     private void UpdateAutoScrollVelocity(Point pointer)

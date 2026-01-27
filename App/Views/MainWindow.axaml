@@ -256,51 +256,85 @@
                 <Grid Grid.Column="2" RowDefinitions="48,*">
                             
                             <!-- View Mode Switcher -->
-                            <Border Grid.Row="0" 
-                                    Background="#0f0f0f" 
-                                    BorderBrush="#27272a" 
+                            <Border Grid.Row="0"
+                                    Background="#0f0f0f"
+                                    BorderBrush="#27272a"
                                     BorderThickness="0,0,0,1"
                                     Padding="16,0">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <StackPanel Grid.Column="0" 
-                                                Orientation="Horizontal" 
-                                                Spacing="8" 
+                                    <StackPanel Grid.Column="0"
+                                                Orientation="Horizontal"
+                                                Spacing="12"
                                                 VerticalAlignment="Center">
                                         <Button Classes="ViewMode"
-                                                IsEnabled="{Binding IsGridView, Converter={StaticResource BoolNot}}"
-                                                Command="{Binding SetGridViewCommand}">
+                                                IsEnabled="{Binding IsListView, Converter={StaticResource BoolNot}}"
+                                                Command="{Binding SetListViewCommand}">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <PathIcon Data="M4 11h5V5H4v6zm0 7h5v-6H4v6zm6 0h5v-6h-5v6zm6 0h5v-6h-5v6zm-6-7h5V5h-5v6zm6-6v6h5V5h-5z" 
-                                                          Width="16" 
+                                                <PathIcon Data="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"
+                                                          Width="16"
                                                           Height="16" />
-                                                <TextBlock Text="网格视图" />
+                                                <TextBlock Text="分镜列表" />
                                             </StackPanel>
                                         </Button>
+
                                         <Button Classes="ViewMode"
                                                 IsEnabled="{Binding IsTimelineView, Converter={StaticResource BoolNot}}"
                                                 Command="{Binding SetTimelineViewCommand}">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <PathIcon Data="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z" 
-                                                          Width="16" 
+                                                <PathIcon Data="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"
+                                                          Width="16"
                                                           Height="16" />
                                                 <TextBlock Text="时间轴" />
                                             </StackPanel>
                                         </Button>
+
+                                        <!-- Shot Count -->
+                                        <Border Background="#27272a"
+                                                CornerRadius="4"
+                                                Padding="8,4"
+                                                IsVisible="{Binding IsListView}">
+                                            <TextBlock Text="{Binding Shots.Count, StringFormat='({0})'}"
+                                                       FontSize="12"
+                                                       Foreground="#71717a" />
+                                        </Border>
+
+                                        <!-- Selection Count -->
+                                        <TextBlock Text="{Binding SelectedShotsCountText}"
+                                                   FontSize="12"
+                                                   Foreground="#71717a"
+                                                   VerticalAlignment="Center"
+                                                   IsVisible="{Binding HasSelectedShots}" />
                                     </StackPanel>
 
-                                    <Button Grid.Column="1"
-                                            Classes="Ghost"
-                                            Margin="12,0,0,0"
-                                            IsVisible="{Binding HasCurrentProject}"
-                                            Command="{Binding ShowExportDialogCommand}"
-                                            ToolTip.Tip="导出">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <PathIcon Data="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"
-                                                      Width="16"
-                                                      Height="16" />
-                                            <TextBlock Text="导出" />
-                                        </StackPanel>
-                                    </Button>
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                Spacing="8"
+                                                VerticalAlignment="Center">
+                                        <!-- Batch Operation -->
+                                        <Button Classes="Secondary"
+                                                IsVisible="{Binding IsListView}"
+                                                Command="{Binding ShowBatchOperationCommand}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <PathIcon Data="M3 5v14h18V5H3zm4 2v2H5V7h2zm-2 4h2v2H5v-2zm0 4h2v2H5v-2zm14 2H9v-2h10v2zm0-4H9v-2h10v2zm0-4H9V7h10v2z"
+                                                          Width="14"
+                                                          Height="14" />
+                                                <TextBlock Text="批量操作" FontSize="12" />
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Classes="Ghost"
+                                                Margin="0"
+                                                IsVisible="{Binding HasCurrentProject}"
+                                                Command="{Binding ShowExportDialogCommand}"
+                                                ToolTip.Tip="导出">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <PathIcon Data="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"
+                                                          Width="16"
+                                                          Height="16" />
+                                                <TextBlock Text="导出" />
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                             
