@@ -32,20 +32,19 @@
 
             <!-- List View -->
             <ScrollViewer x:Name="ListScrollViewer"
-                          Padding="16,40,16,64"
+                          Padding="8,10,8,0"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl x:Name="ListItemsControl" ItemsSource="{Binding Shots}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <StackPanel Spacing="40" />
+                            <StackPanel Spacing="40" Margin="0,0,0,50" />
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
 
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="m:ShotItem">
-                            <v:ShotCardView DataContext="{Binding}"
-                                            Margin="16,0,16,0"
+                            <v:ShotCardView DataContext="{Binding}"                                   
                                             ClipToBounds="False" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
