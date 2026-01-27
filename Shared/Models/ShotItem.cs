@@ -3,6 +3,8 @@ using CommunityToolkit.Mvvm.Input;
 using System.Windows.Input;
 using System.IO;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.Linq;
 using Storyboard.Domain.Entities;
 
 namespace Storyboard.Models;
@@ -311,6 +313,10 @@ public partial class ShotItem : ObservableObject
     [ObservableProperty]
     private ObservableCollection<ShotAssetItem> _videoAssets = new();
 
+    public IEnumerable<ShotAssetItem> FirstFrameAssetsOrdered => OrderAssetsByNewest(FirstFrameAssets);
+    public IEnumerable<ShotAssetItem> LastFrameAssetsOrdered => OrderAssetsByNewest(LastFrameAssets);
+    public IEnumerable<ShotAssetItem> VideoAssetsOrdered => OrderAssetsByNewest(VideoAssets);
+
     [ObservableProperty]
     private bool _isChecked;
 
@@ -330,6 +336,22 @@ public partial class ShotItem : ObservableObject
     private double _timelineWidth;
 
     public string? VideoOutputPath => GeneratedVideoPath;
+
+    // Get the thumbnail path for the current video from VideoAssets
+    public string? VideoThumbnailPath
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(GeneratedVideoPath))
+                return null;
+
+            var asset = VideoAssets.FirstOrDefault(a =>
+                string.Equals(a.FilePath, GeneratedVideoPath, StringComparison.OrdinalIgnoreCase));
+
+            return asset?.ThumbnailPath;
+        }
+    }
+
     // Video generation no longer requires both first and last frame references.
     // Users may provide 0, 1 or 2 reference images. Provider will handle accordingly.
     public bool CanGenerateVideo => true;
@@ -432,6 +454,7 @@ public partial class ShotItem : ObservableObject
         ShotNumber = shotNumber;
         Duration = 3.5;
         SelectedModel = string.Empty;
+        AttachAssetCollectionHandlers();
     }
 
     [RelayCommand]
@@ -679,6 +702,7 @@ public partial class ShotItem : ObservableObject
     {
         UpdateAssetSelections(ShotAssetType.GeneratedVideo);
         OnPropertyChanged(nameof(VideoOutputPath));
+        OnPropertyChanged(nameof(VideoThumbnailPath));
     }
 
     partial void OnIsVideoGeneratingChanged(bool value)
@@ -786,6 +810,64 @@ public partial class ShotItem : ObservableObject
 
         foreach (var item in list)
             item.IsSelected = !string.IsNullOrWhiteSpace(selectedPath) && string.Equals(item.FilePath, selectedPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void AttachAssetCollectionHandlers()
+    {
+        _firstFrameAssets.CollectionChanged += OnFirstFrameAssetsCollectionChanged;
+        _lastFrameAssets.CollectionChanged += OnLastFrameAssetsCollectionChanged;
+        _videoAssets.CollectionChanged += OnVideoAssetsCollectionChanged;
+    }
+
+    private void OnFirstFrameAssetsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        => OnPropertyChanged(nameof(FirstFrameAssetsOrdered));
+
+    private void OnLastFrameAssetsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        => OnPropertyChanged(nameof(LastFrameAssetsOrdered));
+
+    private void OnVideoAssetsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        => OnPropertyChanged(nameof(VideoAssetsOrdered));
+
+    private static IEnumerable<ShotAssetItem> OrderAssetsByNewest(IEnumerable<ShotAssetItem> assets)
+        => assets.OrderByDescending(asset => asset?.CreatedAt ?? DateTimeOffset.MinValue);
+
+    partial void OnFirstFrameAssetsChanging(ObservableCollection<ShotAssetItem> value)
+    {
+        if (_firstFrameAssets != null)
+            _firstFrameAssets.CollectionChanged -= OnFirstFrameAssetsCollectionChanged;
+    }
+
+    partial void OnFirstFrameAssetsChanged(ObservableCollection<ShotAssetItem> value)
+    {
+        if (value != null)
+            value.CollectionChanged += OnFirstFrameAssetsCollectionChanged;
+        OnPropertyChanged(nameof(FirstFrameAssetsOrdered));
+    }
+
+    partial void OnLastFrameAssetsChanging(ObservableCollection<ShotAssetItem> value)
+    {
+        if (_lastFrameAssets != null)
+            _lastFrameAssets.CollectionChanged -= OnLastFrameAssetsCollectionChanged;
+    }
+
+    partial void OnLastFrameAssetsChanged(ObservableCollection<ShotAssetItem> value)
+    {
+        if (value != null)
+            value.CollectionChanged += OnLastFrameAssetsCollectionChanged;
+        OnPropertyChanged(nameof(LastFrameAssetsOrdered));
+    }
+
+    partial void OnVideoAssetsChanging(ObservableCollection<ShotAssetItem> value)
+    {
+        if (_videoAssets != null)
+            _videoAssets.CollectionChanged -= OnVideoAssetsCollectionChanged;
+    }
+
+    partial void OnVideoAssetsChanged(ObservableCollection<ShotAssetItem> value)
+    {
+        if (value != null)
+            value.CollectionChanged += OnVideoAssetsCollectionChanged;
+        OnPropertyChanged(nameof(VideoAssetsOrdered));
     }
 
     /// <summary>

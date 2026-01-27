@@ -6,6 +6,7 @@ using Avalonia.Platform.Storage;
 using Storyboard.Models;
 using Storyboard.Application.Services;
 using Storyboard.Domain.Entities;
+using Storyboard.Infrastructure.Media;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.ComponentModel;
@@ -1060,5 +1061,221 @@ public partial class ShotEditorView : UserControl, IDisposable
             shot.FirstFrameImagePath = path;
         else
             shot.LastFrameImagePath = path;
+    }
+
+    private async void OnUploadVideoClicked(object? sender, RoutedEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] OnUploadVideoClicked called");
+
+        if (DataContext is not ShotItem shot)
+        {
+            System.Diagnostics.Debug.WriteLine("[ShotEditorView] DataContext is not ShotItem");
+            return;
+        }
+
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] Opening video file picker...");
+        var path = await PickVideoPathAsync("选择视频文件");
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            System.Diagnostics.Debug.WriteLine("[ShotEditorView] No video file selected");
+            return;
+        }
+
+        System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Selected video: {path}");
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] Importing to library...");
+        var imported = await ImportToLibraryAsync(path);
+        var videoPath = imported ?? path;
+        System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Video path after import: {videoPath}");
+
+        // Generate thumbnail for the video
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] Generating thumbnail...");
+        var thumbnailPath = await GenerateVideoThumbnailAsync(videoPath);
+        System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Thumbnail path: {thumbnailPath ?? "null"}");
+
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] Applying video to shot...");
+        ApplyVideoToShot(shot, videoPath, thumbnailPath);
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] Video upload complete");
+    }
+
+    private async void OnPickVideoFromLibraryClicked(object? sender, RoutedEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] OnPickVideoFromLibraryClicked called");
+
+        if (DataContext is not ShotItem shot)
+        {
+            System.Diagnostics.Debug.WriteLine("[ShotEditorView] DataContext is not ShotItem");
+            return;
+        }
+
+        var libraryDir = GetResourceLibraryDirectory();
+        System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Library directory: {libraryDir}");
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] Opening video file picker from library...");
+
+        var path = await PickVideoPathAsync("从资源库选择视频", libraryDir);
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            System.Diagnostics.Debug.WriteLine("[ShotEditorView] No video file selected from library");
+            return;
+        }
+
+        System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Selected video from library: {path}");
+
+        // Generate thumbnail for the video
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] Generating thumbnail...");
+        var thumbnailPath = await GenerateVideoThumbnailAsync(path);
+        System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Thumbnail path: {thumbnailPath ?? "null"}");
+
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] Applying video to shot...");
+        ApplyVideoToShot(shot, path, thumbnailPath);
+        System.Diagnostics.Debug.WriteLine("[ShotEditorView] Video selection from library complete");
+    }
+
+    private async Task<string?> PickVideoPathAsync(string title, string? initialDirectory = null)
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.StorageProvider == null)
+            return null;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("视频文件")
+                {
+                    Patterns = new[] { "*.mp4", "*.avi", "*.mov", "*.mkv", "*.webm", "*.flv", "*.wmv" }
+                },
+                new FilePickerFileType("所有文件")
+                {
+                    Patterns = new[] { "*.*" }
+                }
+            }
+        });
+
+        return files?.FirstOrDefault()?.Path.LocalPath;
+    }
+
+    private async Task<string?> GenerateVideoThumbnailAsync(string videoPath)
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] GenerateVideoThumbnailAsync started for: {videoPath}");
+
+            if (!File.Exists(videoPath))
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Video file does not exist: {videoPath}");
+                return null;
+            }
+
+            var libraryDir = GetResourceLibraryDirectory();
+            Directory.CreateDirectory(libraryDir);
+            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Library directory: {libraryDir}");
+
+            var fileName = Path.GetFileNameWithoutExtension(videoPath);
+            var thumbnailPath = Path.Combine(libraryDir, $"{fileName}_thumb_{DateTime.Now:yyyyMMdd_HHmmssfff}.jpg");
+            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Target thumbnail path: {thumbnailPath}");
+
+            // Use FFmpeg to extract a frame at 1 second
+            var ffmpegPath = FfmpegLocator.GetFfmpegPath();
+            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] FFmpeg path: {ffmpegPath}");
+
+            if (!File.Exists(ffmpegPath) && ffmpegPath != "ffmpeg")
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] FFmpeg not found at: {ffmpegPath}");
+                return null;
+            }
+
+            var arguments = $"-i \"{videoPath}\" -ss 00:00:01 -vframes 1 -q:v 2 \"{thumbnailPath}\"";
+            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] FFmpeg arguments: {arguments}");
+
+            var startInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = arguments,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            System.Diagnostics.Debug.WriteLine("[ShotEditorView] Starting FFmpeg process...");
+            using var process = System.Diagnostics.Process.Start(startInfo);
+            if (process != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] FFmpeg process started, PID: {process.Id}");
+
+                // Read output asynchronously
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                var errorTask = process.StandardError.ReadToEndAsync();
+
+                await process.WaitForExitAsync();
+                System.Diagnostics.Debug.WriteLine($"[ShotEditorView] FFmpeg process exited with code: {process.ExitCode}");
+
+                var output = await outputTask;
+                var error = await errorTask;
+
+                if (!string.IsNullOrWhiteSpace(output))
+                    System.Diagnostics.Debug.WriteLine($"[ShotEditorView] FFmpeg stdout: {output}");
+                if (!string.IsNullOrWhiteSpace(error))
+                    System.Diagnostics.Debug.WriteLine($"[ShotEditorView] FFmpeg stderr: {error}");
+
+                if (File.Exists(thumbnailPath))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Thumbnail generated successfully: {thumbnailPath}");
+                    return thumbnailPath;
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Thumbnail file was not created");
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("[ShotEditorView] Failed to start FFmpeg process");
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Failed to generate thumbnail: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[ShotEditorView] Stack trace: {ex.StackTrace}");
+            return null;
+        }
+    }
+
+    private static void ApplyVideoToShot(ShotItem shot, string path, string? thumbnailPath)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        var assets = shot.VideoAssets;
+        var existing = assets.FirstOrDefault(a =>
+            string.Equals(a.FilePath, path, StringComparison.OrdinalIgnoreCase));
+
+        if (existing == null)
+        {
+            existing = new ShotAssetItem
+            {
+                FilePath = path,
+                ThumbnailPath = thumbnailPath ?? path,
+                Type = ShotAssetType.GeneratedVideo,
+                CreatedAt = DateTimeOffset.Now,
+                IsSelected = true
+            };
+            assets.Add(existing);
+        }
+        else
+        {
+            // Update thumbnail if a new one was generated
+            if (!string.IsNullOrWhiteSpace(thumbnailPath))
+                existing.ThumbnailPath = thumbnailPath;
+        }
+
+        foreach (var asset in assets)
+            asset.IsSelected = ReferenceEquals(asset, existing);
+
+        shot.GeneratedVideoPath = path;
     }
 }

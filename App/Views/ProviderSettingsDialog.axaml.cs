@@ -10,9 +10,27 @@ namespace Storyboard.Views;
 
 public partial class ProviderSettingsDialog : Window
 {
+    private ApiKeyViewModel? _viewModel;
+
     public ProviderSettingsDialog()
     {
         InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
+        Closed += OnDialogClosed;
+    }
+
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        if (_viewModel != null)
+        {
+            _viewModel.CloseRequested -= OnCloseRequested;
+        }
+
+        _viewModel = DataContext as ApiKeyViewModel;
+        if (_viewModel != null)
+        {
+            _viewModel.CloseRequested += OnCloseRequested;
+        }
     }
 
     private void OnProviderCardPressed(object? sender, PointerPressedEventArgs e)
@@ -38,5 +56,19 @@ public partial class ProviderSettingsDialog : Window
     private void OnCancelClick(object? sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    private void OnCloseRequested(object? sender, EventArgs e)
+    {
+        Close();
+    }
+
+    private void OnDialogClosed(object? sender, EventArgs e)
+    {
+        if (_viewModel != null)
+        {
+            _viewModel.CloseRequested -= OnCloseRequested;
+            _viewModel = null;
+        }
     }
 }

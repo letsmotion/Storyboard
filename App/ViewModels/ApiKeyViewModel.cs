@@ -18,6 +18,8 @@ public partial class ApiKeyViewModel : ObservableObject
     private readonly UserSettingsStore _userSettingsStore;
     private readonly AIServiceManager _aiManager;
 
+    public event EventHandler? CloseRequested;
+
     public ApiKeyViewModel(
         AIConfigurationComposer configComposer,
         UserSettingsStore userSettingsStore,
@@ -201,6 +203,7 @@ public partial class ApiKeyViewModel : ObservableObject
         if (TrySave(out var error))
         {
             StatusMessage = "配置已保存到 user.ai.settings.json。";
+            CloseRequested?.Invoke(this, EventArgs.Empty);
             return;
         }
 

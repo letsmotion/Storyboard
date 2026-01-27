@@ -469,12 +469,28 @@
                                     </Button>
                                 </Grid>
 
-                                <TextBlock Text="历史生成"
-                                           FontSize="12"
-                                           Foreground="#71717a" />
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                                    <TextBlock Text="历史生成"
+                                               FontSize="12"
+                                               Foreground="#71717a"
+                                               VerticalAlignment="Center" />
+                                    <Button Grid.Column="1"
+                                            Classes="Ghost"
+                                            Margin="12,0,0,0"
+                                            HorizontalAlignment="Right"
+                                            x:CompileBindings="False"
+                                            Command="{Binding DataContext.ShowResourceLibraryCommand, RelativeSource={RelativeSource AncestorType=Window}}">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="查看更多历史记录" FontSize="11" />
+                                            <PathIcon Data="M8 5l8 8-8 8"
+                                                      Width="12"
+                                                      Height="12" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
                                 <ScrollViewer HorizontalScrollBarVisibility="Auto"
                                               VerticalScrollBarVisibility="Disabled">
-                                    <ItemsControl ItemsSource="{Binding FirstFrameAssets}">
+                                    <ItemsControl ItemsSource="{Binding FirstFrameAssetsOrdered}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <WrapPanel />
@@ -812,12 +828,28 @@
                                     </Button>
                                 </Grid>
 
-                                <TextBlock Text="历史生成"
-                                           FontSize="12"
-                                           Foreground="#71717a" />
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                                    <TextBlock Text="历史生成"
+                                               FontSize="12"
+                                               Foreground="#71717a"
+                                               VerticalAlignment="Center" />
+                                    <Button Grid.Column="1"
+                                            Classes="Ghost"
+                                            Margin="12,0,0,0"
+                                            HorizontalAlignment="Right"
+                                            x:CompileBindings="False"
+                                            Command="{Binding DataContext.ShowResourceLibraryCommand, RelativeSource={RelativeSource AncestorType=Window}}">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="查看更多历史记录" FontSize="11" />
+                                            <PathIcon Data="M8 5l8 8-8 8"
+                                                      Width="12"
+                                                      Height="12" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
                                 <ScrollViewer HorizontalScrollBarVisibility="Auto"
                                               VerticalScrollBarVisibility="Disabled">
-                                    <ItemsControl ItemsSource="{Binding LastFrameAssets}">
+                                    <ItemsControl ItemsSource="{Binding LastFrameAssetsOrdered}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <WrapPanel />
@@ -1481,22 +1513,43 @@
                                     </Grid>
                                 </Border>
 
-                                <Grid ColumnDefinitions="*,*"
-                                      IsVisible="{Binding VideoOutputPath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
-                                    <Button Grid.Column="0"
+                                <!-- Video Upload/Select Actions -->
+                                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                                    <!-- Row 0: Upload and Library buttons -->
+                                    <Button Grid.Row="0" Grid.Column="0"
                                             Classes="Ghost"
                                             HorizontalAlignment="Stretch"
-                                            Margin="0,0,4,0"
-                                            Click="OnTogglePlayClicked">
+                                            Click="OnUploadVideoClicked">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                            <PathIcon Data="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" Width="12" Height="12" />
+                                            <TextBlock Text="上传视频" FontSize="11" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Row="0" Grid.Column="1"
+                                            Classes="Ghost"
+                                            HorizontalAlignment="Stretch"
+                                            Click="OnPickVideoFromLibraryClicked">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                            <PathIcon Data="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z" Width="12" Height="12" />
+                                            <TextBlock Text="从资源库选择" FontSize="11" />
+                                        </StackPanel>
+                                    </Button>
+
+                                    <!-- Row 1: Play and Open Folder buttons (only shown when video exists) -->
+                                    <Button Grid.Row="1" Grid.Column="0"
+                                            Classes="Ghost"
+                                            HorizontalAlignment="Stretch"
+                                            Click="OnTogglePlayClicked"
+                                            IsVisible="{Binding VideoOutputPath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
                                         <TextBlock Text="播放 / 暂停" FontSize="11" />
                                     </Button>
-                                    <Button Grid.Column="1"
+                                    <Button Grid.Row="1" Grid.Column="1"
                                             Classes="Ghost"
                                             HorizontalAlignment="Stretch"
-                                            Margin="4,0,0,0"
                                             x:CompileBindings="False"
                                             Command="{Binding DataContext.OpenVideoFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                            CommandParameter="{Binding}">
+                                            CommandParameter="{Binding}"
+                                            IsVisible="{Binding VideoOutputPath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
                                         <TextBlock Text="打开文件夹" FontSize="11" />
                                     </Button>
                                 </Grid>
@@ -1510,13 +1563,29 @@
                                 CornerRadius="8"
                                 Padding="16">
                             <StackPanel Spacing="12">
-                                <TextBlock Text="生成记录"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="#f5f5f5" />
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="历史生成"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="#f5f5f5"
+                                               VerticalAlignment="Center" />
+                                    <Button Grid.Column="1"
+                                            Classes="Ghost"
+                                            Margin="12,0,0,0"
+                                            HorizontalAlignment="Right"
+                                            x:CompileBindings="False"
+                                            Command="{Binding DataContext.ShowResourceLibraryCommand, RelativeSource={RelativeSource AncestorType=Window}}">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="查看更多历史记录" FontSize="11" />
+                                            <PathIcon Data="M8 5l8 8-8 8"
+                                                      Width="12"
+                                                      Height="12" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
                                 <ScrollViewer HorizontalScrollBarVisibility="Auto"
                                               VerticalScrollBarVisibility="Disabled">
-                                    <ItemsControl ItemsSource="{Binding VideoAssets}">
+                                    <ItemsControl ItemsSource="{Binding VideoAssetsOrdered}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <WrapPanel />

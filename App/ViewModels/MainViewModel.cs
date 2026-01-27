@@ -56,10 +56,10 @@ public partial class MainViewModel : ObservableObject
 
     // 全局 UI 状态
     [ObservableProperty]
-    private bool _isGridView = true;
+    private bool _isGridView = false;
 
     [ObservableProperty]
-    private bool _isListView;
+    private bool _isListView = true;
 
     [ObservableProperty]
     private bool _isTimelineView;
@@ -916,6 +916,9 @@ public partial class MainViewModel : ObservableObject
 
         _logger.LogInformation("创作意图已加载: Goal={Goal}, Audience={Audience}",
             CreativeGoal, TargetAudience);
+
+        // 默认切回分镜列表视图，确保批量操作等列表功能立即可见
+        SetListView();
     }
 
     // 关闭项目时清空创作意图

@@ -179,7 +179,7 @@
             <!-- Row 2: Thumbnails Grid -->
             <Grid Grid.Row="2"
                   x:Name="MediaPreviewGrid"
-                  ColumnDefinitions="*,8,*,8,*,8,*"
+                  ColumnDefinitions="Auto,Auto,*,8,*,8,*"
                   Margin="0,0,0,12">
 
                 <!-- Material Image -->
@@ -188,35 +188,23 @@
                         BorderBrush="#3f3f46"
                         BorderThickness="1"
                         CornerRadius="6"
-                        ClipToBounds="True">
+                        ClipToBounds="True"
+                        Width="180"
+                        IsVisible="{Binding MaterialFilePath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
                     <Border.Styles>
                         <Style Selector="Border">
                             <Setter Property="Height" Value="120" />
                         </Style>
                     </Border.Styles>
-                    <Panel>
-                        <!-- Image -->
-                        <Image Source="{Binding MaterialFilePath, Converter={StaticResource PathToBitmapConverter}}"
-                               Stretch="UniformToFill"
-                               IsVisible="{Binding MaterialFilePath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"
-                               PointerPressed="OnMaterialImagePressed" />
-
-                        <!-- Placeholder -->
-                        <StackPanel HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    IsVisible="{Binding MaterialFilePath, Converter={x:Static conv:StringConverters.IsNullOrEmpty}}">
-                            <PathIcon Data="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"
-                                      Width="32"
-                                      Height="32"
-                                      Foreground="#3f3f46" />
-                            <TextBlock Text="素材"
-                                       FontSize="11"
-                                       Foreground="#52525b"
-                                       Margin="0,8,0,0"
-                                       HorizontalAlignment="Center" />
-                        </StackPanel>
-                    </Panel>
+                    <Image Source="{Binding MaterialFilePath, Converter={StaticResource PathToBitmapConverter}}"
+                           Stretch="UniformToFill"
+                           PointerPressed="OnMaterialImagePressed" />
                 </Border>
+
+                <!-- Spacing after Material (only visible when material exists) -->
+                <Border Grid.Column="1"
+                        Width="8"
+                        IsVisible="{Binding MaterialFilePath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
 
                 <!-- First Frame -->
                 <Border Grid.Column="2"
@@ -381,11 +369,19 @@
                         </Style>
                     </Border.Styles>
                     <Panel>
-                        <!-- Video Thumbnail -->
-                        <Image Source="{Binding GeneratedVideoPath, Converter={StaticResource PathToBitmapConverter}}"
+                        <!-- Video Thumbnail (preferred) -->
+                        <Image Source="{Binding VideoThumbnailPath, Converter={StaticResource PathToBitmapConverter}}"
                                Stretch="UniformToFill"
-                               IsVisible="{Binding GeneratedVideoPath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"
+                               IsVisible="{Binding VideoThumbnailPath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"
                                PointerPressed="OnVideoThumbnailPressed" />
+
+                        <!-- Fallback: Show first frame if video exists but no thumbnail -->
+                        <Panel IsVisible="{Binding VideoThumbnailPath, Converter={x:Static conv:StringConverters.IsNullOrEmpty}}">
+                            <Image Source="{Binding FirstFrameImagePath, Converter={StaticResource PathToBitmapConverter}}"
+                                   Stretch="UniformToFill"
+                                   IsVisible="{Binding GeneratedVideoPath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"
+                                   PointerPressed="OnVideoThumbnailPressed" />
+                        </Panel>
 
                         <!-- Placeholder -->
                         <StackPanel HorizontalAlignment="Center"
@@ -471,6 +467,28 @@
                     <TextBlock Text="素材"
                                FontSize="12"
                                Foreground="#22c55e" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal"
+                            Spacing="4"
+                            IsVisible="{Binding FirstFrameImagePath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
+                    <PathIcon Data="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"
+                              Width="14"
+                              Height="14"
+                              Foreground="#f59e0b" />
+                    <TextBlock Text="首帧"
+                               FontSize="12"
+                               Foreground="#f59e0b" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal"
+                            Spacing="4"
+                            IsVisible="{Binding LastFrameImagePath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
+                    <PathIcon Data="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"
+                              Width="14"
+                              Height="14"
+                              Foreground="#ec4899" />
+                    <TextBlock Text="尾帧"
+                               FontSize="12"
+                               Foreground="#ec4899" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal"
                             Spacing="4"
