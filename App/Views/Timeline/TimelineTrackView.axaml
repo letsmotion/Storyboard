@@ -14,13 +14,19 @@
                 BorderBrush="#27272a"
                 BorderThickness="0,0,1,1"
                 Padding="8">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                    <GradientStop Color="#0f0f0f" Offset="0" />
+                    <GradientStop Color="#0a0a0a" Offset="1" />
+                </LinearGradientBrush>
+            </Border.Background>
             <Grid RowDefinitions="Auto,Auto,*">
                 <!-- 轨道类型图标 -->
                 <PathIcon Grid.Row="0"
                           Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-8 12H9.5v-2h-2v2H6V9h1.5v2.5h2V9H11v6zm7-1c0 .55-.45 1-1 1h-.75v1.5h-1.5V15H14c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v4zm-3.5-.5h2v-3h-2v3z"
-                          Width="20"
-                          Height="20"
-                          Foreground="#a1a1aa"
+                          Width="24"
+                          Height="24"
+                          Foreground="#8b5cf6"
                           HorizontalAlignment="Left" />
 
                 <!-- 轨道名称 -->
@@ -29,7 +35,7 @@
                            FontSize="12"
                            FontWeight="SemiBold"
                            Foreground="#f5f5f5"
-                           Margin="0,4,0,0" />
+                           Margin="0,6,0,0" />
 
                 <!-- 控制按钮 -->
                 <StackPanel Grid.Row="2"
@@ -68,9 +74,28 @@
                 Background="#0a0a0a"
                 BorderBrush="#27272a"
                 BorderThickness="0,0,0,1">
-            <Canvas Height="{Binding Height}" x:Name="ClipsCanvas">
-                <!-- 片段将通过代码后台添加 -->
-            </Canvas>
+            <ItemsControl ItemsSource="{Binding Clips}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <Canvas Height="{Binding $parent[v:TimelineTrackView].DataContext.Height}" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+
+                <ItemsControl.Styles>
+                    <Style Selector="ItemsControl > ContentPresenter" x:DataType="m:TimelineClip">
+                        <Setter Property="Canvas.Left" Value="{Binding VisualPosition}" />
+                        <Setter Property="Canvas.Top" Value="8" />
+                        <Setter Property="Width" Value="{Binding PixelWidth}" />
+                        <Setter Property="Height" Value="120" />
+                    </Style>
+                </ItemsControl.Styles>
+
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="m:TimelineClip">
+                        <v:TimelineClipView />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </Border>
     </Grid>
 </UserControl>

@@ -29,7 +29,10 @@ public partial class TimelineTrack : ObservableObject
     private int _order;
 
     [ObservableProperty]
-    private double _height = 128;
+    private double _height = 96; // 优化后的轨道高度（原128px）
+
+    [ObservableProperty]
+    private double _verticalOffset;
 
     [ObservableProperty]
     private ObservableCollection<TimelineClip> _clips = new();

@@ -234,6 +234,7 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IFinalRenderService, FinalRenderService>();
         services.AddSingleton<ICapCutExportService, CapCutExportService>();
         services.AddSingleton<IDraftManager, DraftManager>();
+        services.AddSingleton<ITimelineInteractionService, TimelineInteractionService>();
 
         services.AddSingleton<IUiDispatcher, AvaloniaUiDispatcher>();
         services.AddSingleton<IJobQueueService>(sp =>

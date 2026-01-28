@@ -5,6 +5,7 @@ using LibVLCSharp.Shared;
 using Microsoft.Extensions.Logging;
 using Storyboard.Views;
 using Storyboard.ViewModels.Timeline;
+using Storyboard.Behaviors;
 using System;
 using System.Threading;
 
@@ -17,6 +18,7 @@ public partial class TimelineEditorView : UserControl, IDisposable
     private bool _isInitialized;
     private bool _isDisposed;
     private readonly object _playerLock = new();
+    private TimelineScrollSynchronizer? _scrollSynchronizer;
 
     // 静态初始化 LibVLC Core
     static TimelineEditorView()
@@ -36,6 +38,7 @@ public partial class TimelineEditorView : UserControl, IDisposable
         if (!_isInitialized && !_isDisposed)
         {
             InitializeVLC();
+            InitializeScrollSynchronization();
         }
     }
 
@@ -102,6 +105,32 @@ public partial class TimelineEditorView : UserControl, IDisposable
     }
 
     /// <summary>
+    /// 初始化滚动同步
+    /// </summary>
+    private void InitializeScrollSynchronization()
+    {
+        try
+        {
+            if (TimelineScrollViewer != null &&
+                TrackHeadersScrollViewer != null &&
+                TimelineRuler != null)
+            {
+                _scrollSynchronizer = new TimelineScrollSynchronizer();
+                _scrollSynchronizer.Initialize(
+                    TimelineScrollViewer,
+                    TrackHeadersScrollViewer,
+                    TimelineRuler);
+
+                LogMessage("滚动同步初始化成功");
+            }
+        }
+        catch (Exception ex)
+        {
+            LogMessage($"滚动同步初始化失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// MediaPlayer 错误处理
     /// </summary>
     private void OnMediaPlayerError(object? sender, EventArgs e)
@@ -126,6 +155,10 @@ public partial class TimelineEditorView : UserControl, IDisposable
             return;
 
         _isDisposed = true;
+
+        // 释放滚动同步
+        _scrollSynchronizer?.Dispose();
+        _scrollSynchronizer = null;
 
         lock (_playerLock)
         {

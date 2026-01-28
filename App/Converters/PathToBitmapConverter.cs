@@ -1,32 +1,40 @@
+using Avalonia.Data.Converters;
+using Avalonia.Media.Imaging;
 using System;
 using System.Globalization;
 using System.IO;
-using Avalonia.Data.Converters;
-using Avalonia.Media.Imaging;
 
 namespace Storyboard.Converters;
 
-public sealed class PathToBitmapConverter : IValueConverter
+/// <summary>
+/// 将文件路径转换为 Bitmap 对象
+/// </summary>
+public class PathToBitmapConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (value is not string path || string.IsNullOrWhiteSpace(path))
-            return null;
-
-        if (!File.Exists(path))
-            return null;
-
-        try
+        if (value is string path && !string.IsNullOrWhiteSpace(path))
         {
-            var bytes = File.ReadAllBytes(path);
-            return new Bitmap(new MemoryStream(bytes));
+            try
+            {
+                // 检查文件是否存在
+                if (File.Exists(path))
+                {
+                    return new Bitmap(path);
+                }
+            }
+            catch
+            {
+                // 如果加载失败，返回 null
+                return null;
+            }
         }
-        catch
-        {
-            return null;
-        }
+
+        return null;
     }
 
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => throw new NotSupportedException();
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
 }

@@ -5,64 +5,159 @@
              x:Class="Storyboard.Views.Timeline.TimelineClipView"
              x:DataType="m:TimelineClip">
 
+    <UserControl.Resources>
+        <conv:PathToBitmapConverter x:Key="PathToBitmapConverter" />
+    </UserControl.Resources>
+
     <Border x:Name="ClipBorder"
             Background="#27272a"
             BorderBrush="#3b82f6"
-            BorderThickness="2"
-            CornerRadius="4"
-            Padding="6"
-            Cursor="Hand"
-            PointerPressed="OnClipPointerPressed">
+            BorderThickness="1"
+            CornerRadius="2"
+            Padding="4,2">
 
-        <Grid RowDefinitions="Auto,*,Auto">
-            <!-- Shot 编号和时长 -->
-            <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
-                <TextBlock Grid.Column="0"
-                           Text="{Binding ShotNumber, StringFormat='#{0}'}"
-                           FontSize="11"
-                           FontWeight="SemiBold"
-                           Foreground="#f5f5f5"
-                           IsVisible="{Binding ShotNumber, Converter={x:Static conv:IntConverters.IsNotZero}}" />
-                <TextBlock Grid.Column="0"
-                           Text="原视频"
-                           FontSize="11"
-                           FontWeight="SemiBold"
-                           Foreground="#10b981"
-                           IsVisible="{Binding ShotNumber, Converter={x:Static conv:IntConverters.IsZero}}" />
-                <TextBlock Grid.Column="1"
-                           Text="{Binding Duration, StringFormat='{}{0:F1}s'}"
-                           FontSize="10"
-                           Foreground="#71717a" />
+        <Border.Transitions>
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15" />
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+                <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
+            </Transitions>
+        </Border.Transitions>
+
+        <Grid>
+            <!-- Main content -->
+            <Grid RowDefinitions="Auto,*">
+                <!-- 顶部：Shot 编号和时长 -->
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,2">
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding ShotNumber, StringFormat='#{0}'}"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="#f5f5f5"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding ShotNumber, Converter={x:Static conv:IntConverters.IsNotZero}}" />
+                    <TextBlock Grid.Column="0"
+                               Text="原视频"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="#10b981"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding ShotNumber, Converter={x:Static conv:IntConverters.IsZero}}" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding Duration, StringFormat='{}{0:F1}s'}"
+                               FontSize="9"
+                               Foreground="#71717a"
+                               VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- 中间：缩略图区域 -->
+                <Border Grid.Row="1"
+                        Background="#0a0a0a"
+                        CornerRadius="2"
+                        ClipToBounds="True">
+                    <Panel>
+                        <!-- 缩略图条带（已生成） - 使用 ImageBrush 平铺 -->
+                        <Border IsVisible="{Binding ThumbnailPath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
+                            <Border.Background>
+                                <ImageBrush Source="{Binding ThumbnailPath, Converter={StaticResource PathToBitmapConverter}}"
+                                           Stretch="UniformToFill"
+                                           TileMode="Tile"
+                                           DestinationRect="0,0,80,60"
+                                           AlignmentX="Left"
+                                           AlignmentY="Center" />
+                            </Border.Background>
+                        </Border>
+
+                        <!-- 占位符图标（未生成） -->
+                        <PathIcon Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z"
+                                  Width="20"
+                                  Height="20"
+                                  Foreground="#52525b"
+                                  IsVisible="{Binding ThumbnailPath, Converter={x:Static conv:StringConverters.IsNullOrEmpty}}" />
+
+                        <!-- 状态指示器（右下角，胶囊形） -->
+                        <Border HorizontalAlignment="Right"
+                                VerticalAlignment="Bottom"
+                                Margin="4"
+                                Background="#18181b"
+                                CornerRadius="8"
+                                Padding="4,2"
+                                IsVisible="{Binding Status, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
+                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                <!-- 状态指示点 -->
+                                <Ellipse Width="6"
+                                         Height="6"
+                                         x:Name="StatusDot"
+                                         Fill="#8b5cf6"
+                                         VerticalAlignment="Center">
+                                    <Ellipse.Styles>
+                                        <!-- 生成中状态的脉冲动画 -->
+                                        <Style Selector="Ellipse">
+                                            <Style.Animations>
+                                                <Animation Duration="0:0:1.5" IterationCount="Infinite">
+                                                    <KeyFrame Cue="0%">
+                                                        <Setter Property="Opacity" Value="1.0" />
+                                                    </KeyFrame>
+                                                    <KeyFrame Cue="50%">
+                                                        <Setter Property="Opacity" Value="0.3" />
+                                                    </KeyFrame>
+                                                    <KeyFrame Cue="100%">
+                                                        <Setter Property="Opacity" Value="1.0" />
+                                                    </KeyFrame>
+                                                </Animation>
+                                            </Style.Animations>
+                                        </Style>
+                                    </Ellipse.Styles>
+                                </Ellipse>
+
+                                <TextBlock Text="{Binding Status}"
+                                           FontSize="9"
+                                           Foreground="#e5e5e5"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                    </Panel>
+                </Border>
             </Grid>
 
-            <!-- 缩略图或占位符 -->
-            <Border Grid.Row="1"
-                    Background="#0a0a0a"
-                    CornerRadius="3"
-                    Margin="0,4">
-                <Panel>
-                    <!-- 缩略图（已生成） -->
-                    <Image Source="{Binding ThumbnailPath}"
-                           Stretch="UniformToFill"
-                           IsVisible="{Binding ThumbnailPath, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
-
-                    <!-- 占位符图标（未生成） -->
-                    <PathIcon Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z"
-                              Width="24"
-                              Height="24"
-                              Foreground="#52525b"
-                              IsVisible="{Binding ThumbnailPath, Converter={x:Static conv:StringConverters.IsNullOrEmpty}}" />
-                </Panel>
+            <!-- Resize handles -->
+            <Border x:Name="LeftResizeHandle"
+                    Width="6"
+                    Background="Transparent"
+                    Cursor="SizeWestEast"
+                    HorizontalAlignment="Left"
+                    IsVisible="{Binding IsSelected}">
+                <Border Width="3"
+                        Background="#8b5cf6"
+                        HorizontalAlignment="Center"
+                        Opacity="0.6">
+                    <Border.Styles>
+                        <Style Selector="Border:pointerover">
+                            <Setter Property="Opacity" Value="1.0" />
+                            <Setter Property="Width" Value="4" />
+                        </Style>
+                    </Border.Styles>
+                </Border>
             </Border>
 
-            <!-- 状态指示器 -->
-            <StackPanel Grid.Row="2"
-                        Orientation="Horizontal"
-                        Spacing="4">
-                <TextBlock Text="{Binding Status}"
-                           FontSize="10"
-                           Foreground="#71717a" />
-            </StackPanel>
+            <Border x:Name="RightResizeHandle"
+                    Width="6"
+                    Background="Transparent"
+                    Cursor="SizeWestEast"
+                    HorizontalAlignment="Right"
+                    IsVisible="{Binding IsSelected}">
+                <Border Width="3"
+                        Background="#8b5cf6"
+                        HorizontalAlignment="Center"
+                        Opacity="0.6">
+                    <Border.Styles>
+                        <Style Selector="Border:pointerover">
+                            <Setter Property="Opacity" Value="1.0" />
+                            <Setter Property="Width" Value="4" />
+                        </Style>
+                    </Border.Styles>
+                </Border>
+            </Border>
         </Grid>
     </Border>
 </UserControl>

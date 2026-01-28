@@ -6,8 +6,13 @@
              xmlns:v="using:Storyboard.Views.Timeline"
              xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
              xmlns:conv="using:Storyboard.Converters"
+             xmlns:controls="using:Storyboard.Controls"
              x:Class="Storyboard.Views.Timeline.TimelineEditorView"
              x:DataType="vm:TimelineEditorViewModel">
+
+    <UserControl.Resources>
+        <conv:PathToBitmapConverter x:Key="PathToBitmapConverter" />
+    </UserControl.Resources>
 
     <Grid RowDefinitions="*,Auto,Auto,*" Background="#0a0a0a">
 
@@ -152,62 +157,27 @@
         </Border>
 
         <!-- 4. 时间轴画布 (40-50% 高度) -->
-        <ScrollViewer Grid.Row="3"
-                      HorizontalScrollBarVisibility="Auto"
-                      VerticalScrollBarVisibility="Auto">
-            <Grid RowDefinitions="Auto,*">
+        <Grid Grid.Row="3" ColumnDefinitions="120,*">
 
-                <!-- 时间刻度尺 -->
-                <Border Grid.Row="0"
-                        Height="32"
-                        Background="#0f0f0f"
-                        BorderBrush="#27272a"
-                        BorderThickness="0,0,0,1">
-                    <Canvas Width="{Binding TimelineWidth}"
-                            Height="32">
-                        <!-- 时间标记 -->
-                        <ItemsControl ItemsSource="{Binding TimeMarkers}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <Canvas />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
+            <!-- 左侧：轨道头部列表（固定，只垂直滚动） -->
+            <Border Grid.Column="0"
+                    Background="#0f0f0f"
+                    BorderBrush="#27272a"
+                    BorderThickness="0,0,1,0">
+                <Grid RowDefinitions="32,*">
+                    <!-- 轨道头部占位符（对齐刻度尺高度） -->
+                    <Border Grid.Row="0"
+                            Height="32"
+                            Background="#0f0f0f"
+                            BorderBrush="#27272a"
+                            BorderThickness="0,0,0,1"
+                            BoxShadow="0 2 4 0 #00000040" />
 
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="m:TimeMarker">
-                                    <StackPanel Canvas.Left="{Binding Position}">
-                                        <Border Width="1"
-                                                Height="8"
-                                                Background="#52525b" />
-                                        <TextBlock Text="{Binding Label}"
-                                                   FontSize="10"
-                                                   Foreground="#71717a"
-                                                   Margin="0,4,0,0" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <!-- 播放头（刻度尺部分） -->
-                        <Border Canvas.Left="{Binding PlayheadPosition}"
-                                Width="1"
-                                Height="32"
-                                Background="#ef4444">
-                            <Ellipse Width="12"
-                                     Height="12"
-                                     Fill="#ef4444"
-                                     HorizontalAlignment="Center"
-                                     VerticalAlignment="Top"
-                                     Margin="0,-6,0,0" />
-                        </Border>
-                    </Canvas>
-                </Border>
-
-                <!-- 轨道区域 -->
-                <Border Grid.Row="1"
-                        Background="#0a0a0a">
-                    <Panel>
-                        <!-- 轨道列表 -->
+                    <!-- 轨道头部列表 -->
+                    <ScrollViewer Grid.Row="1"
+                                  x:Name="TrackHeadersScrollViewer"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Hidden">
                         <ItemsControl ItemsSource="{Binding Tracks}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -217,22 +187,263 @@
 
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="tm:TimelineTrack">
-                                    <v:TimelineTrackView Width="{Binding $parent[vm:TimelineEditorViewModel].TimelineWidth}" />
+                                    <!-- 只显示轨道头部，不包含内容区 -->
+                                    <Border Background="#0f0f0f"
+                                            BorderBrush="#27272a"
+                                            BorderThickness="0,0,0,1"
+                                            Padding="8"
+                                            Height="{Binding Height}">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                                                <GradientStop Color="#0f0f0f" Offset="0" />
+                                                <GradientStop Color="#0a0a0a" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <Grid RowDefinitions="Auto,Auto,*">
+                                            <!-- 轨道类型图标 -->
+                                            <PathIcon Grid.Row="0"
+                                                      Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-8 12H9.5v-2h-2v2H6V9h1.5v2.5h2V9H11v6zm7-1c0 .55-.45 1-1 1h-.75v1.5h-1.5V15H14c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v4zm-3.5-.5h2v-3h-2v3z"
+                                                      Width="24"
+                                                      Height="24"
+                                                      Foreground="#8b5cf6"
+                                                      HorizontalAlignment="Left" />
+
+                                            <!-- 轨道名称 -->
+                                            <TextBlock Grid.Row="1"
+                                                       Text="{Binding Name}"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#f5f5f5"
+                                                       Margin="0,6,0,0" />
+
+                                            <!-- 控制按钮 -->
+                                            <StackPanel Grid.Row="2"
+                                                        Orientation="Horizontal"
+                                                        Spacing="4"
+                                                        VerticalAlignment="Bottom">
+                                                <!-- 锁定按钮 -->
+                                                <Button Classes="IconButton"
+                                                        Width="24"
+                                                        Height="24"
+                                                        Padding="4"
+                                                        Command="{Binding ToggleLockCommand}">
+                                                    <PathIcon Data="{Binding IsLocked, Converter={x:Static conv:BoolConverters.LockIcon}}"
+                                                              Width="14"
+                                                              Height="14"
+                                                              Foreground="{Binding IsLocked, Converter={x:Static conv:BoolConverters.LockColor}}" />
+                                                </Button>
+
+                                                <!-- 可见性按钮 -->
+                                                <Button Classes="IconButton"
+                                                        Width="24"
+                                                        Height="24"
+                                                        Padding="4"
+                                                        Command="{Binding ToggleVisibilityCommand}">
+                                                    <PathIcon Data="{Binding IsVisible, Converter={x:Static conv:BoolConverters.VisibilityIcon}}"
+                                                              Width="14"
+                                                              Height="14"
+                                                              Foreground="{Binding IsVisible, Converter={x:Static conv:BoolConverters.VisibilityColor}}" />
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- 右侧：刻度尺 + 时间轴内容 -->
+            <Grid Grid.Column="1" RowDefinitions="32,*">
+
+                <!-- 刻度尺（自定义绘制控件） -->
+                <Border Grid.Row="0"
+                        Background="#0f0f0f"
+                        BorderBrush="#27272a"
+                        BorderThickness="0,0,0,1"
+                        BoxShadow="0 2 4 0 #00000040">
+                    <controls:TimelineRulerControl x:Name="TimelineRuler"
+                                                   Height="32"
+                                                   PixelsPerSecond="{Binding PixelsPerSecond}"
+                                                   TotalDuration="{Binding TotalDuration}"
+                                                   PlayheadPosition="{Binding PlayheadPosition}" />
+                </Border>
+
+                <!-- 时间轴内容区（可滚动） -->
+                <ScrollViewer Grid.Row="1"
+                              x:Name="TimelineScrollViewer"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto">
+                    <Canvas Width="{Binding TimelineWidth}"
+                            Height="{Binding TracksHeight}">
+
+                        <!-- 背景网格线 -->
+                        <controls:TimelineGridControl Width="{Binding TimelineWidth}"
+                                                      Height="{Binding TracksHeight}"
+                                                      PixelsPerSecond="{Binding PixelsPerSecond}"
+                                                      Tracks="{Binding Tracks}" />
+
+                        <!-- 轨道内容 -->
+                        <ItemsControl ItemsSource="{Binding Tracks}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <Canvas />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+
+                            <ItemsControl.Styles>
+                                <Style Selector="ItemsControl > ContentPresenter" x:DataType="tm:TimelineTrack">
+                                    <Setter Property="Canvas.Left" Value="0" />
+                                    <Setter Property="Canvas.Top" Value="{Binding VerticalOffset}" />
+                                </Style>
+                            </ItemsControl.Styles>
+
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="tm:TimelineTrack">
+                                    <!-- 只显示轨道内容区，不包含头部 -->
+                                    <ItemsControl ItemsSource="{Binding Clips}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <Canvas Height="{Binding Height}" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+
+                                        <ItemsControl.Styles>
+                                            <Style Selector="ItemsControl > ContentPresenter" x:DataType="tm:TimelineClip">
+                                                <Setter Property="Canvas.Left" Value="{Binding VisualPosition}" />
+                                                <Setter Property="Canvas.Top" Value="8" />
+                                                <Setter Property="Width" Value="{Binding PixelWidth}" />
+                                                <Setter Property="Height" Value="72" />
+                                            </Style>
+                                        </ItemsControl.Styles>
+
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="tm:TimelineClip">
+                                                <v:TimelineClipView />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <!-- 播放头（轨道部分） -->
-                        <Canvas>
-                            <Border Canvas.Left="{Binding PlayheadPosition}"
-                                    Width="2"
-                                    Height="1000"
-                                    Background="#ef4444"
-                                    Opacity="0.8" />
-                        </Canvas>
-                    </Panel>
-                </Border>
+                        <!-- 播放头（覆盖层） -->
+                        <Border Canvas.Left="{Binding PlayheadPosition}"
+                                Canvas.Top="0"
+                                Width="2"
+                                Height="{Binding TracksHeight}"
+                                Background="#8b5cf6"
+                                Opacity="0.8"
+                                BoxShadow="0 0 6 1 #8b5cf640" />
+
+                        <!-- 吸附线指示器 -->
+                        <Border Canvas.Left="{Binding SnapLinePosition}"
+                                Canvas.Top="0"
+                                Width="2"
+                                Height="{Binding TracksHeight}"
+                                Background="#8b5cf6"
+                                Opacity="0.6"
+                                IsVisible="{Binding SnapLinePosition, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <Border.Transitions>
+                                <Transitions>
+                                    <DoubleTransition Property="Opacity" Duration="0:0:0.1" />
+                                </Transitions>
+                            </Border.Transitions>
+                        </Border>
+
+                        <!-- 拖动幽灵预览 -->
+                        <Border IsVisible="{Binding IsGhostPreviewVisible}"
+                                Canvas.Left="{Binding GhostPreviewX}"
+                                Canvas.Top="{Binding GhostPreviewY}"
+                                Width="{Binding GhostPreviewWidth}"
+                                Height="72"
+                                Background="#27272a"
+                                BorderBrush="#8b5cf6"
+                                BorderThickness="2"
+                                CornerRadius="2"
+                                Opacity="0.5"
+                                BoxShadow="0 4 12 0 #8b5cf680">
+                            <Grid RowDefinitions="Auto,*">
+                                <!-- 标题栏 -->
+                                <Border Grid.Row="0"
+                                        Background="#18181b"
+                                        Padding="4,2"
+                                        CornerRadius="2,2,0,0">
+                                    <TextBlock Text="{Binding GhostPreviewLabel}"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="#f5f5f5" />
+                                </Border>
+
+                                <!-- 缩略图 -->
+                                <Border Grid.Row="1"
+                                        Margin="2"
+                                        CornerRadius="1"
+                                        ClipToBounds="True">
+                                    <Border.Background>
+                                        <ImageBrush Source="{Binding GhostPreviewThumbnail, Converter={StaticResource PathToBitmapConverter}}"
+                                                   Stretch="UniformToFill"
+                                                   TileMode="Tile"
+                                                   DestinationRect="0,0,80,60"
+                                                   AlignmentX="Left"
+                                                   AlignmentY="Center" />
+                                    </Border.Background>
+                                </Border>
+                            </Grid>
+                            <Border.Transitions>
+                                <Transitions>
+                                    <DoubleTransition Property="Opacity" Duration="0:0:0.1" />
+                                </Transitions>
+                            </Border.Transitions>
+                        </Border>
+
+                        <!-- 拖动提示框（胶囊形状） -->
+                        <Border IsVisible="{Binding IsDragTooltipVisible}"
+                                Background="#18181b"
+                                BorderBrush="#8b5cf6"
+                                BorderThickness="1.5"
+                                CornerRadius="12"
+                                Padding="12,6"
+                                BoxShadow="0 4 16 0 #00000099"
+                                Canvas.Left="{Binding DragTooltipX}"
+                                Canvas.Top="{Binding DragTooltipY}">
+                            <TextBlock Text="{Binding DragTooltipTime}"
+                                       FontFamily="Consolas"
+                                       FontSize="12"
+                                       Foreground="#f5f5f5"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="0.5" />
+                            <Border.Transitions>
+                                <Transitions>
+                                    <DoubleTransition Property="Opacity" Duration="0:0:0.1" />
+                                </Transitions>
+                            </Border.Transitions>
+                        </Border>
+
+                        <!-- 吸附反馈提示框 -->
+                        <Border IsVisible="{Binding IsSnapFeedbackVisible}"
+                                Background="#18181b"
+                                BorderBrush="#10b981"
+                                BorderThickness="1.5"
+                                CornerRadius="10"
+                                Padding="10,5"
+                                BoxShadow="0 4 16 0 #00000099"
+                                Canvas.Left="{Binding SnapFeedbackX}"
+                                Canvas.Top="{Binding SnapFeedbackY}">
+                            <TextBlock Text="{Binding SnapFeedbackText}"
+                                       FontSize="11"
+                                       Foreground="#10b981"
+                                       FontWeight="SemiBold" />
+                            <Border.Transitions>
+                                <Transitions>
+                                    <DoubleTransition Property="Opacity" Duration="0:0:0.1" />
+                                </Transitions>
+                            </Border.Transitions>
+                        </Border>
+                    </Canvas>
+                </ScrollViewer>
             </Grid>
-        </ScrollViewer>
+        </Grid>
     </Grid>
 </UserControl>

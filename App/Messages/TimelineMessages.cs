@@ -28,6 +28,36 @@ public record TrackDeletedMessage(TimelineTrack Track);
 public record PlayheadPositionChangedMessage(double Time, double Position);
 
 /// <summary>
+/// 片段开始拖动消息
+/// </summary>
+public record ClipDragStartedMessage(TimelineClip Clip);
+
+/// <summary>
+/// 片段拖动更新消息
+/// </summary>
+public record ClipDragUpdatedMessage(TimelineClip Clip, double NewPosition);
+
+/// <summary>
+/// 片段拖动结束消息
+/// </summary>
+public record ClipDragEndedMessage(TimelineClip Clip, double FinalPosition);
+
+/// <summary>
+/// 片段被修剪消息
+/// </summary>
+public record ClipTrimmedMessage(TimelineClip Clip, double OldDuration, double NewDuration);
+
+/// <summary>
+/// 片段被分割消息
+/// </summary>
+public record ClipsSplitMessage(TimelineClip OriginalClip, TimelineClip NewClip);
+
+/// <summary>
+/// 片段被删除消息
+/// </summary>
+public record ClipsDeletedMessage(List<TimelineClip> Clips, bool RippleDelete);
+
+/// <summary>
 /// 查询视频导入信息
 /// </summary>
 public class GetVideoImportInfoQuery

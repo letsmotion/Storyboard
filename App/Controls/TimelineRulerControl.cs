@@ -1,0 +1,217 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media;
+using System;
+
+namespace Storyboard.Controls;
+
+/// <summary>
+/// Custom timeline ruler control that draws time markers with adaptive density
+/// </summary>
+public class TimelineRulerControl : Control
+{
+    public static readonly StyledProperty<double> PixelsPerSecondProperty =
+        AvaloniaProperty.Register<TimelineRulerControl, double>(nameof(PixelsPerSecond), 50.0);
+
+    public static readonly StyledProperty<double> TotalDurationProperty =
+        AvaloniaProperty.Register<TimelineRulerControl, double>(nameof(TotalDuration), 0.0);
+
+    public static readonly StyledProperty<double> ViewportOffsetXProperty =
+        AvaloniaProperty.Register<TimelineRulerControl, double>(nameof(ViewportOffsetX), 0.0);
+
+    public static readonly StyledProperty<double> PlayheadPositionProperty =
+        AvaloniaProperty.Register<TimelineRulerControl, double>(nameof(PlayheadPosition), 0.0);
+
+    public double PixelsPerSecond
+    {
+        get => GetValue(PixelsPerSecondProperty);
+        set => SetValue(PixelsPerSecondProperty, value);
+    }
+
+    public double TotalDuration
+    {
+        get => GetValue(TotalDurationProperty);
+        set => SetValue(TotalDurationProperty, value);
+    }
+
+    public double ViewportOffsetX
+    {
+        get => GetValue(ViewportOffsetXProperty);
+        set => SetValue(ViewportOffsetXProperty, value);
+    }
+
+    public double PlayheadPosition
+    {
+        get => GetValue(PlayheadPositionProperty);
+        set => SetValue(PlayheadPositionProperty, value);
+    }
+
+    static TimelineRulerControl()
+    {
+        AffectsRender<TimelineRulerControl>(
+            PixelsPerSecondProperty,
+            TotalDurationProperty,
+            ViewportOffsetXProperty,
+            PlayheadPositionProperty);
+    }
+
+    public override void Render(DrawingContext context)
+    {
+        base.Render(context);
+
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
+            return;
+
+        // Background
+        context.FillRectangle(new SolidColorBrush(Color.Parse("#0f0f0f")), new Rect(Bounds.Size));
+
+        // Calculate visible time range
+        var visibleStartTime = ViewportOffsetX / PixelsPerSecond;
+        var visibleEndTime = (ViewportOffsetX + Bounds.Width) / PixelsPerSecond;
+
+        // Determine tick interval based on zoom level
+        var (majorInterval, minorInterval) = CalculateTickIntervals(PixelsPerSecond);
+
+        // Draw minor ticks
+        DrawTicks(context, visibleStartTime, visibleEndTime, minorInterval, false);
+
+        // Draw major ticks with labels
+        DrawTicks(context, visibleStartTime, visibleEndTime, majorInterval, true);
+
+        // Draw playhead indicator
+        DrawPlayhead(context);
+    }
+
+    private (double major, double minor) CalculateTickIntervals(double pps)
+    {
+        // Adaptive intervals based on pixels per second
+        // Goal: major ticks every ~100-150 pixels, minor ticks every ~20-30 pixels
+
+        var targetMajorPixels = 120.0;
+        var targetMinorPixels = 24.0;
+
+        // Calculate ideal intervals in seconds
+        var idealMajorInterval = targetMajorPixels / pps;
+        var idealMinorInterval = targetMinorPixels / pps;
+
+        // Snap to nice numbers: 0.1, 0.2, 0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600
+        double[] niceIntervals = { 0.1, 0.2, 0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600 };
+
+        var majorInterval = SnapToNiceInterval(idealMajorInterval, niceIntervals);
+        var minorInterval = SnapToNiceInterval(idealMinorInterval, niceIntervals);
+
+        // Ensure minor is smaller than major
+        if (minorInterval >= majorInterval)
+        {
+            var majorIndex = Array.IndexOf(niceIntervals, majorInterval);
+            if (majorIndex > 0)
+                minorInterval = niceIntervals[majorIndex - 1];
+            else
+                minorInterval = majorInterval / 5;
+        }
+
+        return (majorInterval, minorInterval);
+    }
+
+    private double SnapToNiceInterval(double value, double[] intervals)
+    {
+        // Find closest nice interval
+        var closest = intervals[0];
+        var minDiff = Math.Abs(value - closest);
+
+        foreach (var interval in intervals)
+        {
+            var diff = Math.Abs(value - interval);
+            if (diff < minDiff)
+            {
+                minDiff = diff;
+                closest = interval;
+            }
+        }
+
+        return closest;
+    }
+
+    private void DrawTicks(DrawingContext context, double startTime, double endTime, double interval, bool isMajor)
+    {
+        if (interval <= 0) return;
+
+        // Start from first tick before visible area
+        var firstTick = Math.Floor(startTime / interval) * interval;
+
+        var tickHeight = isMajor ? 12.0 : 6.0;
+        var tickColor = isMajor ? Color.Parse("#71717a") : Color.Parse("#3f3f46");
+        var pen = new Pen(new SolidColorBrush(tickColor), 1);
+
+        var typeface = new Typeface("Segoe UI");
+        var textBrush = new SolidColorBrush(Color.Parse("#a1a1aa"));
+
+        for (var time = firstTick; time <= endTime + interval; time += interval)
+        {
+            if (time < 0) continue;
+
+            var x = (time * PixelsPerSecond) - ViewportOffsetX;
+
+            if (x < -10 || x > Bounds.Width + 10)
+                continue;
+
+            // Draw tick line
+            context.DrawLine(pen, new Point(x, Bounds.Height - tickHeight), new Point(x, Bounds.Height));
+
+            // Draw label for major ticks
+            if (isMajor)
+            {
+                var label = FormatTime(time);
+                var formattedText = new FormattedText(
+                    label,
+                    System.Globalization.CultureInfo.CurrentCulture,
+                    FlowDirection.LeftToRight,
+                    typeface,
+                    11,
+                    textBrush);
+
+                var textX = x - formattedText.Width / 2;
+                var textY = 4;
+
+                context.DrawText(formattedText, new Point(textX, textY));
+            }
+        }
+    }
+
+    private void DrawPlayhead(DrawingContext context)
+    {
+        var x = PlayheadPosition - ViewportOffsetX;
+
+        if (x < 0 || x > Bounds.Width)
+            return;
+
+        // Draw playhead line
+        var pen = new Pen(new SolidColorBrush(Color.Parse("#8b5cf6")), 2);
+        context.DrawLine(pen, new Point(x, 0), new Point(x, Bounds.Height));
+
+        // Draw playhead circle at top
+        var circleBrush = new SolidColorBrush(Color.Parse("#8b5cf6"));
+        context.DrawEllipse(circleBrush, null, new Point(x, 7), 7, 7);
+    }
+
+    private string FormatTime(double seconds)
+    {
+        if (seconds < 60)
+        {
+            return $"{seconds:F1}s";
+        }
+        else if (seconds < 3600)
+        {
+            var minutes = (int)(seconds / 60);
+            var secs = seconds % 60;
+            return $"{minutes}:{secs:00.0}";
+        }
+        else
+        {
+            var hours = (int)(seconds / 3600);
+            var minutes = (int)((seconds % 3600) / 60);
+            var secs = seconds % 60;
+            return $"{hours}:{minutes:00}:{secs:00}";
+        }
+    }
+}

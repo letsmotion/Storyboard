@@ -42,10 +42,25 @@ public partial class TimelineClip : ObservableObject
     [ObservableProperty]
     private double _pixelsPerSecond = 50; // 默认缩放比例
 
+    // 拖动相关属性
+    [ObservableProperty]
+    private bool _isDragging;
+
+    [ObservableProperty]
+    private double _dragOffsetX; // 拖动时的临时像素位置
+
+    [ObservableProperty]
+    private bool _isBeingTrimmed; // 是否正在修剪
+
     /// <summary>
     /// 像素位置（用于 Canvas.Left）
     /// </summary>
     public double PixelPosition => StartTime * PixelsPerSecond;
+
+    /// <summary>
+    /// 视觉位置（拖动时使用临时位置，否则使用实际位置）
+    /// </summary>
+    public double VisualPosition => IsDragging ? DragOffsetX : PixelPosition;
 
     /// <summary>
     /// 像素宽度（用于 Width）
@@ -74,6 +89,17 @@ public partial class TimelineClip : ObservableObject
     {
         OnPropertyChanged(nameof(PixelPosition));
         OnPropertyChanged(nameof(PixelWidth));
+        OnPropertyChanged(nameof(VisualPosition));
+    }
+
+    partial void OnIsDraggingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(VisualPosition));
+    }
+
+    partial void OnDragOffsetXChanged(double value)
+    {
+        OnPropertyChanged(nameof(VisualPosition));
     }
 
     /// <summary>
@@ -89,7 +115,7 @@ public partial class TimelineClip : ObservableObject
             StartTime = startTime,
             Duration = shot.Duration,
             PixelsPerSecond = pixelsPerSecond,
-            Status = DetermineStatus(shot),
+            Status = GetStatusFromShot(shot),
             ThumbnailPath = shot.FirstFrameImagePath,
             VideoPath = shot.GeneratedVideoPath
         };
@@ -98,7 +124,7 @@ public partial class TimelineClip : ObservableObject
     /// <summary>
     /// 根据 ShotItem 状态确定 ClipStatus
     /// </summary>
-    private static ClipStatus DetermineStatus(ShotItem shot)
+    public static ClipStatus GetStatusFromShot(ShotItem shot)
     {
         if (shot.IsVideoGenerating)
             return ClipStatus.Generating;
