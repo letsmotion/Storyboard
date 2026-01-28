@@ -165,24 +165,20 @@ jobs:
 
         Write-Host "`n📦 开始打包..."
 
-        # 如果启用增量包，需要将前一个版本的文件复制到输出目录
+        # 如果启用增量包，需要将前一个版本的 .nupkg 文件复制到输出目录
+        # 注意：不要复制 RELEASES 文件，让 vpk 自动生成完整的 RELEASES（包含 delta 包条目）
         if ($enableDelta) {
           Write-Host "`n📋 准备增量包生成环境..."
 
           # 创建输出目录
           New-Item -ItemType Directory -Path ./releases -Force | Out-Null
 
-          # 复制前一个版本的 RELEASES 文件
-          if (Test-Path ./previous-release/RELEASES) {
-            Copy-Item -Path ./previous-release/RELEASES -Destination ./releases/RELEASES -Force
-            Write-Host "  ✅ 已复制 RELEASES 文件到输出目录"
-          }
-
-          # 复制前一个版本的 .nupkg 文件
+          # 只复制前一个版本的 .nupkg 文件（用于生成 delta 包）
           $previousNupkg = Get-ChildItem ./previous-release -Filter "*.nupkg" | Select-Object -First 1
           if ($previousNupkg) {
             Copy-Item -Path $previousNupkg.FullName -Destination ./releases/ -Force
             Write-Host "  ✅ 已复制 $($previousNupkg.Name) 到输出目录"
+            Write-Host "  ℹ️  不复制 RELEASES 文件，让 vpk 自动生成（包含 delta 包条目）"
           }
 
           Write-Host "  🎯 增量包生成环境准备完成"
