@@ -109,5 +109,11 @@
     <None Remove="nul" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- CapCut template files: copy to output directory -->
+    <None Include="resources\templates\capcut\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 
 </Project>

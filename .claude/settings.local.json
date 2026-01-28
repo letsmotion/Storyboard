@@ -38,7 +38,8 @@
       "Bash(git restore App/Views/ShotListView.axaml)",
       "Bash(dotnet clean:*)",
       "Bash(git checkout:*)",
-      "Bash(ping:*)"
+      "Bash(ping:*)",
+      "Read(//c/Users/Administrator/AppData/Local/Storyboard/**)"
     ],
     "additionalDirectories": [
       "d:\\project\\分镜大师"

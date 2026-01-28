@@ -421,6 +421,22 @@ public partial class MainViewModel : ObservableObject
             query.Shots = ShotList.Shots.ToList();
         });
 
+        _messenger.Register<GetProjectInfoQuery>(this, (r, query) =>
+        {
+            query.ProjectInfo = CurrentProject;
+        });
+
+        _messenger.Register<GetCurrentProjectPathQuery>(this, (r, query) =>
+        {
+            if (!string.IsNullOrEmpty(CurrentProjectId))
+            {
+                // 从 StoragePathService 获取输出目录，项目存储在 output/projects/{projectId}
+                var storagePathService = App.Services.GetRequiredService<StoragePathService>();
+                var outputDir = storagePathService.GetOutputDirectory();
+                query.ProjectPath = System.IO.Path.Combine(outputDir, "projects", CurrentProjectId);
+            }
+        });
+
         _logger.LogInformation("MainViewModel 初始化完成");
     }
 
@@ -471,8 +487,8 @@ public partial class MainViewModel : ObservableObject
         IsListView = false;
         IsTimelineView = true;
 
-        // 切换到时间轴视图时，自动构建时间轴
-        TimelineEditor.BuildTimelineFromShots();
+        // 切换到时间轴视图时，自动同步时间轴
+        _ = TimelineEditor.SyncShotsToTimelineAsync();
     }
 
     // 侧边栏切换命令
@@ -915,6 +931,19 @@ public partial class MainViewModel : ObservableObject
 
         _logger.LogInformation("创作意图已加载: Goal={Goal}, Audience={Audience}",
             CreativeGoal, TargetAudience);
+
+        // 触发 Timeline 加载草稿
+        if (!string.IsNullOrEmpty(CurrentProjectId))
+        {
+            var pathQuery = new GetCurrentProjectPathQuery();
+            _messenger.Send(pathQuery);
+
+            if (!string.IsNullOrEmpty(pathQuery.ProjectPath))
+            {
+                var projectName = state.Name;
+                _ = TimelineEditor.LoadOrCreateDraftAsync(pathQuery.ProjectPath, projectName);
+            }
+        }
 
         // 默认切回分镜列表视图，确保批量操作等列表功能立即可见
         SetListView();

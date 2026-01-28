@@ -2,27 +2,36 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
+using Storyboard.Infrastructure.Services;
 using Storyboard.Messages;
 using Storyboard.Models;
+using Storyboard.Models.CapCut;
 using Storyboard.Models.Timeline;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Storyboard.ViewModels.Timeline;
 
 /// <summary>
-/// 时间轴编辑器主 ViewModel
+/// 时间轴编辑器主 ViewModel - 基于 CapCut 草稿格式
 /// </summary>
 public partial class TimelineEditorViewModel : ObservableObject
 {
+    private readonly IDraftManager _draftManager;
     private readonly IMessenger _messenger;
     private readonly ILogger<TimelineEditorViewModel> _logger;
+
+    // 核心数据：CapCut 草稿
+    private DraftContent? _draftContent;
+    private DraftMetaInfo? _draftMetaInfo;
+    private string? _currentProjectPath;
 
     // 子 ViewModels
     public TimelinePlaybackViewModel Playback { get; }
 
-    // 轨道集合
+    // 轨道集合（UI 视图）
     [ObservableProperty]
     private ObservableCollection<TimelineTrack> _tracks = new();
 
@@ -51,25 +60,30 @@ public partial class TimelineEditorViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<Models.TimeMarker> _timeMarkers = new();
 
-    // 上一个选中的片段（用于取消选中状态）
-    private TimelineClip? _previousSelectedClip;
+    // 草稿是否已加载
+    [ObservableProperty]
+    private bool _isDraftLoaded;
+
+    // 自动保存定时器
+    private System.Timers.Timer? _autoSaveTimer;
+    private bool _isDirty;
 
     public TimelineEditorViewModel(
         TimelinePlaybackViewModel playback,
+        IDraftManager draftManager,
         IMessenger messenger,
         ILogger<TimelineEditorViewModel> logger)
     {
         Playback = playback;
+        _draftManager = draftManager;
         _messenger = messenger;
         _logger = logger;
 
         // 订阅 Shot 消息
-        _messenger.Register<ShotAddedMessage>(this, OnShotAdded);
-        _messenger.Register<ShotDeletedMessage>(this, OnShotDeleted);
-        _messenger.Register<ShotUpdatedMessage>(this, OnShotUpdated);
+        _messenger.Register<ShotAddedMessage>(this, OnShotChanged);
+        _messenger.Register<ShotDeletedMessage>(this, OnShotChanged);
+        _messenger.Register<ShotUpdatedMessage>(this, OnShotChanged);
         _messenger.Register<ProjectDataLoadedMessage>(this, OnProjectDataLoaded);
-
-        // 订阅片段选中消息
         _messenger.Register<ClipSelectedMessage>(this, OnClipSelected);
 
         // 订阅播放状态变化
@@ -82,105 +96,208 @@ public partial class TimelineEditorViewModel : ObservableObject
             }
         };
 
-        // 初始化默认轨道
-        InitializeDefaultTracks();
+        // 初始化自动保存
+        InitializeAutoSave();
+
+        _logger.LogInformation("TimelineEditorViewModel 初始化完成（基于 CapCut 草稿）");
     }
 
     /// <summary>
-    /// 初始化默认轨道
+    /// 初始化自动保存
     /// </summary>
-    private void InitializeDefaultTracks()
+    private void InitializeAutoSave()
     {
-        // 不再自动添加默认轨道，等待 BuildTimelineFromShots 时添加
-        _logger.LogInformation("初始化轨道系统");
+        _autoSaveTimer = new System.Timers.Timer(5000); // 每 5 秒检查一次
+        _autoSaveTimer.Elapsed += async (s, e) =>
+        {
+            if (_isDirty && _draftContent != null && _draftMetaInfo != null && !string.IsNullOrEmpty(_currentProjectPath))
+            {
+                await SaveDraftAsync();
+                _isDirty = false;
+            }
+        };
+        _autoSaveTimer.Start();
     }
 
     /// <summary>
-    /// 从 Shots 构建时间轴
+    /// 加载或创建草稿
     /// </summary>
-    [RelayCommand]
-    public void BuildTimelineFromShots()
+    public async Task LoadOrCreateDraftAsync(string projectPath, string projectName)
     {
+        try
+        {
+            _currentProjectPath = projectPath;
+            var draftDirectory = _draftManager.GetDraftDirectory(projectPath);
+
+            if (System.IO.Directory.Exists(draftDirectory) &&
+                System.IO.File.Exists(System.IO.Path.Combine(draftDirectory, "draft_content.json")))
+            {
+                // 加载现有草稿
+                (_draftContent, _draftMetaInfo) = await _draftManager.LoadDraftAsync(draftDirectory);
+                _logger.LogInformation("加载现有草稿: {DraftId}", _draftContent.Id);
+            }
+            else
+            {
+                // 创建新草稿
+                (_draftContent, _draftMetaInfo) = await _draftManager.CreateNewDraftAsync(projectName, projectPath);
+                _logger.LogInformation("创建新草稿: {DraftId}", _draftContent.Id);
+            }
+
+            IsDraftLoaded = true;
+
+            // 从草稿构建时间轴 UI
+            BuildTimelineFromDraft();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "加载或创建草稿失败");
+            IsDraftLoaded = false;
+        }
+    }
+
+    /// <summary>
+    /// 从 Shots 同步到草稿
+    /// </summary>
+    public async Task SyncShotsToTimelineAsync()
+    {
+        // 如果草稿未加载，先尝试加载
+        if (_draftContent == null)
+        {
+            _logger.LogInformation("草稿未加载，尝试自动加载...");
+
+            // 获取项目路径
+            var pathQuery = new GetCurrentProjectPathQuery();
+            _messenger.Send(pathQuery);
+
+            var projectQuery = new GetProjectInfoQuery();
+            _messenger.Send(projectQuery);
+
+            if (!string.IsNullOrEmpty(pathQuery.ProjectPath) && projectQuery.ProjectInfo != null)
+            {
+                await LoadOrCreateDraftAsync(pathQuery.ProjectPath, projectQuery.ProjectInfo.Name);
+            }
+            else
+            {
+                _logger.LogWarning("无法获取项目信息，跳过草稿加载");
+                return;
+            }
+        }
+
         var query = new GetAllShotsQuery();
         _messenger.Send(query);
 
         if (query.Shots == null || query.Shots.Count == 0)
         {
-            _logger.LogWarning("没有可用的 Shots");
-            TotalDuration = 0;
-            TimelineWidth = 0;
-            TimeMarkers.Clear();
+            _logger.LogInformation("没有可用的 Shots，清空时间轴");
+            if (_draftContent != null)
+            {
+                _draftContent.Tracks.Clear();
+                _draftContent.Materials.Videos.Clear();
+                _draftContent.Duration = 0;
+                BuildTimelineFromDraft();
+                await SaveDraftAsync();
+            }
+            return;
+        }
+
+        // 使用适配器同步数据
+        DraftAdapter.SyncShotsToDraft(query.Shots.ToList(), _draftContent);
+
+        // 标记为脏数据
+        _isDirty = true;
+
+        // 重建 UI
+        BuildTimelineFromDraft();
+
+        _logger.LogInformation("同步完成: {SegmentCount} 个片段",
+            _draftContent.Tracks.SelectMany(t => t.Segments).Count());
+    }
+
+    /// <summary>
+    /// 从草稿构建时间轴 UI
+    /// </summary>
+    private void BuildTimelineFromDraft()
+    {
+        if (_draftContent == null)
+        {
+            _logger.LogWarning("草稿未加载");
             return;
         }
 
         // 清空现有轨道
         Tracks.Clear();
 
-        // 添加原视频轨道（如果有导入的视频）
-        AddOriginalVideoTrack();
+        // 提取时间轴信息
+        var timelineInfo = DraftAdapter.ExtractTimelineInfo(_draftContent);
 
-        // 创建视频轨道并添加 Shots
-        var videoTrack = new TimelineTrack(TrackType.Video, "生成视频轨道");
-        Tracks.Add(videoTrack);
-
-        double currentTime = 0;
-        foreach (var shot in query.Shots.OrderBy(s => s.ShotNumber))
-        {
-            var clip = TimelineClip.FromShotItem(shot, videoTrack.Id, currentTime, PixelsPerSecond);
-            videoTrack.Clips.Add(clip);
-            _logger.LogInformation("添加片段: Shot #{ShotNumber}, StartTime={StartTime}s, Duration={Duration}s, PixelPosition={PixelPosition}px, PixelWidth={PixelWidth}px",
-                clip.ShotNumber, clip.StartTime, clip.Duration, clip.PixelPosition, clip.PixelWidth);
-            currentTime += shot.Duration;
-        }
-
-        TotalDuration = currentTime;
+        // 更新总时长
+        TotalDuration = timelineInfo.TotalDurationSeconds;
         TimelineWidth = TotalDuration * PixelsPerSecond;
         Playback.State.TotalDuration = TotalDuration;
+
+        // 创建轨道
+        foreach (var trackInfo in timelineInfo.Tracks)
+        {
+            var trackType = trackInfo.Type switch
+            {
+                "video" => TrackType.Video,
+                "audio" => TrackType.Audio,
+                _ => TrackType.Video
+            };
+
+            var track = new TimelineTrack(trackType, $"{trackInfo.Type} 轨道")
+            {
+                Id = Guid.Parse(trackInfo.Id)
+            };
+
+            // 创建片段
+            foreach (var segmentInfo in trackInfo.Segments)
+            {
+                var clip = new TimelineClip
+                {
+                    Id = Guid.Parse(segmentInfo.Id),
+                    TrackId = track.Id,
+                    StartTime = segmentInfo.StartTimeSeconds,
+                    Duration = segmentInfo.DurationSeconds,
+                    PixelsPerSecond = PixelsPerSecond,
+                    Status = ClipStatus.Generated,
+                    VideoPath = segmentInfo.VideoPath,
+                    ThumbnailPath = null
+                };
+
+                track.Clips.Add(clip);
+            }
+
+            Tracks.Add(track);
+        }
 
         // 生成时间标记
         GenerateTimeMarkers();
 
-        _logger.LogInformation("时间轴构建完成: {ClipCount} 个片段, 总时长 {Duration:F2}s, 轨道数 {TrackCount}, 视频轨道片段数 {VideoTrackClipCount}",
-            videoTrack.Clips.Count, TotalDuration, Tracks.Count, videoTrack.Clips.Count);
+        _logger.LogInformation("时间轴构建完成: {TrackCount} 个轨道, 总时长 {Duration:F2}s",
+            Tracks.Count, TotalDuration);
     }
 
     /// <summary>
-    /// 添加原视频轨道
+    /// 保存草稿
     /// </summary>
-    private void AddOriginalVideoTrack()
+    private async Task SaveDraftAsync()
     {
-        // 查询视频导入信息
-        var videoQuery = new GetVideoImportInfoQuery();
-        _messenger.Send(videoQuery);
-
-        if (string.IsNullOrEmpty(videoQuery.VideoPath) || !System.IO.File.Exists(videoQuery.VideoPath))
+        if (_draftContent == null || _draftMetaInfo == null || string.IsNullOrEmpty(_currentProjectPath))
         {
-            _logger.LogInformation("没有导入的原视频，跳过原视频轨道创建");
             return;
         }
 
-        // 创建原视频轨道
-        var originalTrack = new TimelineTrack(TrackType.OriginalVideo, "原视频");
-        Tracks.Add(originalTrack);
-
-        // 创建原视频片段
-        var originalClip = new TimelineClip
+        try
         {
-            Id = Guid.NewGuid(),
-            TrackId = originalTrack.Id,
-            ShotNumber = 0, // 原视频不是 shot
-            StartTime = 0,
-            Duration = videoQuery.VideoDurationSeconds,
-            PixelsPerSecond = PixelsPerSecond,
-            Status = ClipStatus.Generated,
-            VideoPath = videoQuery.VideoPath,
-            ThumbnailPath = null // 可以后续添加缩略图
-        };
-
-        originalTrack.Clips.Add(originalClip);
-
-        _logger.LogInformation("添加原视频轨道: 时长={Duration:F2}s, 路径={Path}",
-            originalClip.Duration, videoQuery.VideoPath);
+            var draftDirectory = _draftManager.GetDraftDirectory(_currentProjectPath);
+            await _draftManager.SaveDraftAsync(draftDirectory, _draftContent, _draftMetaInfo);
+            _logger.LogDebug("草稿自动保存成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "保存草稿失败");
+        }
     }
 
     /// <summary>
@@ -227,46 +344,6 @@ public partial class TimelineEditorViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 添加轨道
-    /// </summary>
-    [RelayCommand]
-    private void AddTrack(TrackType type)
-    {
-        var trackNumber = Tracks.Count(t => t.Type == type) + 1;
-        var name = type switch
-        {
-            TrackType.OriginalVideo => "原视频",
-            TrackType.Video => $"视频轨道 {trackNumber}",
-            TrackType.Audio => $"音频轨道 {trackNumber}",
-            TrackType.Subtitle => $"字幕轨道 {trackNumber}",
-            _ => $"轨道 {trackNumber}"
-        };
-
-        var track = new TimelineTrack(type, name) { Order = Tracks.Count };
-        Tracks.Add(track);
-
-        _messenger.Send(new TrackAddedMessage(track));
-        _logger.LogInformation("添加轨道: {Name}", name);
-    }
-
-    /// <summary>
-    /// 删除轨道
-    /// </summary>
-    [RelayCommand]
-    private void DeleteTrack(TimelineTrack? track)
-    {
-        if (track == null || Tracks.Count <= 1)
-        {
-            _logger.LogWarning("无法删除轨道：轨道为空或只剩一条轨道");
-            return;
-        }
-
-        Tracks.Remove(track);
-        _messenger.Send(new TrackDeletedMessage(track));
-        _logger.LogInformation("删除轨道: {Name}", track.Name);
-    }
-
-    /// <summary>
     /// 播放头跳转
     /// </summary>
     [RelayCommand]
@@ -277,6 +354,28 @@ public partial class TimelineEditorViewModel : ObservableObject
         Playback.SeekTo(PlayheadTime);
 
         _messenger.Send(new PlayheadPositionChangedMessage(PlayheadTime, PlayheadPosition));
+    }
+
+    /// <summary>
+    /// 添加轨道（暂时保留以兼容 UI，实际由 SyncShotsToTimelineAsync 管理）
+    /// </summary>
+    [RelayCommand]
+    private void AddTrack(TrackType type)
+    {
+        _logger.LogInformation("添加轨道请求: {Type}，当前由自动同步管理", type);
+        // 在新架构中，轨道由 SyncShotsToTimelineAsync 自动管理
+        // 此命令保留以兼容现有 UI
+    }
+
+    /// <summary>
+    /// 删除轨道（暂时保留以兼容 UI）
+    /// </summary>
+    [RelayCommand]
+    private void DeleteTrack(TimelineTrack? track)
+    {
+        _logger.LogInformation("删除轨道请求: {TrackName}，当前由自动同步管理", track?.Name);
+        // 在新架构中，轨道由 SyncShotsToTimelineAsync 自动管理
+        // 此命令保留以兼容现有 UI
     }
 
     /// <summary>
@@ -300,83 +399,48 @@ public partial class TimelineEditorViewModel : ObservableObject
         TimelineWidth = TotalDuration * value;
         PlayheadPosition = PlayheadTime * value;
 
+        // 更新所有片段的像素属性
+        foreach (var track in Tracks)
+        {
+            foreach (var clip in track.Clips)
+            {
+                clip.PixelsPerSecond = value;
+            }
+        }
+
         // 重新生成时间标记
         GenerateTimeMarkers();
     }
 
-    /// <summary>
-    /// 重新计算总时长
-    /// </summary>
-    private void RecalculateDuration()
-    {
-        var maxEndTime = Tracks
-            .SelectMany(t => t.Clips)
-            .Select(c => c.EndTime)
-            .DefaultIfEmpty(0)
-            .Max();
-
-        TotalDuration = maxEndTime;
-        TimelineWidth = TotalDuration * PixelsPerSecond;
-        Playback.State.TotalDuration = TotalDuration;
-
-        GenerateTimeMarkers();
-    }
-
     // 消息处理
-    private void OnShotAdded(object recipient, ShotAddedMessage message)
+    private void OnShotChanged(object recipient, object message)
     {
-        BuildTimelineFromShots();
-    }
-
-    private void OnShotDeleted(object recipient, ShotDeletedMessage message)
-    {
-        BuildTimelineFromShots();
-    }
-
-    private void OnShotUpdated(object recipient, ShotUpdatedMessage message)
-    {
-        // 更新对应的 Clip
-        var clip = Tracks
-            .SelectMany(t => t.Clips)
-            .FirstOrDefault(c => c.ShotNumber == message.Shot.ShotNumber);
-
-        if (clip != null)
-        {
-            clip.Duration = message.Shot.Duration;
-            clip.Status = TimelineClip.FromShotItem(message.Shot, clip.TrackId, clip.StartTime, PixelsPerSecond).Status;
-            clip.ThumbnailPath = message.Shot.FirstFrameImagePath;
-            clip.VideoPath = message.Shot.GeneratedVideoPath;
-
-            RecalculateDuration();
-            _logger.LogDebug("更新 Clip: Shot #{ShotNumber}", message.Shot.ShotNumber);
-        }
+        // Shot 变化时重新同步
+        _ = SyncShotsToTimelineAsync();
     }
 
     private void OnProjectDataLoaded(object recipient, ProjectDataLoadedMessage message)
     {
-        // 项目加载后自动构建时间轴
-        BuildTimelineFromShots();
+        // 项目加载后加载草稿
+        // 通过查询消息获取项目路径
+        var pathQuery = new GetCurrentProjectPathQuery();
+        _messenger.Send(pathQuery);
+
+        if (!string.IsNullOrEmpty(pathQuery.ProjectPath))
+        {
+            var projectName = message.ProjectState.Name;
+            _ = LoadOrCreateDraftAsync(pathQuery.ProjectPath, projectName);
+        }
     }
 
-    /// <summary>
-    /// 处理片段选中消息
-    /// </summary>
     private void OnClipSelected(object recipient, ClipSelectedMessage message)
     {
-        // 取消上一个片段的选中状态
-        if (_previousSelectedClip != null && _previousSelectedClip != message.Clip)
-        {
-            _previousSelectedClip.IsSelected = false;
-        }
-
-        // 设置新的选中片段
         SelectedClip = message.Clip;
 
         if (SelectedClip != null)
         {
             SelectedClip.IsSelected = true;
-            _previousSelectedClip = SelectedClip;
-            _logger.LogInformation("片段已选中: Shot #{ShotNumber}", SelectedClip.ShotNumber);
+            _logger.LogInformation("片段已选中: {ClipId}", SelectedClip.Id);
 
             // 加载并播放选中片段的视频
             LoadClipVideo(SelectedClip);
@@ -422,4 +486,14 @@ public partial class TimelineEditorViewModel : ObservableObject
             _logger.LogError(ex, "加载视频失败: {Path}", clip.VideoPath);
         }
     }
+
+    /// <summary>
+    /// 获取草稿内容（用于导出）
+    /// </summary>
+    public DraftContent? GetDraftContent() => _draftContent;
+
+    /// <summary>
+    /// 获取草稿元信息（用于导出）
+    /// </summary>
+    public DraftMetaInfo? GetDraftMetaInfo() => _draftMetaInfo;
 }

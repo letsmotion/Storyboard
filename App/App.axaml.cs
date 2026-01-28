@@ -232,6 +232,8 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IVideoGenerationProvider, VolcengineVideoGenerationProvider>();
         services.AddSingleton<IVideoGenerationService, VideoGenerationService>();
         services.AddSingleton<IFinalRenderService, FinalRenderService>();
+        services.AddSingleton<ICapCutExportService, CapCutExportService>();
+        services.AddSingleton<IDraftManager, DraftManager>();
 
         services.AddSingleton<IUiDispatcher, AvaloniaUiDispatcher>();
         services.AddSingleton<IJobQueueService>(sp =>

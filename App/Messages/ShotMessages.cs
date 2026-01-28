@@ -43,3 +43,15 @@ public class GetCurrentProjectIdQuery
 {
     public string? ProjectId { get; set; }
 }
+
+// 查询当前项目信息消息
+public class GetProjectInfoQuery
+{
+    public ProjectInfo? ProjectInfo { get; set; }
+}
+
+// 查询当前项目路径消息
+public class GetCurrentProjectPathQuery
+{
+    public string? ProjectPath { get; set; }
+}

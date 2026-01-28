@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Storyboard.Application.Abstractions;
+using Storyboard.Infrastructure.Services;
 using Storyboard.Messages;
 using Storyboard.Models;
 using System;
@@ -18,6 +19,7 @@ namespace Storyboard.ViewModels.Generation;
 public partial class ExportViewModel : ObservableObject
 {
     private readonly IFinalRenderService _finalRenderService;
+    private readonly ICapCutExportService _capCutExportService;
     private readonly IJobQueueService _jobQueue;
     private readonly IMessenger _messenger;
     private readonly ILogger<ExportViewModel> _logger;
@@ -30,11 +32,13 @@ public partial class ExportViewModel : ObservableObject
 
     public ExportViewModel(
         IFinalRenderService finalRenderService,
+        ICapCutExportService capCutExportService,
         IJobQueueService jobQueue,
         IMessenger messenger,
         ILogger<ExportViewModel> logger)
     {
         _finalRenderService = finalRenderService;
+        _capCutExportService = capCutExportService;
         _jobQueue = jobQueue;
         _messenger = messenger;
         _logger = logger;
@@ -159,6 +163,105 @@ public partial class ExportViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "视频导出异常");
+            _messenger.Send(new ExportCompletedMessage(false, null));
+        }
+    }
+
+    /// <summary>
+    /// 导出为 CapCut 草稿
+    /// </summary>
+    [RelayCommand]
+    private async Task ExportToCapCut(string? outputDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(outputDirectory))
+        {
+            _logger.LogWarning("导出目录为空");
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("开始导出 CapCut 草稿到: {OutputDirectory}", outputDirectory);
+
+            // 查询所有镜头
+            var query = new GetAllShotsQuery();
+            _messenger.Send(query);
+            var shots = query.Shots;
+
+            if (shots == null || shots.Count == 0)
+            {
+                _logger.LogWarning("没有镜头可导出");
+                _messenger.Send(new ExportCompletedMessage(false, null));
+                return;
+            }
+
+            // 获取已完成的镜头
+            var completedShots = shots
+                .Where(s => !string.IsNullOrWhiteSpace(s.GeneratedVideoPath) && File.Exists(s.GeneratedVideoPath))
+                .ToList();
+
+            if (completedShots.Count == 0)
+            {
+                _logger.LogWarning("没有已生成的视频可导出");
+                _messenger.Send(new ExportCompletedMessage(false, null));
+                return;
+            }
+
+            // 获取项目名称
+            var projectQuery = new GetProjectInfoQuery();
+            _messenger.Send(projectQuery);
+            var projectName = projectQuery.ProjectInfo?.Name ?? "Untitled";
+
+            // 创建导出任务
+            _jobQueue.Enqueue(
+                GenerationJobType.FullRender,
+                0,
+                async (ct, progress) =>
+                {
+                    try
+                    {
+                        var draftDirectory = await _capCutExportService.ExportToCapCutAsync(
+                            completedShots,
+                            outputDirectory,
+                            projectName,
+                            ct);
+
+                        if (!string.IsNullOrWhiteSpace(draftDirectory))
+                        {
+                            _messenger.Send(new ExportCompletedMessage(true, draftDirectory));
+                            _logger.LogInformation("CapCut 草稿导出成功: {DraftDirectory}", draftDirectory);
+
+                            // 打开文件所在文件夹
+                            try
+                            {
+                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                {
+                                    FileName = "explorer.exe",
+                                    Arguments = $"\"{draftDirectory}\"",
+                                    UseShellExecute = true
+                                });
+                            }
+                            catch { }
+                        }
+                        else
+                        {
+                            _messenger.Send(new ExportCompletedMessage(false, null));
+                            _logger.LogWarning("CapCut 草稿导出失败: 返回路径为空");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _messenger.Send(new ExportCompletedMessage(false, null));
+                        _logger.LogError(ex, "CapCut 草稿导出失败");
+                        throw;
+                    }
+                });
+
+            IsExportDialogOpen = false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CapCut 草稿导出异常");
             _messenger.Send(new ExportCompletedMessage(false, null));
         }
     }
