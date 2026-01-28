@@ -89,30 +89,78 @@ jobs:
 
         # 下载前一个版本的 Release（用于生成 delta 包）
         Write-Host "`n🔍 查找前一个版本..."
-        $previousRelease = gh release list --limit 2 --json tagName,isLatest | ConvertFrom-Json | Where-Object { -not $_.isLatest } | Select-Object -First 1
 
-        if ($previousRelease) {
-          $previousTag = $previousRelease.tagName
-          Write-Host "✅ 发现前一个版本: $previousTag"
-          Write-Host "📦 将生成增量更新包（Delta Package）"
+        $enableDelta = $false
+        $previousTag = $null
 
-          # 下载前一个版本的 Release 文件
-          Write-Host "`n📥 下载前一个版本的文件..."
-          New-Item -ItemType Directory -Path ./previous-release -Force | Out-Null
+        try {
+          # 获取最近5个版本，更可靠
+          $releases = gh release list --limit 5 --json tagName,isLatest | ConvertFrom-Json
+          $previousRelease = $releases | Where-Object { -not $_.isLatest } | Select-Object -First 1
 
-          try {
-            gh release download $previousTag --dir ./previous-release --pattern "*.nupkg"
-            gh release download $previousTag --dir ./previous-release --pattern "RELEASES"
+          if ($previousRelease) {
+            $previousTag = $previousRelease.tagName
+            Write-Host "✅ 发现前一个版本: $previousTag"
+            Write-Host "📦 准备生成增量更新包（Delta Package）"
 
-            Write-Host "✅ 前一个版本文件下载完成:"
-            Get-ChildItem ./previous-release | ForEach-Object { Write-Host "  - $($_.Name)" }
-          } catch {
-            Write-Host "⚠️ 警告: 下载前一个版本失败，将只生成完整安装包"
-            Write-Host "错误信息: $_"
-            $previousRelease = $null
+            # 下载前一个版本的 Release 文件
+            Write-Host "`n📥 下载前一个版本的文件..."
+            New-Item -ItemType Directory -Path ./previous-release -Force | Out-Null
+
+            # 分别下载，更好的错误处理
+            $downloadSuccess = $true
+
+            Write-Host "  📥 下载 RELEASES 文件..."
+            try {
+              gh release download $previousTag --dir ./previous-release --pattern "RELEASES" 2>&1 | Out-Null
+              if ($LASTEXITCODE -ne 0) {
+                Write-Host "  ⚠️ RELEASES 文件下载失败"
+                $downloadSuccess = $false
+              } else {
+                Write-Host "  ✅ RELEASES 文件下载成功"
+              }
+            } catch {
+              Write-Host "  ⚠️ RELEASES 文件下载异常: $_"
+              $downloadSuccess = $false
+            }
+
+            Write-Host "  📥 下载 .nupkg 文件..."
+            try {
+              gh release download $previousTag --dir ./previous-release --pattern "*.nupkg" 2>&1 | Out-Null
+              if ($LASTEXITCODE -ne 0) {
+                Write-Host "  ⚠️ .nupkg 文件下载失败"
+                $downloadSuccess = $false
+              } else {
+                Write-Host "  ✅ .nupkg 文件下载成功"
+              }
+            } catch {
+              Write-Host "  ⚠️ .nupkg 文件下载异常: $_"
+              $downloadSuccess = $false
+            }
+
+            # 验证文件完整性
+            if ($downloadSuccess -and (Test-Path ./previous-release/RELEASES)) {
+              $nupkgFiles = Get-ChildItem ./previous-release -Filter "*.nupkg"
+              if ($nupkgFiles.Count -gt 0) {
+                Write-Host "`n✅ 前一个版本文件下载完成:"
+                Get-ChildItem ./previous-release | ForEach-Object {
+                  $size = "{0:N2} MB" -f ($_.Length / 1MB)
+                  Write-Host "  - $($_.Name) ($size)"
+                }
+                $enableDelta = $true
+                Write-Host "`n🎯 增量包生成已启用"
+              } else {
+                Write-Host "`n⚠️ 未找到 .nupkg 文件，只生成完整安装包"
+              }
+            } else {
+              Write-Host "`n⚠️ 前一个版本文件不完整，只生成完整安装包"
+            }
+          } else {
+            Write-Host "ℹ️ 这是第一个版本，只生成完整安装包"
           }
-        } else {
-          Write-Host "ℹ️ 这是第一个版本，只生成完整安装包"
+        } catch {
+          Write-Host "⚠️ 查找前一个版本失败: $_"
+          Write-Host "将只生成完整安装包"
         }
 
         Write-Host "`n📦 开始打包..."
@@ -131,14 +179,17 @@ jobs:
           "--splashImage", "./App/Assets/icon.ico"
         )
 
-        # 如果有前一个版本，添加 delta 参数
-        if ($previousRelease -and (Test-Path ./previous-release)) {
+        # 如果启用增量包
+        if ($enableDelta) {
           $packArgs += "--delta"
           $packArgs += "BestSize"
-          Write-Host "✅ 启用增量更新包生成（压缩模式: BestSize）"
+          Write-Host "✅ 增量更新包生成已启用（压缩模式: BestSize）"
+        } else {
+          Write-Host "📦 只生成完整安装包"
         }
 
         # 执行打包
+        Write-Host "`n🔨 执行 Velopack 打包..."
         & vpk @packArgs
 
         if ($LASTEXITCODE -ne 0) {
@@ -154,7 +205,17 @@ jobs:
           } else {
             "{0:N2} KB" -f ($_.Length / 1KB)
           }
-          Write-Host "  - $($_.Name) ($size)"
+          $isDelta = if ($_.Name -like "*-delta.nupkg") { " [增量包 ✨]" } else { "" }
+          $isFull = if ($_.Name -like "*-full.nupkg") { " [完整包]" } else { "" }
+          Write-Host "  ✓ $($_.Name) ($size)$isDelta$isFull"
+        }
+
+        # 统计增量包
+        $deltaFiles = Get-ChildItem ./releases -Filter "*-delta.nupkg"
+        if ($deltaFiles.Count -gt 0) {
+          Write-Host "`n🎉 成功生成 $($deltaFiles.Count) 个增量更新包"
+        } else {
+          Write-Host "`n📦 本次发布只包含完整安装包"
         }
 
         Write-Host "`n========================================="

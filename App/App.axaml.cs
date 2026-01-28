@@ -39,7 +39,8 @@ public partial class App : Avalonia.Application
         ConfigureServices(services);
         Services = services.BuildServiceProvider();
 
-        ApplyDatabaseMigrations().GetAwaiter().GetResult();
+        // 异步执行数据库迁移，不阻塞启动
+        _ = ApplyDatabaseMigrationsAsync();
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
@@ -103,7 +104,7 @@ public partial class App : Avalonia.Application
         }
     }
 
-    private async System.Threading.Tasks.Task ApplyDatabaseMigrations()
+    private async System.Threading.Tasks.Task ApplyDatabaseMigrationsAsync()
     {
         try
         {

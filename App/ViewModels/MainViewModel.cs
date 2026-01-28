@@ -52,7 +52,7 @@ public partial class MainViewModel : ObservableObject
     public Timeline.TimelineEditorViewModel TimelineEditor { get; }
     public BatchOperationViewModel BatchOperation { get; }
     public ResourceLibraryViewModel ResourceLibrary { get; }
-    // public UpdateNotificationViewModel UpdateNotificationViewModel { get; }
+    public UpdateNotificationViewModel UpdateNotification { get; }
 
     // 全局 UI 状态
     [ObservableProperty]
@@ -302,8 +302,7 @@ public partial class MainViewModel : ObservableObject
         Timeline.TimelineEditorViewModel timelineEditor,
         BatchOperationViewModel batchOperation,
         ResourceLibraryViewModel resourceLibrary,
-        // UpdateNotificationViewModel updateNotificationViewModel,
-        // UpdateService updateService,
+        UpdateNotificationViewModel updateNotification,
         IProjectStore projectStore,
         UserSettingsStore userSettingsStore,
         IMessenger messenger,
@@ -323,7 +322,7 @@ public partial class MainViewModel : ObservableObject
         TimelineEditor = timelineEditor;
         BatchOperation = batchOperation;
         ResourceLibrary = resourceLibrary;
-        // UpdateNotificationViewModel = updateNotificationViewModel;
+        UpdateNotification = updateNotification;
         _projectStore = projectStore;
         _userSettingsStore = userSettingsStore;
         _messenger = messenger;

@@ -57,11 +57,14 @@ public partial class UpdateNotificationViewModel : ObservableObject
 
     private UpdateInfo? _updateInfo;
 
-    public UpdateNotificationViewModel()
+    public UpdateNotificationViewModel(
+        UpdateService updateService,
+        IMessenger messenger,
+        ILogger<UpdateNotificationViewModel> logger)
     {
-        _updateService = App.Services.GetRequiredService<UpdateService>();
-        _messenger = App.Services.GetRequiredService<IMessenger>();
-        _logger = App.Services.GetRequiredService<ILogger<UpdateNotificationViewModel>>();
+        _updateService = updateService;
+        _messenger = messenger;
+        _logger = logger;
 
         CurrentVersion = _updateService.GetCurrentVersion();
 

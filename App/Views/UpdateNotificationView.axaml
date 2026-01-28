@@ -1,8 +1,13 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Storyboard.ViewModels"
+             xmlns:conv="using:Storyboard.Converters"
              x:Class="Storyboard.Views.UpdateNotificationView"
              x:DataType="vm:UpdateNotificationViewModel">
+
+  <UserControl.Resources>
+    <conv:BooleanNotConverter x:Key="BoolNot" />
+  </UserControl.Resources>
 
   <!-- 更新通知卡片 -->
   <Border IsVisible="{Binding IsUpdateAvailable}"
@@ -46,7 +51,7 @@
         <!-- 关闭按钮 -->
         <Button Grid.Column="2"
                 Command="{Binding DismissUpdateCommand}"
-                IsEnabled="{Binding !IsDownloading}"
+                IsEnabled="{Binding IsDownloading, Converter={StaticResource BoolNot}}"
                 Classes="Ghost"
                 Width="32"
                 Height="32"
@@ -88,7 +93,7 @@
           <Border Background="#6366f1"
                   Padding="6,2"
                   CornerRadius="4"
-                  IsVisible="{Binding !IsDeltaUpdate}">
+                  IsVisible="{Binding IsDeltaUpdate, Converter={StaticResource BoolNot}}">
             <TextBlock Text="完整安装包"
                        Foreground="White"
                        FontSize="11"
@@ -156,15 +161,15 @@
         <Button Grid.Column="1"
                 Content="稍后提醒"
                 Command="{Binding RemindLaterCommand}"
-                IsEnabled="{Binding !IsDownloading}"
+                IsEnabled="{Binding IsDownloading, Converter={StaticResource BoolNot}}"
                 Classes="Ghost"
-                IsVisible="{Binding !DownloadCompleted}" />
+                IsVisible="{Binding DownloadCompleted, Converter={StaticResource BoolNot}}" />
 
         <Button Grid.Column="2"
                 Command="{Binding DownloadAndInstallCommand}"
-                IsEnabled="{Binding !IsDownloading}"
+                IsEnabled="{Binding IsDownloading, Converter={StaticResource BoolNot}}"
                 Classes="Primary"
-                IsVisible="{Binding !DownloadCompleted}">
+                IsVisible="{Binding DownloadCompleted, Converter={StaticResource BoolNot}}">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <PathIcon Data="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"
                       Width="16"
