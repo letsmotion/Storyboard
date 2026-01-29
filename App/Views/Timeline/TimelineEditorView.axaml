@@ -257,7 +257,7 @@
             <!-- 右侧：刻度尺 + 时间轴内容 -->
             <Grid Grid.Column="1" RowDefinitions="32,*">
 
-                <!-- 刻度尺（自定义绘制控件） -->
+                <!-- 刻度尺（固定在顶部，不参与垂直滚动） -->
                 <Border Grid.Row="0"
                         Background="#0f0f0f"
                         BorderBrush="#27272a"
@@ -265,18 +265,24 @@
                         BoxShadow="0 2 4 0 #00000040">
                     <controls:TimelineRulerControl x:Name="TimelineRuler"
                                                    Height="32"
+                                                   HorizontalAlignment="Stretch"
                                                    PixelsPerSecond="{Binding PixelsPerSecond}"
                                                    TotalDuration="{Binding TotalDuration}"
-                                                   PlayheadPosition="{Binding PlayheadPosition}" />
+                                                   PlayheadPosition="{Binding PlayheadPosition}"
+                                                   ViewportOffsetX="{Binding #TimelineScrollViewer.Offset.X}" />
                 </Border>
 
                 <!-- 时间轴内容区（可滚动） -->
                 <ScrollViewer Grid.Row="1"
                               x:Name="TimelineScrollViewer"
                               HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Auto">
+                              VerticalScrollBarVisibility="Auto"
+                              Padding="0"
+                              HorizontalContentAlignment="Left"
+                              VerticalContentAlignment="Top">
                     <Canvas Width="{Binding TimelineWidth}"
-                            Height="{Binding TracksHeight}">
+                            Height="{Binding TracksHeight}"
+                            HorizontalAlignment="Left">
 
                         <!-- 背景网格线 -->
                         <controls:TimelineGridControl Width="{Binding TimelineWidth}"
@@ -299,9 +305,8 @@
                                 <Style Selector="ItemsControl > ContentPresenter" x:DataType="tm:TimelineTrack">
                                     <Setter Property="Canvas.Left" Value="0" />
                                     <Setter Property="Canvas.Top" Value="{Binding VerticalOffset}" />
-									<!-- 关键：让每条轨道容器也有宽高 -->
-									<Setter Property="Width" Value="{Binding $parent[ItemsControl].Width}" />
-									<Setter Property="Height" Value="{Binding Height}" />
+                                    <Setter Property="Width" Value="{Binding $parent[ItemsControl].Width}" />
+                                    <Setter Property="Height" Value="{Binding Height}" />
                                 </Style>
                             </ItemsControl.Styles>
 
@@ -318,7 +323,7 @@
 
                                         <ItemsControl.Styles>
                                             <Style Selector="ItemsControl > ContentPresenter" x:DataType="tm:TimelineClip">
-												<Setter Property="Canvas.Left" Value="{Binding PixelPosition}" />
+                                                <Setter Property="Canvas.Left" Value="{Binding PixelPosition}" />
                                                 <Setter Property="Canvas.Top" Value="8" />
                                                 <Setter Property="Width" Value="{Binding PixelWidth}" />
                                                 <Setter Property="Height" Value="72" />

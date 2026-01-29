@@ -59,27 +59,29 @@ public class TimelineRulerControl : Control
     {
         base.Render(context);
 
-        if (Bounds.Width <= 0 || Bounds.Height <= 0)
+        var w = Bounds.Width;
+        var h = Bounds.Height;
+        if (w <= 0 || h <= 0 || PixelsPerSecond <= 0)
             return;
 
-        // Background
-        context.FillRectangle(new SolidColorBrush(Color.Parse("#0f0f0f")), new Rect(Bounds.Size));
+        // Background - fill the entire control width
+        context.FillRectangle(new SolidColorBrush(Color.Parse("#0f0f0f")), new Rect(0, 0, w, h));
 
-        // Calculate visible time range
+        // Calculate visible time range based on viewport offset
         var visibleStartTime = ViewportOffsetX / PixelsPerSecond;
-        var visibleEndTime = (ViewportOffsetX + Bounds.Width) / PixelsPerSecond;
+        var visibleEndTime = (ViewportOffsetX + w) / PixelsPerSecond;
 
         // Determine tick interval based on zoom level
         var (majorInterval, minorInterval) = CalculateTickIntervals(PixelsPerSecond);
 
         // Draw minor ticks
-        DrawTicks(context, visibleStartTime, visibleEndTime, minorInterval, false);
+        DrawTicks(context, visibleStartTime, visibleEndTime, minorInterval, false, w, h);
 
         // Draw major ticks with labels
-        DrawTicks(context, visibleStartTime, visibleEndTime, majorInterval, true);
+        DrawTicks(context, visibleStartTime, visibleEndTime, majorInterval, true, w, h);
 
         // Draw playhead indicator
-        DrawPlayhead(context);
+        DrawPlayhead(context, w, h);
     }
 
     private (double major, double minor) CalculateTickIntervals(double pps)
@@ -132,7 +134,7 @@ public class TimelineRulerControl : Control
         return closest;
     }
 
-    private void DrawTicks(DrawingContext context, double startTime, double endTime, double interval, bool isMajor)
+    private void DrawTicks(DrawingContext context, double startTime, double endTime, double interval, bool isMajor, double w, double h)
     {
         if (interval <= 0) return;
 
@@ -150,13 +152,14 @@ public class TimelineRulerControl : Control
         {
             if (time < 0) continue;
 
+            // Calculate position and adjust for viewport offset
             var x = (time * PixelsPerSecond) - ViewportOffsetX;
 
-            if (x < -10 || x > Bounds.Width + 10)
+            if (x < -10 || x > w + 10)
                 continue;
 
             // Draw tick line
-            context.DrawLine(pen, new Point(x, Bounds.Height - tickHeight), new Point(x, Bounds.Height));
+            context.DrawLine(pen, new Point(x, h - tickHeight), new Point(x, h));
 
             // Draw label for major ticks
             if (isMajor)
@@ -171,6 +174,8 @@ public class TimelineRulerControl : Control
                     textBrush);
 
                 var textX = x - formattedText.Width / 2;
+                // Clamp to prevent labels from being cut off at edges
+                textX = Math.Clamp(textX, 0, w - formattedText.Width);
                 var textY = 4;
 
                 context.DrawText(formattedText, new Point(textX, textY));
@@ -178,16 +183,17 @@ public class TimelineRulerControl : Control
         }
     }
 
-    private void DrawPlayhead(DrawingContext context)
+    private void DrawPlayhead(DrawingContext context, double w, double h)
     {
+        // Calculate position and adjust for viewport offset
         var x = PlayheadPosition - ViewportOffsetX;
 
-        if (x < 0 || x > Bounds.Width)
+        if (x < 0 || x > w)
             return;
 
         // Draw playhead line
         var pen = new Pen(new SolidColorBrush(Color.Parse("#8b5cf6")), 2);
-        context.DrawLine(pen, new Point(x, 0), new Point(x, Bounds.Height));
+        context.DrawLine(pen, new Point(x, 0), new Point(x, h));
 
         // Draw playhead circle at top
         var circleBrush = new SolidColorBrush(Color.Parse("#8b5cf6"));

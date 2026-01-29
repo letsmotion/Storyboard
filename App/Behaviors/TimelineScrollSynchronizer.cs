@@ -6,13 +6,13 @@ using System;
 namespace Storyboard.Behaviors;
 
 /// <summary>
-/// Synchronizes scroll positions between timeline components
+/// Synchronizes vertical scroll between timeline content and track headers
+/// (Horizontal scroll is handled via XAML binding on ruler's ViewportOffsetX)
 /// </summary>
 public class TimelineScrollSynchronizer
 {
     private ScrollViewer? _mainScrollViewer;
     private ScrollViewer? _trackHeadersScrollViewer;
-    private Control? _rulerControl;
 
     private bool _isSyncing;
 
@@ -23,7 +23,7 @@ public class TimelineScrollSynchronizer
     {
         _mainScrollViewer = mainScrollViewer;
         _trackHeadersScrollViewer = trackHeadersScrollViewer;
-        _rulerControl = rulerControl;
+        // rulerControl parameter kept for compatibility but not used (ruler syncs via XAML binding)
 
         // Subscribe to main scroll viewer changes
         _mainScrollViewer.PropertyChanged += OnMainScrollChanged;
@@ -41,16 +41,11 @@ public class TimelineScrollSynchronizer
             {
                 var offset = scrollViewer.Offset;
 
-                // Sync vertical scroll to track headers
+                // Sync vertical scroll to track headers only
+                // (Horizontal scroll is handled via XAML binding: ViewportOffsetX="{Binding #TimelineScrollViewer.Offset.X}")
                 if (_trackHeadersScrollViewer != null)
                 {
                     _trackHeadersScrollViewer.Offset = new Vector(0, offset.Y);
-                }
-
-                // Sync horizontal scroll to ruler (via property)
-                if (_rulerControl != null && _rulerControl is Controls.TimelineRulerControl ruler)
-                {
-                    ruler.ViewportOffsetX = offset.X;
                 }
             }
             finally
