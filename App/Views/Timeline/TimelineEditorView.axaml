@@ -285,10 +285,13 @@
                                                       Tracks="{Binding Tracks}" />
 
                         <!-- 轨道内容 -->
-                        <ItemsControl ItemsSource="{Binding Tracks}">
+                        <ItemsControl ItemsSource="{Binding Tracks}"
+                                      Width="{Binding TimelineWidth}"
+                                      Height="{Binding TracksHeight}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <Canvas />
+                                    <Canvas Width="{Binding TimelineWidth}"
+                                            Height="{Binding TracksHeight}" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
 
@@ -296,6 +299,9 @@
                                 <Style Selector="ItemsControl > ContentPresenter" x:DataType="tm:TimelineTrack">
                                     <Setter Property="Canvas.Left" Value="0" />
                                     <Setter Property="Canvas.Top" Value="{Binding VerticalOffset}" />
+									<!-- 关键：让每条轨道容器也有宽高 -->
+									<Setter Property="Width" Value="{Binding $parent[ItemsControl].Width}" />
+									<Setter Property="Height" Value="{Binding Height}" />
                                 </Style>
                             </ItemsControl.Styles>
 
@@ -305,13 +311,14 @@
                                     <ItemsControl ItemsSource="{Binding Clips}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
-                                                <Canvas Height="{Binding Height}" />
+                                                <Canvas Width="{Binding $parent[UserControl].((vm:TimelineEditorViewModel)DataContext).TimelineWidth}"
+                                                        Height="{Binding Height}" />
                                             </ItemsPanelTemplate>
                                         </ItemsControl.ItemsPanel>
 
                                         <ItemsControl.Styles>
                                             <Style Selector="ItemsControl > ContentPresenter" x:DataType="tm:TimelineClip">
-                                                <Setter Property="Canvas.Left" Value="{Binding VisualPosition}" />
+												<Setter Property="Canvas.Left" Value="{Binding PixelPosition}" />
                                                 <Setter Property="Canvas.Top" Value="8" />
                                                 <Setter Property="Width" Value="{Binding PixelWidth}" />
                                                 <Setter Property="Height" Value="72" />

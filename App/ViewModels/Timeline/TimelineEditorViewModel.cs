@@ -148,6 +148,13 @@ public partial class TimelineEditorViewModel : ObservableObject
         _logger = logger;
         _interactionService = interactionService;
 
+        // 订阅 Tracks 集合变化，确保 TracksHeight 更新
+        Tracks.CollectionChanged += (s, e) =>
+        {
+            RecalculateTrackPositions();
+            OnPropertyChanged(nameof(TracksHeight));
+        };
+
         // 订阅 Shot 消息
         _messenger.Register<ShotAddedMessage>(this, OnShotChanged);
         _messenger.Register<ShotDeletedMessage>(this, OnShotChanged);
@@ -327,6 +334,9 @@ public partial class TimelineEditorViewModel : ObservableObject
                 Id = Guid.Parse(trackInfo.Id)
             };
 
+            // 先添加轨道到 Tracks，然后再添加片段
+            Tracks.Add(track);
+
             // 创建片段
             foreach (var segmentInfo in trackInfo.Segments)
             {
@@ -341,6 +351,9 @@ public partial class TimelineEditorViewModel : ObservableObject
                     VideoPath = segmentInfo.VideoPath,
                     ThumbnailPath = null
                 };
+
+                // 初始化拖动位置
+                clip.DragOffsetX = clip.PixelPosition;
 
                 var normalizedPath = NormalizePath(segmentInfo.VideoPath);
                 if (!string.IsNullOrEmpty(normalizedPath) && shotLookup.TryGetValue(normalizedPath, out var shot))
@@ -358,11 +371,25 @@ public partial class TimelineEditorViewModel : ObservableObject
                 track.Clips.Add(clip);
             }
 
-            Tracks.Add(track);
+            // 诊断日志：输出轨道和片段信息
+            _logger.LogInformation("轨道添加: TrackId={TrackId}, Name={Name}, ClipsCount={ClipsCount}",
+                track.Id, track.Name, track.Clips.Count);
         }
 
         // 生成时间标记
         GenerateTimeMarkers();
+
+        // 诊断日志：验证 Tracks 集合
+        _logger.LogInformation("Tracks 集合验证: Count={Count}", Tracks.Count);
+        foreach (var t in Tracks)
+        {
+            _logger.LogInformation("  轨道: {Name}, Clips={ClipsCount}", t.Name, t.Clips.Count);
+            foreach (var c in t.Clips)
+            {
+                _logger.LogInformation("    片段: StartTime={StartTime}s, Duration={Duration}s, PixelPos={PixelPos}px, PixelWidth={PixelWidth}px",
+                    c.StartTime, c.Duration, c.PixelPosition, c.PixelWidth);
+            }
+        }
 
         // 诊断日志：输出时间轴尺寸信息
         _logger.LogInformation("时间轴尺寸: TimelineWidth={TimelineWidth}px, TracksHeight={TracksHeight}px, " +
@@ -371,6 +398,12 @@ public partial class TimelineEditorViewModel : ObservableObject
 
         _logger.LogInformation("时间轴构建完成: {TrackCount} 个轨道, 总时长 {Duration:F2}s",
             Tracks.Count, TotalDuration);
+
+        // 手动触发布局更新，确保 TracksHeight 通知到 UI
+        RecalculateTrackPositions();
+        OnPropertyChanged(nameof(TracksHeight));
+
+        _logger.LogInformation("布局更新完成: TracksHeight={TracksHeight}px", TracksHeight);
     }
 
     private IReadOnlyList<ShotItem> GetShotsSnapshot()
@@ -578,6 +611,15 @@ public partial class TimelineEditorViewModel : ObservableObject
     {
         RecalculateTrackPositions();
         OnPropertyChanged(nameof(TracksHeight));
+
+        _logger.LogInformation("OnTracksChanged 触发: Tracks.Count={Count}", value?.Count ?? 0);
+        if (value != null)
+        {
+            foreach (var track in value)
+            {
+                _logger.LogInformation("  轨道: {Name}, Clips.Count={ClipsCount}", track.Name, track.Clips.Count);
+            }
+        }
     }
 
     /// <summary>

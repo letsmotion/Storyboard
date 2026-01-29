@@ -36,6 +36,9 @@ public partial class TimelineClipView : UserControl
     {
         InitializeComponent();
 
+        // 诊断日志
+        System.Diagnostics.Debug.WriteLine($"TimelineClipView 构造函数被调用");
+
         DataContextChanged += OnDataContextChanged;
 
         // 添加指针事件处理
@@ -99,6 +102,9 @@ public partial class TimelineClipView : UserControl
     {
         if (DataContext is TimelineClip clip)
         {
+            System.Diagnostics.Debug.WriteLine($"TimelineClipView DataContext 设置: ClipId={clip.Id}, StartTime={clip.StartTime}s, PixelWidth={clip.PixelWidth}px");
+
+            // 暂时注释掉以保持测试颜色
             UpdateClipAppearance(clip);
 
             // 订阅属性变化以更新选中状态

@@ -3,16 +3,18 @@
              xmlns:m="using:Storyboard.Models.Timeline"
              xmlns:conv="using:Storyboard.Converters"
              x:Class="Storyboard.Views.Timeline.TimelineClipView"
-             x:DataType="m:TimelineClip">
+             x:DataType="m:TimelineClip"
+             Width="{Binding PixelWidth}"
+             Height="72">
 
     <UserControl.Resources>
         <conv:PathToBitmapConverter x:Key="PathToBitmapConverter" />
     </UserControl.Resources>
 
     <Border x:Name="ClipBorder"
-            Background="#27272a"
-            BorderBrush="#3b82f6"
-            BorderThickness="1"
+            Background="#8b5cf6"
+            BorderBrush="#ffffff"
+            BorderThickness="2"
             CornerRadius="2"
             Padding="4,2">
 
