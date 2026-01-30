@@ -127,6 +127,8 @@ public static class DraftAdapter
                     MaterialId = segment.MaterialId,
                     StartTimeSeconds = segment.TargetTimerange.Start / (double)MICROSECONDS_PER_SECOND,
                     DurationSeconds = segment.TargetTimerange.Duration / (double)MICROSECONDS_PER_SECOND,
+                    SourceStartSeconds = segment.SourceTimerange.Start / (double)MICROSECONDS_PER_SECOND,
+                    SourceDurationSeconds = segment.SourceTimerange.Duration / (double)MICROSECONDS_PER_SECOND,
                     VideoPath = material?.Path ?? string.Empty,
                     Width = material?.Width ?? 1920,
                     Height = material?.Height ?? 1080
@@ -241,6 +243,91 @@ public static class DraftAdapter
     }
 
     /// <summary>
+    /// 修剪片段（同时更新目标和源时间范围）
+    /// </summary>
+    public static bool UpdateSegmentTrim(
+        DraftContent draft,
+        string segmentId,
+        double newStartTimeSeconds,
+        double newDurationSeconds,
+        double newSourceStartSeconds,
+        double newSourceDurationSeconds)
+    {
+        foreach (var track in draft.Tracks)
+        {
+            var segment = track.Segments.FirstOrDefault(s => s.Id == segmentId);
+            if (segment != null)
+            {
+                segment.TargetTimerange.Start = (long)(newStartTimeSeconds * MICROSECONDS_PER_SECOND);
+                segment.TargetTimerange.Duration = (long)(newDurationSeconds * MICROSECONDS_PER_SECOND);
+                segment.SourceTimerange.Start = (long)(newSourceStartSeconds * MICROSECONDS_PER_SECOND);
+                segment.SourceTimerange.Duration = (long)(newSourceDurationSeconds * MICROSECONDS_PER_SECOND);
+
+                UpdateDraftDuration(draft);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 切割片段（返回新片段 ID）
+    /// </summary>
+    public static string? SplitSegment(DraftContent draft, string segmentId, double splitTimeSeconds)
+    {
+        foreach (var track in draft.Tracks)
+        {
+            var index = track.Segments.FindIndex(s => s.Id == segmentId);
+            if (index < 0)
+            {
+                continue;
+            }
+
+            var segment = track.Segments[index];
+            var segmentStartSeconds = segment.TargetTimerange.Start / (double)MICROSECONDS_PER_SECOND;
+            var segmentDurationSeconds = segment.TargetTimerange.Duration / (double)MICROSECONDS_PER_SECOND;
+            var splitOffsetSeconds = splitTimeSeconds - segmentStartSeconds;
+
+            if (splitOffsetSeconds <= 0 || splitOffsetSeconds >= segmentDurationSeconds)
+            {
+                return null;
+            }
+
+            var newSegmentId = Guid.NewGuid().ToString("N").ToUpper();
+            var remainingDurationSeconds = segmentDurationSeconds - splitOffsetSeconds;
+
+            // Update original segment (left part)
+            segment.TargetTimerange.Duration = (long)(splitOffsetSeconds * MICROSECONDS_PER_SECOND);
+            segment.SourceTimerange.Duration = (long)(splitOffsetSeconds * MICROSECONDS_PER_SECOND);
+
+            // Create right part
+            var newSegment = new Segment
+            {
+                Id = newSegmentId,
+                MaterialId = segment.MaterialId,
+                TargetTimerange = new TimeRange
+                {
+                    Start = segment.TargetTimerange.Start + (long)(splitOffsetSeconds * MICROSECONDS_PER_SECOND),
+                    Duration = (long)(remainingDurationSeconds * MICROSECONDS_PER_SECOND)
+                },
+                SourceTimerange = new TimeRange
+                {
+                    Start = segment.SourceTimerange.Start + (long)(splitOffsetSeconds * MICROSECONDS_PER_SECOND),
+                    Duration = (long)(remainingDurationSeconds * MICROSECONDS_PER_SECOND)
+                },
+                Clip = CloneClip(segment.Clip)
+            };
+
+            track.Segments.Insert(index + 1, newSegment);
+            UpdateDraftDuration(draft);
+            return newSegmentId;
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// 更新草稿总时长
     /// </summary>
     private static void UpdateDraftDuration(DraftContent draft)
@@ -260,6 +347,33 @@ public static class DraftAdapter
         }
 
         draft.Duration = maxEndTime;
+    }
+
+    /// <summary>
+    /// 深拷贝片段剪辑信息
+    /// </summary>
+    private static Clip CloneClip(Clip clip)
+    {
+        return new Clip
+        {
+            Alpha = clip.Alpha,
+            Rotation = clip.Rotation,
+            Flip = new Flip
+            {
+                Horizontal = clip.Flip.Horizontal,
+                Vertical = clip.Flip.Vertical
+            },
+            Scale = new Scale
+            {
+                X = clip.Scale.X,
+                Y = clip.Scale.Y
+            },
+            Transform = new Transform
+            {
+                X = clip.Transform.X,
+                Y = clip.Transform.Y
+            }
+        };
     }
 
     /// <summary>
@@ -310,6 +424,8 @@ public class SegmentInfo
     public string MaterialId { get; set; } = string.Empty;
     public double StartTimeSeconds { get; set; }
     public double DurationSeconds { get; set; }
+    public double SourceStartSeconds { get; set; }
+    public double SourceDurationSeconds { get; set; }
     public double EndTimeSeconds => StartTimeSeconds + DurationSeconds;
     public string VideoPath { get; set; } = string.Empty;
     public int Width { get; set; }

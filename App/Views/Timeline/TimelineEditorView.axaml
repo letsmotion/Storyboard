@@ -132,6 +132,25 @@
                     </StackPanel>
                 </Button>
 
+                <!-- 中间：切割 -->
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            HorizontalAlignment="Center">
+                    <Button Command="{Binding SplitSelectedClipCommand}"
+                            Classes="Ghost">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="M4 4h4v4H4zM16 16h4v4h-4zM6 6l12 12"
+                                      Width="14"
+                                      Height="14"
+                                      Foreground="#a1a1aa" />
+                            <TextBlock Text="切割"
+                                       FontSize="12"
+                                       Foreground="#a1a1aa" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
                 <!-- 右侧：缩放控制 -->
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
@@ -177,13 +196,25 @@
                     <ScrollViewer Grid.Row="1"
                                   x:Name="TrackHeadersScrollViewer"
                                   HorizontalScrollBarVisibility="Disabled"
-                                  VerticalScrollBarVisibility="Hidden">
-                        <ItemsControl ItemsSource="{Binding Tracks}">
+                                  VerticalScrollBarVisibility="Hidden"
+                                  HorizontalContentAlignment="Stretch">
+                        <ItemsControl ItemsSource="{Binding Tracks}"
+                                      Height="{Binding TracksHeight}"
+                                      HorizontalAlignment="Stretch">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <StackPanel />
+                                    <Canvas Height="{Binding $parent[ItemsControl].Height}" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
+
+                            <ItemsControl.Styles>
+                                <Style Selector="ItemsControl > ContentPresenter" x:DataType="tm:TimelineTrack">
+                                    <Setter Property="Canvas.Left" Value="0" />
+                                    <Setter Property="Canvas.Top" Value="{Binding VerticalOffset}" />
+                                    <Setter Property="Width" Value="{Binding $parent[ItemsControl].Bounds.Width}" />
+                                    <Setter Property="Height" Value="{Binding Height}" />
+                                </Style>
+                            </ItemsControl.Styles>
 
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="tm:TimelineTrack">

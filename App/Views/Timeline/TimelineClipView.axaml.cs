@@ -22,8 +22,13 @@ public partial class TimelineClipView : UserControl
     private TimelineEditorViewModel? _viewModel;
     private System.Timers.Timer? _autoScrollTimer;
     private ScrollViewer? _scrollViewer;
+    private double _initialClipStartTime;
+    private double _initialClipDuration;
+    private double _initialSourceStart;
+    private double _initialSourceDuration;
     private const double AutoScrollEdgeThreshold = 50; // pixels from edge
     private const double AutoScrollSpeed = 10; // pixels per tick
+    private const double MinClipDurationSeconds = 0.1;
 
     private enum ResizeMode
     {
@@ -75,10 +80,15 @@ public partial class TimelineClipView : UserControl
 
         _dragStartPoint = e.GetPosition(this.Parent as Visual);
         _initialClipPosition = clip.PixelPosition;
+        _initialClipStartTime = clip.StartTime;
+        _initialClipDuration = clip.Duration;
+        _initialSourceStart = clip.SourceStart;
+        _initialSourceDuration = clip.SourceDuration;
         _isResizing = true;
         _resizeMode = ResizeMode.Left;
 
         _viewModel = FindTimelineEditorViewModel();
+        _viewModel?.BeginClipTrim(clip);
         e.Pointer.Capture(this);
         e.Handled = true;
     }
@@ -90,10 +100,15 @@ public partial class TimelineClipView : UserControl
 
         _dragStartPoint = e.GetPosition(this.Parent as Visual);
         _initialClipPosition = clip.PixelPosition;
+        _initialClipStartTime = clip.StartTime;
+        _initialClipDuration = clip.Duration;
+        _initialSourceStart = clip.SourceStart;
+        _initialSourceDuration = clip.SourceDuration;
         _isResizing = true;
         _resizeMode = ResizeMode.Right;
 
         _viewModel = FindTimelineEditorViewModel();
+        _viewModel?.BeginClipTrim(clip);
         e.Pointer.Capture(this);
         e.Handled = true;
     }
@@ -234,29 +249,35 @@ public partial class TimelineClipView : UserControl
         // Handle resizing
         if (_isResizing && _viewModel != null)
         {
+            var deltaSeconds = delta.X / clip.PixelsPerSecond;
+
             if (_resizeMode == ResizeMode.Left)
             {
-                // Left edge resize: adjust StartTime and Duration
-                var newStartTime = (_initialClipPosition + delta.X) / clip.PixelsPerSecond;
-                var newDuration = clip.Duration - (delta.X / clip.PixelsPerSecond);
+                var trimSeconds = Math.Max(0, deltaSeconds);
+                var newStartTime = _initialClipStartTime + trimSeconds;
+                var newDuration = _initialClipDuration - trimSeconds;
+                var newSourceStart = _initialSourceStart + trimSeconds;
+                var newSourceDuration = _initialSourceDuration - trimSeconds;
 
-                // Prevent duration from going below 0.1 seconds
-                if (newDuration >= 0.1)
+                if (newDuration >= MinClipDurationSeconds && newSourceDuration >= MinClipDurationSeconds)
                 {
-                    // TODO: Implement trim/resize through ViewModel
-                    // For now, just update visual feedback
+                    _viewModel.TryPreviewClipTrim(clip, newStartTime, newDuration, newSourceStart, newSourceDuration);
                 }
             }
             else if (_resizeMode == ResizeMode.Right)
             {
-                // Right edge resize: adjust Duration only
-                var newDuration = clip.Duration + (delta.X / clip.PixelsPerSecond);
+                var trimSeconds = Math.Min(0, deltaSeconds);
+                var newDuration = _initialClipDuration + trimSeconds;
+                var newSourceDuration = _initialSourceDuration + trimSeconds;
 
-                // Prevent duration from going below 0.1 seconds
-                if (newDuration >= 0.1)
+                if (newDuration >= MinClipDurationSeconds && newSourceDuration >= MinClipDurationSeconds)
                 {
-                    // TODO: Implement trim/resize through ViewModel
-                    // For now, just update visual feedback
+                    _viewModel.TryPreviewClipTrim(
+                        clip,
+                        _initialClipStartTime,
+                        newDuration,
+                        _initialSourceStart,
+                        newSourceDuration);
                 }
             }
 
@@ -425,8 +446,16 @@ public partial class TimelineClipView : UserControl
 
         if (_isResizing)
         {
-            // TODO: Implement resize completion through ViewModel
-            // For now, just reset state
+            if (_viewModel != null)
+            {
+                await _viewModel.EndClipTrim(
+                    clip,
+                    _initialClipStartTime,
+                    _initialClipDuration,
+                    _initialSourceStart,
+                    _initialSourceDuration);
+            }
+
             _isResizing = false;
             _resizeMode = ResizeMode.None;
             _viewModel = null;

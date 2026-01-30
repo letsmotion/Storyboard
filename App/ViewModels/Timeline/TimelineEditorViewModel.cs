@@ -24,6 +24,7 @@ public partial class TimelineEditorViewModel : ObservableObject
     private readonly IMessenger _messenger;
     private readonly ILogger<TimelineEditorViewModel> _logger;
     private readonly ITimelineInteractionService _interactionService;
+    private const double MinClipDurationSeconds = 0.1;
 
     // 核心数据：CapCut 草稿
     private DraftContent? _draftContent;
@@ -340,12 +341,19 @@ public partial class TimelineEditorViewModel : ObservableObject
             // 创建片段
             foreach (var segmentInfo in trackInfo.Segments)
             {
+                var sourceStart = segmentInfo.SourceStartSeconds;
+                var sourceDuration = segmentInfo.SourceDurationSeconds > 0
+                    ? segmentInfo.SourceDurationSeconds
+                    : segmentInfo.DurationSeconds;
+
                 var clip = new TimelineClip
                 {
                     Id = Guid.Parse(segmentInfo.Id),
                     TrackId = track.Id,
                     StartTime = segmentInfo.StartTimeSeconds,
                     Duration = segmentInfo.DurationSeconds,
+                    SourceStart = sourceStart,
+                    SourceDuration = sourceDuration,
                     PixelsPerSecond = PixelsPerSecond,
                     Status = ClipStatus.Generated,
                     VideoPath = segmentInfo.VideoPath,
@@ -633,6 +641,31 @@ public partial class TimelineEditorViewModel : ObservableObject
             track.VerticalOffset = currentY;
             currentY += track.Height;
         }
+    }
+
+    private TimelineTrack? FindTrackForClip(TimelineClip clip)
+    {
+        return Tracks.FirstOrDefault(t => t.Id == clip.TrackId);
+    }
+
+    private void UpdateTimelineDurationFromTracks()
+    {
+        var maxEndTime = 0.0;
+        foreach (var track in Tracks)
+        {
+            foreach (var clip in track.Clips)
+            {
+                if (clip.EndTime > maxEndTime)
+                {
+                    maxEndTime = clip.EndTime;
+                }
+            }
+        }
+
+        TotalDuration = maxEndTime;
+        TimelineWidth = TotalDuration * PixelsPerSecond;
+        Playback.State.TotalDuration = TotalDuration;
+        GenerateTimeMarkers();
     }
 
     // 消息处理
@@ -962,6 +995,242 @@ public partial class TimelineEditorViewModel : ObservableObject
 
         _logger.LogDebug("取消拖动片段: {ClipId}", clip.Id);
     }
+
+    #region TrimAndSplit
+
+    private bool IsClipRangeAvailable(TimelineTrack track, TimelineClip clip, double newStartTime, double newDuration)
+    {
+        if (newStartTime < 0 || newDuration < MinClipDurationSeconds)
+        {
+            return false;
+        }
+
+        var newEndTime = newStartTime + newDuration;
+        foreach (var otherClip in track.Clips)
+        {
+            if (otherClip.Id == clip.Id)
+            {
+                continue;
+            }
+
+            if (newStartTime < otherClip.EndTime && otherClip.StartTime < newEndTime)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public void BeginClipTrim(TimelineClip clip)
+    {
+        if (clip == null)
+        {
+            return;
+        }
+
+        _autoSaveTimer?.Stop();
+        clip.IsBeingTrimmed = true;
+    }
+
+    public bool TryPreviewClipTrim(
+        TimelineClip clip,
+        double newStartTime,
+        double newDuration,
+        double newSourceStart,
+        double newSourceDuration)
+    {
+        if (clip == null)
+        {
+            return false;
+        }
+
+        var track = FindTrackForClip(clip);
+        if (track == null)
+        {
+            return false;
+        }
+
+        if (newDuration < MinClipDurationSeconds ||
+            newSourceDuration < MinClipDurationSeconds ||
+            newStartTime < 0 ||
+            newSourceStart < 0)
+        {
+            return false;
+        }
+
+        if (!IsClipRangeAvailable(track, clip, newStartTime, newDuration))
+        {
+            return false;
+        }
+
+        clip.StartTime = newStartTime;
+        clip.Duration = newDuration;
+        clip.SourceStart = newSourceStart;
+        clip.SourceDuration = newSourceDuration;
+        clip.DragOffsetX = clip.PixelPosition;
+        return true;
+    }
+
+    public async Task EndClipTrim(
+        TimelineClip clip,
+        double oldStartTime,
+        double oldDuration,
+        double oldSourceStart,
+        double oldSourceDuration)
+    {
+        if (clip == null)
+        {
+            return;
+        }
+
+        clip.IsBeingTrimmed = false;
+
+        if (Math.Abs(clip.StartTime - oldStartTime) < 0.0001 &&
+            Math.Abs(clip.Duration - oldDuration) < 0.0001)
+        {
+            _autoSaveTimer?.Start();
+            return;
+        }
+
+        if (_draftContent != null)
+        {
+            try
+            {
+                var updated = DraftAdapter.UpdateSegmentTrim(
+                    _draftContent,
+                    clip.Id.ToString("N").ToUpper(),
+                    clip.StartTime,
+                    clip.Duration,
+                    clip.SourceStart,
+                    clip.SourceDuration);
+
+                if (!updated)
+                {
+                    throw new InvalidOperationException("Segment not found for trim.");
+                }
+
+                _isDirty = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update DraftContent trim");
+                clip.StartTime = oldStartTime;
+                clip.Duration = oldDuration;
+                clip.SourceStart = oldSourceStart;
+                clip.SourceDuration = oldSourceDuration;
+                clip.DragOffsetX = clip.PixelPosition;
+                _autoSaveTimer?.Start();
+                return;
+            }
+        }
+
+        UpdateTimelineDurationFromTracks();
+        _autoSaveTimer?.Start();
+        await SaveDraftAsync();
+
+        _messenger.Send(new ClipTrimmedMessage(clip, oldDuration, clip.Duration));
+    }
+
+    [RelayCommand]
+    private async Task SplitSelectedClip()
+    {
+        if (SelectedClip == null)
+        {
+            return;
+        }
+
+        var clip = SelectedClip;
+        var splitTime = PlayheadTime;
+
+        if (splitTime <= clip.StartTime + MinClipDurationSeconds ||
+            splitTime >= clip.EndTime - MinClipDurationSeconds)
+        {
+            return;
+        }
+
+        var track = FindTrackForClip(clip);
+        if (track == null)
+        {
+            return;
+        }
+
+        var splitOffset = splitTime - clip.StartTime;
+        var rightDuration = clip.Duration - splitOffset;
+        if (splitOffset < MinClipDurationSeconds || rightDuration < MinClipDurationSeconds)
+        {
+            return;
+        }
+
+        var oldDuration = clip.Duration;
+        var oldSourceStart = clip.SourceStart;
+        var oldSourceDuration = clip.SourceDuration;
+
+        string? newSegmentId = null;
+        if (_draftContent != null)
+        {
+            try
+            {
+                newSegmentId = DraftAdapter.SplitSegment(
+                    _draftContent,
+                    clip.Id.ToString("N").ToUpper(),
+                    splitTime);
+
+                if (string.IsNullOrEmpty(newSegmentId))
+                {
+                    return;
+                }
+
+                _isDirty = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to split DraftContent segment");
+                return;
+            }
+        }
+
+        _autoSaveTimer?.Stop();
+
+        clip.Duration = splitOffset;
+        clip.SourceDuration = Math.Min(oldSourceDuration, splitOffset);
+        clip.DragOffsetX = clip.PixelPosition;
+
+        var newClip = new TimelineClip
+        {
+            Id = !string.IsNullOrEmpty(newSegmentId) ? Guid.Parse(newSegmentId) : Guid.NewGuid(),
+            TrackId = clip.TrackId,
+            ShotNumber = clip.ShotNumber,
+            StartTime = splitTime,
+            Duration = rightDuration,
+            SourceStart = oldSourceStart + splitOffset,
+            SourceDuration = Math.Max(0, oldSourceDuration - splitOffset),
+            PixelsPerSecond = PixelsPerSecond,
+            Status = clip.Status,
+            ThumbnailPath = clip.ThumbnailPath,
+            VideoPath = clip.VideoPath
+        };
+
+        newClip.DragOffsetX = newClip.PixelPosition;
+
+        var insertIndex = track.Clips.IndexOf(clip);
+        if (insertIndex >= 0)
+        {
+            track.Clips.Insert(insertIndex + 1, newClip);
+        }
+        else
+        {
+            track.Clips.Add(newClip);
+        }
+
+        UpdateTimelineDurationFromTracks();
+        _autoSaveTimer?.Start();
+        await SaveDraftAsync();
+
+        _messenger.Send(new ClipsSplitMessage(clip, newClip));
+    }
+
+    #endregion
 
     #endregion
 }

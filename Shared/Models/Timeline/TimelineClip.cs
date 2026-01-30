@@ -25,6 +25,12 @@ public partial class TimelineClip : ObservableObject
     private double _duration;
 
     [ObservableProperty]
+    private double _sourceStart;
+
+    [ObservableProperty]
+    private double _sourceDuration;
+
+    [ObservableProperty]
     private ClipStatus _status;
 
     [ObservableProperty]
@@ -83,6 +89,11 @@ public partial class TimelineClip : ObservableObject
     {
         OnPropertyChanged(nameof(PixelWidth));
         OnPropertyChanged(nameof(EndTime));
+
+        if (SourceDuration <= 0)
+        {
+            SourceDuration = value;
+        }
     }
 
     partial void OnPixelsPerSecondChanged(double value)
@@ -114,6 +125,8 @@ public partial class TimelineClip : ObservableObject
             ShotNumber = shot.ShotNumber,
             StartTime = startTime,
             Duration = shot.Duration,
+            SourceStart = 0,
+            SourceDuration = shot.Duration,
             PixelsPerSecond = pixelsPerSecond,
             Status = GetStatusFromShot(shot),
             ThumbnailPath = shot.FirstFrameImagePath,
