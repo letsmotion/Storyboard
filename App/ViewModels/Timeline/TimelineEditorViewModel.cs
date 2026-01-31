@@ -25,6 +25,7 @@ public partial class TimelineEditorViewModel : ObservableObject
     private readonly ILogger<TimelineEditorViewModel> _logger;
     private readonly ITimelineInteractionService _interactionService;
     private const double MinClipDurationSeconds = 0.1;
+    private double _playbackBaseTime;
 
     // 核心数据：CapCut 草稿
     private DraftContent? _draftContent;
@@ -168,7 +169,7 @@ public partial class TimelineEditorViewModel : ObservableObject
         {
             if (e.PropertyName == nameof(Playback.State.CurrentTime))
             {
-                PlayheadTime = Playback.State.CurrentTime;
+                PlayheadTime = _playbackBaseTime + Playback.State.CurrentTime;
                 PlayheadPosition = PlayheadTime * PixelsPerSecond;
             }
         };
@@ -311,6 +312,7 @@ public partial class TimelineEditorViewModel : ObservableObject
 
         var shots = GetShotsSnapshot();
         var shotLookup = BuildShotLookup(shots);
+        var hasOriginalShot = shots.Any(s => s.ShotNumber == 0 && !string.IsNullOrWhiteSpace(s.GeneratedVideoPath));
 
         // 提取时间轴信息
         var timelineInfo = DraftAdapter.ExtractTimelineInfo(_draftContent);
@@ -323,6 +325,11 @@ public partial class TimelineEditorViewModel : ObservableObject
         // 创建轨道
         foreach (var trackInfo in timelineInfo.Tracks)
         {
+            if (trackInfo.Segments.Count == 0)
+            {
+                continue;
+            }
+
             var trackType = trackInfo.Type switch
             {
                 "video" => TrackType.Video,
@@ -370,6 +377,10 @@ public partial class TimelineEditorViewModel : ObservableObject
                     clip.ThumbnailPath = shot.FirstFrameImagePath;
                     clip.Status = TimelineClip.GetStatusFromShot(shot);
                 }
+                else if (!hasOriginalShot)
+                {
+                    continue;
+                }
 
                 // 诊断日志：输出片段信息
                 _logger.LogInformation("片段创建: ID={ClipId}, StartTime={StartTime}s, Duration={Duration}s, " +
@@ -377,6 +388,12 @@ public partial class TimelineEditorViewModel : ObservableObject
                     clip.Id, clip.StartTime, clip.Duration, clip.PixelPosition, clip.PixelWidth, clip.ThumbnailPath);
 
                 track.Clips.Add(clip);
+            }
+
+            if (track.Clips.Count == 0)
+            {
+                Tracks.Remove(track);
+                continue;
             }
 
             // 诊断日志：输出轨道和片段信息
@@ -549,9 +566,20 @@ public partial class TimelineEditorViewModel : ObservableObject
     [RelayCommand]
     private void SeekToTime(double time)
     {
-        PlayheadTime = Math.Clamp(time, 0, TotalDuration);
-        PlayheadPosition = PlayheadTime * PixelsPerSecond;
-        Playback.SeekTo(PlayheadTime);
+        if (SelectedClip != null)
+        {
+            var clip = SelectedClip;
+            var localTime = Math.Clamp(time - clip.StartTime, 0, clip.Duration);
+            PlayheadTime = clip.StartTime + localTime;
+            PlayheadPosition = PlayheadTime * PixelsPerSecond;
+            Playback.SeekTo(localTime);
+        }
+        else
+        {
+            PlayheadTime = Math.Clamp(time, 0, TotalDuration);
+            PlayheadPosition = PlayheadTime * PixelsPerSecond;
+            Playback.SeekTo(PlayheadTime);
+        }
 
         _messenger.Send(new PlayheadPositionChangedMessage(PlayheadTime, PlayheadPosition));
     }
@@ -698,6 +726,7 @@ public partial class TimelineEditorViewModel : ObservableObject
                 SelectedClip.IsSelected = false;
             }
             SelectedClip = null;
+            _playbackBaseTime = 0;
             return;
         }
 
@@ -745,6 +774,10 @@ public partial class TimelineEditorViewModel : ObservableObject
 
             // 更新播放状态
             Playback.State.TotalDuration = clip.Duration;
+            Playback.State.CurrentTime = 0;
+            _playbackBaseTime = clip.StartTime;
+            PlayheadTime = clip.StartTime;
+            PlayheadPosition = PlayheadTime * PixelsPerSecond;
 
             _logger.LogInformation("加载视频: {Path}, 时长: {Duration:F2}s", clip.VideoPath, clip.Duration);
         }

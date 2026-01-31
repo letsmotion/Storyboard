@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using System;
+using System.Windows.Input;
 
 namespace Storyboard.Controls;
 
@@ -21,6 +22,9 @@ public class TimelineRulerControl : Control
 
     public static readonly StyledProperty<double> PlayheadPositionProperty =
         AvaloniaProperty.Register<TimelineRulerControl, double>(nameof(PlayheadPosition), 0.0);
+
+    public static readonly StyledProperty<ICommand?> SeekCommandProperty =
+        AvaloniaProperty.Register<TimelineRulerControl, ICommand?>(nameof(SeekCommand));
 
     public double PixelsPerSecond
     {
@@ -45,6 +49,14 @@ public class TimelineRulerControl : Control
         get => GetValue(PlayheadPositionProperty);
         set => SetValue(PlayheadPositionProperty, value);
     }
+
+    public ICommand? SeekCommand
+    {
+        get => GetValue(SeekCommandProperty);
+        set => SetValue(SeekCommandProperty, value);
+    }
+
+    private bool _isDragging;
 
     static TimelineRulerControl()
     {
@@ -82,6 +94,65 @@ public class TimelineRulerControl : Control
 
         // Draw playhead indicator
         DrawPlayhead(context, w, h);
+    }
+
+    protected override void OnPointerPressed(Avalonia.Input.PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        _isDragging = true;
+        e.Pointer.Capture(this);
+        SeekToPointer(e.GetPosition(this).X);
+        e.Handled = true;
+    }
+
+    protected override void OnPointerMoved(Avalonia.Input.PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+
+        if (!_isDragging || e.Pointer.Captured != this)
+        {
+            return;
+        }
+
+        SeekToPointer(e.GetPosition(this).X);
+        e.Handled = true;
+    }
+
+    protected override void OnPointerReleased(Avalonia.Input.PointerReleasedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+
+        if (!_isDragging)
+        {
+            return;
+        }
+
+        _isDragging = false;
+        if (e.Pointer.Captured == this)
+        {
+            e.Pointer.Capture(null);
+        }
+        e.Handled = true;
+    }
+
+    private void SeekToPointer(double x)
+    {
+        if (PixelsPerSecond <= 0)
+        {
+            return;
+        }
+
+        var time = (x + ViewportOffsetX) / PixelsPerSecond;
+        if (SeekCommand?.CanExecute(time) == true)
+        {
+            SeekCommand.Execute(time);
+        }
     }
 
     private (double major, double minor) CalculateTickIntervals(double pps)

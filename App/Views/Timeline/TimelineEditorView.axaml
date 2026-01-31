@@ -300,6 +300,7 @@
                                                    PixelsPerSecond="{Binding PixelsPerSecond}"
                                                    TotalDuration="{Binding TotalDuration}"
                                                    PlayheadPosition="{Binding PlayheadPosition}"
+                                                   SeekCommand="{Binding SeekToTimeCommand}"
                                                    ViewportOffsetX="{Binding #TimelineScrollViewer.Offset.X}" />
                 </Border>
 
