@@ -1,3 +1,4 @@
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -10,6 +11,7 @@ using Storyboard.Models.Timeline;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -26,6 +28,15 @@ public partial class TimelineEditorViewModel : ObservableObject
     private readonly ITimelineInteractionService _interactionService;
     private const double MinClipDurationSeconds = 0.1;
     private double _playbackBaseTime;
+    private bool _isAutoAdvancing;
+    private const double AutoAdvanceThresholdSeconds = 0.05;
+    private Guid? _loadedClipId;
+    private LibVLCSharp.Shared.MediaPlayer? _autoAdvancePlayer;
+
+    // 撤销/重做栈
+    private readonly Stack<ITimelineAction> _undoStack = new();
+    private readonly Stack<ITimelineAction> _redoStack = new();
+    private const int MaxUndoStackSize = 50;
 
     // 核心数据：CapCut 草稿
     private DraftContent? _draftContent;
@@ -169,8 +180,10 @@ public partial class TimelineEditorViewModel : ObservableObject
         {
             if (e.PropertyName == nameof(Playback.State.CurrentTime))
             {
-                PlayheadTime = _playbackBaseTime + Playback.State.CurrentTime;
+                var newPlayheadTime = _playbackBaseTime + Playback.State.CurrentTime;
+                PlayheadTime = Math.Clamp(newPlayheadTime, 0, TotalDuration);
                 PlayheadPosition = PlayheadTime * PixelsPerSecond;
+                TryAutoAdvancePlayback();
             }
         };
 
@@ -424,6 +437,12 @@ public partial class TimelineEditorViewModel : ObservableObject
         _logger.LogInformation("时间轴构建完成: {TrackCount} 个轨道, 总时长 {Duration:F2}s",
             Tracks.Count, TotalDuration);
 
+        _playbackBaseTime = 0;
+        _loadedClipId = null;
+        PlayheadTime = 0;
+        PlayheadPosition = 0;
+        Playback.State.CurrentTime = 0;
+
         // 手动触发布局更新，确保 TracksHeight 通知到 UI
         RecalculateTrackPositions();
         OnPropertyChanged(nameof(TracksHeight));
@@ -584,6 +603,42 @@ public partial class TimelineEditorViewModel : ObservableObject
         _messenger.Send(new PlayheadPositionChangedMessage(PlayheadTime, PlayheadPosition));
     }
 
+    [RelayCommand]
+    private void PlayFromTimeline()
+    {
+        var clip = SelectedClip;
+        var clipAtPlayhead = FindClipAtTime(PlayheadTime);
+        if (clipAtPlayhead != null &&
+            (clip == null || PlayheadTime < clip.StartTime || PlayheadTime >= clip.EndTime))
+        {
+            clip = clipAtPlayhead;
+        }
+
+        if (clip == null)
+        {
+            clip = FindFirstPlayableClip();
+        }
+
+        if (clip == null)
+        {
+            return;
+        }
+
+        if (!EnsureClipLoadedForPlayback(clip))
+        {
+            var fallback = FindFirstPlayableClip();
+            if (fallback == null || !EnsureClipLoadedForPlayback(fallback))
+            {
+                return;
+            }
+
+            clip = fallback;
+        }
+
+        EnsurePlaybackStart(clip);
+        Playback.PlayCommand.Execute(null);
+    }
+
     /// <summary>
     /// 添加轨道（暂时保留以兼容 UI，实际由 SyncShotsToTimelineAsync 管理）
     /// </summary>
@@ -671,6 +726,182 @@ public partial class TimelineEditorViewModel : ObservableObject
         }
     }
 
+    private TimelineClip? FindClipAtTime(double time)
+    {
+        if (Tracks.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var track in Tracks.OrderBy(t => t.Order))
+        {
+            var clip = track.Clips.FirstOrDefault(c => time >= c.StartTime && time < c.EndTime && IsClipPlayable(c));
+            if (clip != null)
+            {
+                return clip;
+            }
+        }
+
+        return null;
+    }
+
+    private TimelineClip? FindFirstPlayableClip()
+    {
+        foreach (var track in Tracks.OrderBy(t => t.Order))
+        {
+            var clip = track.Clips.OrderBy(c => c.StartTime).FirstOrDefault(IsClipPlayable);
+            if (clip != null)
+            {
+                return clip;
+            }
+        }
+
+        return null;
+    }
+
+    private TimelineClip? FindNextClip(TimelineClip current)
+    {
+        var track = FindTrackForClip(current);
+        if (track == null)
+        {
+            return null;
+        }
+
+        return track.Clips
+            .Where(c => c.StartTime > current.StartTime && IsClipPlayable(c))
+            .OrderBy(c => c.StartTime)
+            .FirstOrDefault();
+    }
+
+    private bool IsClipPlayable(TimelineClip clip)
+    {
+        return !string.IsNullOrWhiteSpace(clip.VideoPath) && File.Exists(clip.VideoPath);
+    }
+
+    private bool EnsureClipLoadedForPlayback(TimelineClip clip)
+    {
+        if (SelectedClip != clip)
+        {
+            if (SelectedClip != null)
+            {
+                SelectedClip.IsSelected = false;
+            }
+
+            SelectedClip = clip;
+            SelectedClip.IsSelected = true;
+        }
+
+        if (_loadedClipId == clip.Id)
+        {
+            var mediaPlayer = Playback.GetMediaPlayer();
+            if (mediaPlayer?.Media != null)
+            {
+                return true;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(clip.VideoPath) || !System.IO.File.Exists(clip.VideoPath))
+        {
+            _logger.LogWarning("片段视频路径无效: {Path}", clip.VideoPath);
+            return false;
+        }
+
+        LoadClipVideo(clip);
+        return true;
+    }
+
+    private void EnsurePlaybackStart(TimelineClip clip)
+    {
+        if (clip.Duration <= 0)
+        {
+            return;
+        }
+
+        var threshold = Math.Max(AutoAdvanceThresholdSeconds, 0.01);
+        var needsReset = PlayheadTime < clip.StartTime || PlayheadTime >= clip.EndTime - threshold;
+
+        _playbackBaseTime = clip.StartTime;
+
+        if (needsReset)
+        {
+            PlayheadTime = clip.StartTime;
+            PlayheadPosition = PlayheadTime * PixelsPerSecond;
+            Playback.SeekTo(0);
+            return;
+        }
+
+        var localTime = Math.Clamp(PlayheadTime - clip.StartTime, 0, clip.Duration);
+        Playback.SeekTo(localTime);
+    }
+
+    private void TryAutoAdvancePlayback(bool force = false)
+    {
+        if (_isAutoAdvancing)
+        {
+            return;
+        }
+
+        if (!Playback.State.IsPlaying || Playback.State.TotalDuration <= 0)
+        {
+            return;
+        }
+
+        if (!force && Playback.State.CurrentTime < Playback.State.TotalDuration - AutoAdvanceThresholdSeconds)
+        {
+            return;
+        }
+
+        if (SelectedClip == null)
+        {
+            return;
+        }
+
+        var nextClip = FindNextClip(SelectedClip);
+        if (nextClip == null)
+        {
+            _playbackBaseTime = SelectedClip.EndTime;
+            Playback.StopPlayback();
+            return;
+        }
+
+        _isAutoAdvancing = true;
+        try
+        {
+            if (!EnsureClipLoadedForPlayback(nextClip))
+            {
+                Playback.StopPlayback();
+                return;
+            }
+
+            Playback.PlayCommand.Execute(null);
+        }
+        finally
+        {
+            _isAutoAdvancing = false;
+        }
+    }
+
+    private void EnsureAutoAdvanceHook(LibVLCSharp.Shared.MediaPlayer player)
+    {
+        if (_autoAdvancePlayer == player)
+        {
+            return;
+        }
+
+        if (_autoAdvancePlayer != null)
+        {
+            _autoAdvancePlayer.EndReached -= OnMediaEndReached;
+        }
+
+        _autoAdvancePlayer = player;
+        _autoAdvancePlayer.EndReached += OnMediaEndReached;
+    }
+
+    private void OnMediaEndReached(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.Post(() => TryAutoAdvancePlayback(force: true));
+    }
+
     private TimelineTrack? FindTrackForClip(TimelineClip clip)
     {
         return Tracks.FirstOrDefault(t => t.Id == clip.TrackId);
@@ -727,6 +958,7 @@ public partial class TimelineEditorViewModel : ObservableObject
             }
             SelectedClip = null;
             _playbackBaseTime = 0;
+            _loadedClipId = null;
             return;
         }
 
@@ -771,6 +1003,7 @@ public partial class TimelineEditorViewModel : ObservableObject
 
             var media = new LibVLCSharp.Shared.Media(libVLC, clip.VideoPath);
             mediaPlayer.Media = media;
+            EnsureAutoAdvanceHook(mediaPlayer);
 
             // 更新播放状态
             Playback.State.TotalDuration = clip.Duration;
@@ -778,6 +1011,7 @@ public partial class TimelineEditorViewModel : ObservableObject
             _playbackBaseTime = clip.StartTime;
             PlayheadTime = clip.StartTime;
             PlayheadPosition = PlayheadTime * PixelsPerSecond;
+            _loadedClipId = clip.Id;
 
             _logger.LogInformation("加载视频: {Path}, 时长: {Duration:F2}s", clip.VideoPath, clip.Duration);
         }
@@ -1165,33 +1399,221 @@ public partial class TimelineEditorViewModel : ObservableObject
         _messenger.Send(new ClipTrimmedMessage(clip, oldDuration, clip.Duration));
     }
 
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    private void Undo()
+    {
+        if (_undoStack.Count == 0)
+        {
+            _logger.LogInformation("撤销栈为空，无法撤销");
+            return;
+        }
+
+        var action = _undoStack.Pop();
+        _logger.LogInformation("执行撤销操作: {Description}", action.Description);
+
+        action.Undo();
+        _redoStack.Push(action);
+
+        _logger.LogInformation("撤销操作完成，撤销栈剩余: {Count}", _undoStack.Count);
+        _isDirty = true;
+
+        // 通知命令状态变化
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanUndo() => _undoStack.Count > 0;
+
+    [RelayCommand(CanExecute = nameof(CanRedo))]
+    private void Redo()
+    {
+        if (_redoStack.Count == 0)
+        {
+            _logger.LogInformation("重做栈为空，无法重做");
+            return;
+        }
+
+        var action = _redoStack.Pop();
+        _logger.LogInformation("执行重做操作: {Description}", action.Description);
+
+        action.Execute();
+        _undoStack.Push(action);
+
+        _logger.LogInformation("重做操作完成，重做栈剩余: {Count}", _redoStack.Count);
+        _isDirty = true;
+
+        // 通知命令状态变化
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanRedo() => _redoStack.Count > 0;
+
+    /// <summary>
+    /// 添加操作到撤销栈
+    /// </summary>
+    private void PushUndoAction(ITimelineAction action)
+    {
+        _undoStack.Push(action);
+        _redoStack.Clear(); // 新操作会清空重做栈
+
+        _logger.LogInformation("添加操作到撤销栈: {Description}，当前栈大小: {Count}", action.Description, _undoStack.Count);
+
+        // 限制撤销栈大小
+        if (_undoStack.Count > MaxUndoStackSize)
+        {
+            var items = _undoStack.ToList();
+            items.RemoveAt(items.Count - 1);
+            _undoStack.Clear();
+            foreach (var item in items.AsEnumerable().Reverse())
+            {
+                _undoStack.Push(item);
+            }
+            _logger.LogInformation("撤销栈已达到最大值，移除最旧的操作");
+        }
+
+        // 通知命令状态变化
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand]
+    private async Task DeleteSelectedClips()
+    {
+        if (SelectedClip == null && SelectedClips.Count == 0)
+        {
+            _logger.LogInformation("没有选中的片段可删除");
+            return;
+        }
+
+        try
+        {
+            var clipsToDelete = SelectedClips.Count > 0
+                ? SelectedClips.ToList()
+                : new List<TimelineClip> { SelectedClip! };
+
+            // 创建片段快照用于撤销
+            var snapshots = clipsToDelete.Select(ClipSnapshot.FromClip).ToList();
+
+            foreach (var clip in clipsToDelete)
+            {
+                // 从轨道中移除片段
+                var track = Tracks.FirstOrDefault(t => t.Clips.Contains(clip));
+                if (track != null)
+                {
+                    track.Clips.Remove(clip);
+                    _logger.LogInformation("从轨道 {TrackName} 删除片段: {ClipId}", track.Name, clip.Id);
+                }
+
+                // 从草稿中移除对应的 segment
+                if (_draftContent?.Tracks != null)
+                {
+                    foreach (var draftTrack in _draftContent.Tracks)
+                    {
+                        var segment = draftTrack.Segments?.FirstOrDefault(s => s.Id == clip.Id.ToString());
+                        if (segment != null)
+                        {
+                            draftTrack.Segments?.Remove(segment);
+                            _logger.LogInformation("从草稿轨道删除 segment: {SegmentId}", segment.Id);
+                        }
+                    }
+                }
+            }
+
+            // 清空选中状态
+            SelectedClip = null;
+            SelectedClips.Clear();
+
+            // 重新计算时间轴
+            RecalculateTrackPositions();
+            _isDirty = true;
+
+            // 添加到撤销栈
+            var deleteAction = new DeleteClipsAction(snapshots, RestoreDeletedClips);
+            PushUndoAction(deleteAction);
+
+            _logger.LogInformation("成功删除 {Count} 个片段", clipsToDelete.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "删除片段失败");
+        }
+    }
+
+    /// <summary>
+    /// 恢复已删除的片段（用于撤销删除操作）
+    /// </summary>
+    private void RestoreDeletedClips(List<ClipSnapshot> snapshots)
+    {
+        foreach (var snapshot in snapshots)
+        {
+            var track = Tracks.FirstOrDefault(t => t.Id == snapshot.TrackId);
+            if (track != null)
+            {
+                var clip = snapshot.ToClip(PixelsPerSecond);
+                track.Clips.Add(clip);
+                _logger.LogInformation("恢复片段到轨道 {TrackName}: {ClipId}", track.Name, clip.Id);
+            }
+        }
+
+        RecalculateTrackPositions();
+        _isDirty = true;
+    }
+
+    [RelayCommand]
+    private void TogglePlayPause()
+    {
+        if (Playback.State.IsPlaying)
+        {
+            Playback.PauseCommand.Execute(null);
+        }
+        else
+        {
+            Playback.PlayCommand.Execute(null);
+        }
+    }
+
     [RelayCommand]
     private async Task SplitSelectedClip()
     {
+        _logger.LogInformation("开始分割片段操作");
+
         if (SelectedClip == null)
         {
+            _logger.LogWarning("分割失败: 没有选中的片段");
             return;
         }
 
         var clip = SelectedClip;
         var splitTime = PlayheadTime;
 
+        _logger.LogInformation("分割片段: ClipId={ClipId}, StartTime={StartTime}s, EndTime={EndTime}s, PlayheadTime={PlayheadTime}s",
+            clip.Id, clip.StartTime, clip.EndTime, splitTime);
+
         if (splitTime <= clip.StartTime + MinClipDurationSeconds ||
             splitTime >= clip.EndTime - MinClipDurationSeconds)
         {
+            _logger.LogWarning("分割失败: 播放头位置不在片段范围内或太接近边缘 (MinDuration={MinDuration}s)", MinClipDurationSeconds);
             return;
         }
 
         var track = FindTrackForClip(clip);
         if (track == null)
         {
+            _logger.LogWarning("分割失败: 找不到片段所在的轨道");
             return;
         }
 
         var splitOffset = splitTime - clip.StartTime;
         var rightDuration = clip.Duration - splitOffset;
+
+        _logger.LogInformation("分割偏移: {SplitOffset}s, 左侧时长: {LeftDuration}s, 右侧时长: {RightDuration}s",
+            splitOffset, splitOffset, rightDuration);
+
         if (splitOffset < MinClipDurationSeconds || rightDuration < MinClipDurationSeconds)
         {
+            _logger.LogWarning("分割失败: 分割后的片段太短 (左侧={Left}s, 右侧={Right}s, 最小={Min}s)",
+                splitOffset, rightDuration, MinClipDurationSeconds);
             return;
         }
 
@@ -1199,11 +1621,16 @@ public partial class TimelineEditorViewModel : ObservableObject
         var oldSourceStart = clip.SourceStart;
         var oldSourceDuration = clip.SourceDuration;
 
+        // 保存原始状态用于撤销
+        var originalClipSnapshot = ClipSnapshot.FromClip(clip);
+
         string? newSegmentId = null;
         if (_draftContent != null)
         {
             try
             {
+                _logger.LogInformation("在草稿中分割 segment: {SegmentId}", clip.Id.ToString("N").ToUpper());
+
                 newSegmentId = DraftAdapter.SplitSegment(
                     _draftContent,
                     clip.Id.ToString("N").ToUpper(),
@@ -1211,14 +1638,16 @@ public partial class TimelineEditorViewModel : ObservableObject
 
                 if (string.IsNullOrEmpty(newSegmentId))
                 {
+                    _logger.LogWarning("分割失败: DraftAdapter.SplitSegment 返回空 ID");
                     return;
                 }
 
+                _logger.LogInformation("草稿分割成功，新 segment ID: {NewSegmentId}", newSegmentId);
                 _isDirty = true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to split DraftContent segment");
+                _logger.LogError(ex, "分割草稿 segment 失败");
                 return;
             }
         }
@@ -1256,11 +1685,82 @@ public partial class TimelineEditorViewModel : ObservableObject
             track.Clips.Add(newClip);
         }
 
+        _logger.LogInformation("分割成功: 原片段时长={OldDuration}s -> {NewDuration}s, 新片段 ID={NewClipId}, 时长={NewClipDuration}s",
+            oldDuration, clip.Duration, newClip.Id, newClip.Duration);
+
+        // 添加到撤销栈
+        var splitAction = new SplitClipAction(
+            originalClipSnapshot,
+            newClip.Id,
+            (originalSnapshot) => UndoSplitClip(originalSnapshot),
+            (newClipId) => DeleteClipById(newClipId));
+        PushUndoAction(splitAction);
+
         UpdateTimelineDurationFromTracks();
         _autoSaveTimer?.Start();
         await SaveDraftAsync();
 
         _messenger.Send(new ClipsSplitMessage(clip, newClip));
+    }
+
+    /// <summary>
+    /// 撤销分割操作：恢复原始片段，删除新片段
+    /// </summary>
+    private void UndoSplitClip(ClipSnapshot originalSnapshot)
+    {
+        var track = Tracks.FirstOrDefault(t => t.Id == originalSnapshot.TrackId);
+        if (track == null)
+        {
+            _logger.LogWarning("撤销分割失败: 找不到轨道 {TrackId}", originalSnapshot.TrackId);
+            return;
+        }
+
+        // 找到被分割的片段（现在是左侧片段）
+        var leftClip = track.Clips.FirstOrDefault(c => c.Id == originalSnapshot.ClipId);
+        if (leftClip != null)
+        {
+            // 恢复原始时长
+            leftClip.Duration = originalSnapshot.Duration;
+            leftClip.SourceDuration = originalSnapshot.SourceDuration;
+            leftClip.DragOffsetX = leftClip.PixelPosition;
+            _logger.LogInformation("恢复原始片段时长: {ClipId}, Duration={Duration}s", leftClip.Id, leftClip.Duration);
+        }
+
+        RecalculateTrackPositions();
+        _isDirty = true;
+    }
+
+    /// <summary>
+    /// 根据 ID 删除片段
+    /// </summary>
+    private void DeleteClipById(Guid clipId)
+    {
+        foreach (var track in Tracks)
+        {
+            var clip = track.Clips.FirstOrDefault(c => c.Id == clipId);
+            if (clip != null)
+            {
+                track.Clips.Remove(clip);
+                _logger.LogInformation("删除片段: {ClipId}", clipId);
+
+                // 从草稿中删除
+                if (_draftContent?.Tracks != null)
+                {
+                    foreach (var draftTrack in _draftContent.Tracks)
+                    {
+                        var segment = draftTrack.Segments?.FirstOrDefault(s => s.Id == clipId.ToString());
+                        if (segment != null)
+                        {
+                            draftTrack.Segments?.Remove(segment);
+                        }
+                    }
+                }
+
+                RecalculateTrackPositions();
+                _isDirty = true;
+                return;
+            }
+        }
     }
 
     #endregion

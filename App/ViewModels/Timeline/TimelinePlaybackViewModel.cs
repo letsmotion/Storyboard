@@ -1,3 +1,4 @@
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LibVLCSharp.Shared;
@@ -160,7 +161,14 @@ public partial class TimelinePlaybackViewModel : ObservableObject
                 var newTime = _mediaPlayer.Position * State.TotalDuration;
                 if (Math.Abs(newTime - State.CurrentTime) > 0.01) // 避免频繁更新
                 {
-                    State.CurrentTime = newTime;
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (_mediaPlayer == null || !State.IsPlaying || State.TotalDuration <= 0)
+                            return;
+
+                        if (Math.Abs(newTime - State.CurrentTime) > 0.01)
+                            State.CurrentTime = newTime;
+                    });
                 }
             }
         };

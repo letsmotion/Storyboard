@@ -8,7 +8,8 @@
              xmlns:conv="using:Storyboard.Converters"
              xmlns:controls="using:Storyboard.Controls"
              x:Class="Storyboard.Views.Timeline.TimelineEditorView"
-             x:DataType="vm:TimelineEditorViewModel">
+             x:DataType="vm:TimelineEditorViewModel"
+             Focusable="True">
 
     <UserControl.Resources>
         <conv:PathToBitmapConverter x:Key="PathToBitmapConverter" />
@@ -55,7 +56,7 @@
                 <StackPanel Grid.Column="0"
                             Orientation="Horizontal"
                             Spacing="8">
-                    <Button Command="{Binding Playback.PlayCommand}"
+                    <Button Command="{Binding PlayFromTimelineCommand}"
                             IsEnabled="{Binding Playback.CanPlay}"
                             Classes="Ghost"
                             Width="32"

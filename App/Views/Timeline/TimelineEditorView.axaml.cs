@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Threading;
 using LibVLCSharp.Shared;
 using Microsoft.Extensions.Logging;
@@ -29,6 +30,15 @@ public partial class TimelineEditorView : UserControl, IDisposable
     public TimelineEditorView()
     {
         InitializeComponent();
+
+        // 注册键盘事件
+        KeyDown += OnKeyDown;
+
+        // 注册鼠标滚轮事件（用于 Ctrl+滚轮缩放）
+        PointerWheelChanged += OnPointerWheelChanged;
+
+        // 确保控件可以接收焦点
+        Focusable = true;
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -40,6 +50,9 @@ public partial class TimelineEditorView : UserControl, IDisposable
             InitializeVLC();
             InitializeScrollSynchronization();
         }
+
+        // 自动获取焦点以接收键盘事件
+        Focus();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -139,6 +152,126 @@ public partial class TimelineEditorView : UserControl, IDisposable
     }
 
     /// <summary>
+    /// 键盘事件处理
+    /// </summary>
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is not TimelineEditorViewModel vm)
+            return;
+
+        var isCtrlPressed = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+
+        switch (e.Key)
+        {
+            case Key.Space:
+                // 空格键：播放/暂停
+                vm.TogglePlayPauseCommand.Execute(null);
+                e.Handled = true;
+                break;
+
+            case Key.Delete:
+                // Delete 键：删除选中的片段
+                vm.DeleteSelectedClipsCommand.Execute(null);
+                e.Handled = true;
+                break;
+
+            case Key.K when isCtrlPressed:
+                // Ctrl+K：分割片段（改用 K 键，避免与 Ctrl+B 冲突）
+                LogMessage("检测到 Ctrl+K 按键");
+                if (vm.SplitSelectedClipCommand != null)
+                {
+                    LogMessage($"SplitSelectedClipCommand 存在，CanExecute: {vm.SplitSelectedClipCommand.CanExecute(null)}");
+                    vm.SplitSelectedClipCommand.Execute(null);
+                    LogMessage("已执行分割命令");
+                    e.Handled = true;
+                }
+                else
+                {
+                    LogMessage("SplitSelectedClipCommand 为 null");
+                }
+                break;
+
+            case Key.Z when isCtrlPressed:
+                // Ctrl+Z：撤销
+                LogMessage("检测到 Ctrl+Z 按键");
+                if (vm.UndoCommand != null)
+                {
+                    LogMessage($"UndoCommand 存在，CanExecute: {vm.UndoCommand.CanExecute(null)}");
+                    if (vm.UndoCommand.CanExecute(null))
+                    {
+                        vm.UndoCommand.Execute(null);
+                        LogMessage("已执行撤销命令");
+                        e.Handled = true;
+                    }
+                    else
+                    {
+                        LogMessage("撤销命令无法执行（可能撤销栈为空）");
+                    }
+                }
+                else
+                {
+                    LogMessage("UndoCommand 为 null");
+                }
+                break;
+
+            case Key.Y when isCtrlPressed:
+                // Ctrl+Y：重做
+                LogMessage("检测到 Ctrl+Y 按键");
+                if (vm.RedoCommand != null)
+                {
+                    LogMessage($"RedoCommand 存在，CanExecute: {vm.RedoCommand.CanExecute(null)}");
+                    if (vm.RedoCommand.CanExecute(null))
+                    {
+                        vm.RedoCommand.Execute(null);
+                        LogMessage("已执行重做命令");
+                        e.Handled = true;
+                    }
+                    else
+                    {
+                        LogMessage("重做命令无法执行（可能重做栈为空）");
+                    }
+                }
+                else
+                {
+                    LogMessage("RedoCommand 为 null");
+                }
+                break;
+        }
+    }
+
+    /// <summary>
+    /// 鼠标滚轮事件处理（Ctrl+滚轮缩放）
+    /// </summary>
+    private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        if (DataContext is not TimelineEditorViewModel vm)
+            return;
+
+        // 检查是否按下 Ctrl 键
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            return;
+
+        // 获取滚轮增量（正值向上滚，负值向下滚）
+        var delta = e.Delta.Y;
+
+        // 计算新的缩放值
+        var currentZoom = vm.PixelsPerSecond;
+        var zoomStep = 5.0; // 每次滚动改变 5 像素/秒
+        var newZoom = currentZoom + (delta * zoomStep);
+
+        // 限制在 10-200 范围内
+        newZoom = Math.Clamp(newZoom, 10, 200);
+
+        // 应用新的缩放值
+        vm.PixelsPerSecond = newZoom;
+
+        // 标记事件已处理，防止页面滚动
+        e.Handled = true;
+
+        LogMessage($"时间轴缩放: {newZoom:F0}px/s");
+    }
+
+    /// <summary>
     /// 日志输出
     /// </summary>
     private void LogMessage(string message)
@@ -155,6 +288,10 @@ public partial class TimelineEditorView : UserControl, IDisposable
             return;
 
         _isDisposed = true;
+
+        // 注销事件处理器
+        KeyDown -= OnKeyDown;
+        PointerWheelChanged -= OnPointerWheelChanged;
 
         // 释放滚动同步
         _scrollSynchronizer?.Dispose();
