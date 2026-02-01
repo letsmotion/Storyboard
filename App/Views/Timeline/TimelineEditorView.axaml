@@ -12,6 +12,7 @@
 
     <UserControl.Resources>
         <conv:PathToBitmapConverter x:Key="PathToBitmapConverter" />
+        <conv:SubtractDoubleConverter x:Key="SubtractDoubleConverter" />
     </UserControl.Resources>
 
     <Grid RowDefinitions="*,Auto,Auto,*" Background="#0a0a0a">
@@ -372,15 +373,6 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <!-- 播放头（覆盖层） -->
-                        <Border Canvas.Left="{Binding PlayheadPosition}"
-                                Canvas.Top="0"
-                                Width="2"
-                                Height="{Binding TracksHeight}"
-                                Background="#8b5cf6"
-                                Opacity="0.8"
-                                BoxShadow="0 0 6 1 #8b5cf640" />
-
                         <!-- 吸附线指示器 -->
                         <Border Canvas.Left="{Binding SnapLinePosition}"
                                 Canvas.Top="0"
@@ -487,6 +479,29 @@
                         </Border>
                     </Canvas>
                 </ScrollViewer>
+
+                <!-- 播放头贯通线（从刻度到轨道底部） -->
+                <Grid Grid.RowSpan="2"
+                      IsHitTestVisible="False"
+                      ClipToBounds="True">
+                    <Border Width="2"
+                            Background="#8b5cf6"
+                            Opacity="0.85"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Stretch"
+                            BoxShadow="0 0 6 1 #8b5cf640">
+                        <Border.RenderTransform>
+                            <TranslateTransform>
+                                <TranslateTransform.X>
+                                    <MultiBinding Converter="{StaticResource SubtractDoubleConverter}">
+                                        <Binding Path="PlayheadPosition" />
+                                        <Binding Path="#TimelineScrollViewer.Offset.X" />
+                                    </MultiBinding>
+                                </TranslateTransform.X>
+                            </TranslateTransform>
+                        </Border.RenderTransform>
+                    </Border>
+                </Grid>
             </Grid>
         </Grid>
     </Grid>

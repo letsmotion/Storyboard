@@ -80,7 +80,7 @@ public class TimelineGridControl : Control
         {
             var x = time * PixelsPerSecond;
             context.DrawLine(majorPen, new Point(x, 0), new Point(x, Bounds.Height));
-        }
+    }
 
         // Draw minor lines (subtle)
         var minorInterval = interval / 5;

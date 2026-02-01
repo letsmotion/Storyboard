@@ -129,17 +129,6 @@
                     Cursor="SizeWestEast"
                     HorizontalAlignment="Left"
                     IsVisible="{Binding IsSelected}">
-                <Border Width="3"
-                        Background="#8b5cf6"
-                        HorizontalAlignment="Center"
-                        Opacity="0.6">
-                    <Border.Styles>
-                        <Style Selector="Border:pointerover">
-                            <Setter Property="Opacity" Value="1.0" />
-                            <Setter Property="Width" Value="4" />
-                        </Style>
-                    </Border.Styles>
-                </Border>
             </Border>
 
             <Border x:Name="RightResizeHandle"
@@ -148,17 +137,6 @@
                     Cursor="SizeWestEast"
                     HorizontalAlignment="Right"
                     IsVisible="{Binding IsSelected}">
-                <Border Width="3"
-                        Background="#8b5cf6"
-                        HorizontalAlignment="Center"
-                        Opacity="0.6">
-                    <Border.Styles>
-                        <Style Selector="Border:pointerover">
-                            <Setter Property="Opacity" Value="1.0" />
-                            <Setter Property="Width" Value="4" />
-                        </Style>
-                    </Border.Styles>
-                </Border>
             </Border>
         </Grid>
     </Border>

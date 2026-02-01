@@ -24,7 +24,7 @@
         <!-- 视图切换 -->
         <Button Classes="Secondary"
                 Command="{Binding ToggleViewModeCommand}"
-                ToolTip.Tip="切换网格/时间轴视图"
+                ToolTip.Tip="切换网格/成片编辑视图"
                 HorizontalAlignment="Center">
             <PathIcon Data="M4 11h5V5H4v6zm0 7h5v-6H4v6zm6 0h5v-6h-5v6zm6 0h5v-6h-5v6zm-6-7h5V5h-5v6zm6-6v6h5V5h-5z" Width="20" Height="20" />
         </Button>
