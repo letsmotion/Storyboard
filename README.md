@@ -1138,7 +1138,8 @@ dotnet test
 
 如果这个项目对您有帮助，请给我们一个 Star ⭐！
 
-[![Star History Chart](https://api.star-history.com/svg?repos=YOUR_USERNAME/YOUR_REPO&type=Date)](https://star-history.com/#YOUR_USERNAME/YOUR_REPO&Date)
+## Star History
+[![Star History Chart](https://api.star-history.com/svg?repos=YOUR_USERNAME/YOUR_REPO,BroderQi/Storyboard&type=date&legend=bottom-right)](https://www.star-history.com/#YOUR_USERNAME/YOUR_REPO&BroderQi/Storyboard&type=date&legend=bottom-right)
 
 ---
 
@@ -1148,7 +1149,6 @@ dotnet test
 
 - [Avalonia](https://avaloniaui.net/) - 跨平台 UI 框架
 - [FFmpeg](https://ffmpeg.org/) - 强大的媒体处理工具
-- [Semantic Kernel](https://github.com/microsoft/semantic-kernel) - AI 编排框架
 - [Serilog](https://serilog.net/) - 结构化日志库
 - [SkiaSharp](https://github.com/mono/SkiaSharp) - 跨平台 2D 图形库
 

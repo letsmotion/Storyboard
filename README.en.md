@@ -1261,7 +1261,7 @@ Enterprise customization and partnerships
 
 If this project helps you, please give us a Star ⭐!
 
-[![Star History Chart](https://api.star-history.com/svg?repos=YOUR_USERNAME/YOUR_REPO&type=Date)](https://star-history.com/#YOUR_USERNAME/YOUR_REPO&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=YOUR_USERNAME/YOUR_REPO,BroderQi/Storyboard&type=date&legend=bottom-right)](https://www.star-history.com/#YOUR_USERNAME/YOUR_REPO&BroderQi/Storyboard&type=date&legend=bottom-right)
 
 ---
 
