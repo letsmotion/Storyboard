@@ -24,4 +24,4 @@ public record VideoGenerationCompletedMessage(ShotItem Shot, bool Success, strin
 public record ExportRequestedMessage(string OutputPath);
 
 // 导出完成消息
-public record ExportCompletedMessage(bool Success, string? OutputPath);
+public record ExportCompletedMessage(bool Success, string? OutputPath, string? ErrorMessage = null);

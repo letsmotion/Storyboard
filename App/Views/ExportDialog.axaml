@@ -124,7 +124,6 @@
                         <StackPanel Spacing="4">
                             <TextBlock Text="⚠️ 至少需要一个分镜生成完成视频才能导出" FontSize="12" Foreground="#fbbf24" />
                             <TextBlock FontSize="12" Foreground="#fbbf24">
-                                <Run Text="当前进度: " />
                                 <Run Text="{Binding CompletedVideoShotsCount}" />
                                 <Run Text=" / " />
                                 <Run Text="{Binding Shots.Count}" />
@@ -163,13 +162,13 @@
                             <TextBlock Text="视频设置" FontSize="14" FontWeight="SemiBold" Foreground="#f5f5f5" />
                             <StackPanel Spacing="8">
                                 <TextBlock Text="分辨率" Foreground="#a1a1aa" FontSize="12" />
-                                <TextBox Text="1920x1080" Classes="Modern" />
+                                <TextBox Text="{Binding Export.VideoResolution}" Classes="Modern" />
 
                                 <TextBlock Text="帧率 (FPS)" Foreground="#a1a1aa" FontSize="12" Margin="0,6,0,0" />
-                                <TextBox Text="30" Classes="Modern" />
+                                <TextBox Text="{Binding Export.VideoFps}" Classes="Modern" />
 
                                 <TextBlock Text="输出格式" Foreground="#a1a1aa" FontSize="12" Margin="0,6,0,0" />
-                                <TextBox Text="mp4" Classes="Modern" />
+                                <TextBox Text="{Binding Export.VideoFormat}" Classes="Modern" />
                             </StackPanel>
                         </StackPanel>
                     </Border>

@@ -414,6 +414,7 @@ public partial class MainViewModel : ObservableObject
         _messenger.Register<ResourceLibraryAssetSelectedMessage>(this, OnResourceLibraryAssetSelected);
         _messenger.Register<BatchInsertShotRequestedMessage>(this, OnBatchInsertShotRequested);
         _messenger.Register<EditCoreContentRequestedMessage>(this, OnEditCoreContentRequested);
+        _messenger.Register<ExportCompletedMessage>(this, OnExportCompleted);
 
         // 订阅时间轴片段选中消息
         _messenger.Register<ClipSelectedMessage>(this, OnClipSelected);
@@ -1339,5 +1340,33 @@ public partial class MainViewModel : ObservableObject
     {
         EditingCoreContentShot = message.Shot;
         IsEditCoreContentDialogOpen = true;
+    }
+
+    private void OnExportCompleted(object recipient, ExportCompletedMessage message)
+    {
+        _logger.LogInformation("收到导出消息: Success={Success}, OutputPath={OutputPath}, ErrorMessage={ErrorMessage}",
+            message.Success, message.OutputPath, message.ErrorMessage);
+
+        // Handle "in progress" status (Success=true but no OutputPath yet)
+        if (message.Success && string.IsNullOrEmpty(message.OutputPath) && !string.IsNullOrEmpty(message.ErrorMessage))
+        {
+            StatusMessage = message.ErrorMessage; // This is actually a status update, not an error
+            _logger.LogInformation("导出状态更新: {Status}", message.ErrorMessage);
+            return;
+        }
+
+        // Handle success
+        if (message.Success && !string.IsNullOrEmpty(message.OutputPath))
+        {
+            StatusMessage = $"✓ 视频导出成功: {message.OutputPath}";
+            _logger.LogInformation("视频导出成功，已通知用户: {OutputPath}", message.OutputPath);
+        }
+        // Handle failure
+        else if (!message.Success)
+        {
+            var errorMsg = message.ErrorMessage ?? "未知错误";
+            StatusMessage = $"✗ 视频导出失败：{errorMsg}";
+            _logger.LogWarning("视频导出失败: {Error}", errorMsg);
+        }
     }
 }
