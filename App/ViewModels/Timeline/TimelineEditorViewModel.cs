@@ -667,6 +667,21 @@ public partial class TimelineEditorViewModel : ObservableObject
     [RelayCommand]
     private void PlayFromTimeline()
     {
+        var mediaPlayer = Playback.GetMediaPlayer();
+        if (!Playback.State.IsPlaying && mediaPlayer != null && _loadedClipId.HasValue)
+        {
+            var clipAtCurrent = FindClipAtTime(PlayheadTime);
+            if (clipAtCurrent != null && _loadedClipId == clipAtCurrent.Id && IsClipMediaLoaded(clipAtCurrent))
+            {
+                var currentTimelineTime = _playbackBaseTime + Playback.State.CurrentTime;
+                if (Math.Abs(PlayheadTime - currentTimelineTime) <= SeekToleranceSeconds)
+                {
+                    Playback.PlayCommand.Execute(null);
+                    return;
+                }
+            }
+        }
+
         var desiredPlayhead = PlayheadTime;
         var clip = SelectedClip;
         var clipAtPlayhead = FindClipAtTime(PlayheadTime);
@@ -908,11 +923,16 @@ public partial class TimelineEditorViewModel : ObservableObject
                     var desiredPlayheadValue = desiredPlayhead.Value;
                     if (desiredPlayheadValue >= clip.StartTime && desiredPlayheadValue < clip.EndTime)
                     {
-                        var desiredMediaStartSeconds = CalcMediaSeconds(clip, desiredPlayheadValue);
-                        if (!_loadedMediaStartSeconds.HasValue ||
-                            Math.Abs(_loadedMediaStartSeconds.Value - desiredMediaStartSeconds) > SeekToleranceSeconds)
+                        var currentTimelineTime = _playbackBaseTime + Playback.State.CurrentTime;
+                        var shouldReloadForSeek = Math.Abs(desiredPlayheadValue - currentTimelineTime) > SeekToleranceSeconds;
+                        if (shouldReloadForSeek)
                         {
-                            LoadClipVideo(clip, desiredMediaStartSeconds);
+                            var desiredMediaStartSeconds = CalcMediaSeconds(clip, desiredPlayheadValue);
+                            if (!_loadedMediaStartSeconds.HasValue ||
+                                Math.Abs(_loadedMediaStartSeconds.Value - desiredMediaStartSeconds) > SeekToleranceSeconds)
+                            {
+                                LoadClipVideo(clip, desiredMediaStartSeconds);
+                            }
                         }
                     }
                 }
@@ -1880,7 +1900,7 @@ public partial class TimelineEditorViewModel : ObservableObject
         }
         else
         {
-            Playback.PlayCommand.Execute(null);
+            PlayFromTimeline();
         }
     }
 
