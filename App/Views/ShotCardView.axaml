@@ -163,18 +163,43 @@
             </Grid>
 
             <!-- Row 1: Core Scene Description -->
-            <TextBox Grid.Row="1"
-                     Text="{Binding CoreContent, Mode=TwoWay}"
-                     FontSize="14"
-                     Foreground="#e4e4e7"
-                     Background="Transparent"
-                     BorderThickness="0"
-                     TextWrapping="Wrap"
-                     AcceptsReturn="False"
-                     MaxLines="2"
-                     Watermark="核心画面描述..."
-                     Margin="0,0,0,12"
-                     Padding="4,2" />
+            <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+                <Panel Grid.Column="0">
+                    <!-- Placeholder text when empty -->
+                    <TextBlock Text="核心画面描述..."
+                               FontSize="14"
+                               Foreground="#71717a"
+                               TextWrapping="Wrap"
+                               MaxHeight="44"
+                               Padding="4,2"
+                               IsVisible="{Binding CoreContent, Converter={x:Static conv:StringConverters.IsNullOrEmpty}}" />
+
+                    <!-- Actual content -->
+                    <TextBlock Text="{Binding CoreContent}"
+                               FontSize="14"
+                               Foreground="#e4e4e7"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis"
+                               MaxHeight="44"
+                               Padding="4,2"
+                               IsVisible="{Binding CoreContent, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                </Panel>
+
+                <!-- Edit Button -->
+                <Button Grid.Column="1"
+                        Classes="Ghost"
+                        Width="32"
+                        Height="32"
+                        Padding="0"
+                        Margin="4,0,0,0"
+                        ToolTip.Tip="展开编辑"
+                        Command="{Binding EditCoreContentCommand}">
+                    <PathIcon Data="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                              Width="14"
+                              Height="14"
+                              Foreground="#a1a1aa" />
+                </Button>
+            </Grid>
 
             <!-- Row 2: Thumbnails Grid -->
             <Grid Grid.Row="2"

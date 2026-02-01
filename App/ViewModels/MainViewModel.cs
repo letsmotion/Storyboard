@@ -89,6 +89,12 @@ public partial class MainViewModel : ObservableObject
     private bool _batchInsertAfter;
 
     [ObservableProperty]
+    private bool _isEditCoreContentDialogOpen;
+
+    [ObservableProperty]
+    private ShotItem? _editingCoreContentShot;
+
+    [ObservableProperty]
     private string _textToShotPrompt = string.Empty;
 
     [ObservableProperty]
@@ -407,6 +413,7 @@ public partial class MainViewModel : ObservableObject
         _messenger.Register<VideoGenerationCompletedMessage>(this, (r, m) => _ = SaveProjectAsync());
         _messenger.Register<ResourceLibraryAssetSelectedMessage>(this, OnResourceLibraryAssetSelected);
         _messenger.Register<BatchInsertShotRequestedMessage>(this, OnBatchInsertShotRequested);
+        _messenger.Register<EditCoreContentRequestedMessage>(this, OnEditCoreContentRequested);
 
         // 订阅时间轴片段选中消息
         _messenger.Register<ClipSelectedMessage>(this, OnClipSelected);
@@ -1326,5 +1333,11 @@ public partial class MainViewModel : ObservableObject
         BatchInsertAnchorShot = message.AnchorShot;
         BatchInsertAfter = message.insertAfter;
         IsBatchInsertDialogOpen = true;
+    }
+
+    private void OnEditCoreContentRequested(object recipient, EditCoreContentRequestedMessage message)
+    {
+        EditingCoreContentShot = message.Shot;
+        IsEditCoreContentDialogOpen = true;
     }
 }

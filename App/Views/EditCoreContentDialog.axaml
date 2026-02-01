@@ -1,0 +1,87 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Storyboard.ViewModels.Shot"
+        x:Class="Storyboard.Views.EditCoreContentDialog"
+        x:DataType="vm:EditCoreContentViewModel"
+        Title="编辑核心画面描述"
+        Width="700"
+        Height="500"
+        CanResize="True"
+        WindowStartupLocation="CenterOwner"
+        Background="#18181b"
+        TransparencyLevelHint="AcrylicBlur">
+
+    <Border Padding="24"
+            Background="#18181b"
+            CornerRadius="12">
+        <Grid RowDefinitions="Auto,*,Auto">
+
+            <!-- 标题区域 -->
+            <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,16">
+                <TextBlock Text="编辑核心画面描述"
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           Foreground="#f5f5f5" />
+                <TextBlock Text="在此编辑分镜的核心画面描述内容"
+                           FontSize="13"
+                           Foreground="#a1a1aa" />
+            </StackPanel>
+
+            <!-- 文本输入区域 -->
+            <Border Grid.Row="1"
+                    Background="#27272a"
+                    BorderBrush="#3f3f46"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="0,0,0,16">
+                <TextBox Text="{Binding TextInput, Mode=TwoWay}"
+                         FontSize="14"
+                         Foreground="#e4e4e7"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="True"
+                         MinHeight="300"
+                         Watermark="输入核心画面描述..." />
+            </Border>
+
+            <!-- 按钮区域 -->
+            <Grid Grid.Row="2"
+                  ColumnDefinitions="*,Auto,Auto"
+                  HorizontalAlignment="Stretch">
+
+                <Button Grid.Column="1"
+                        Content="取消"
+                        Classes="Ghost"
+                        Width="100"
+                        Height="36"
+                        Margin="0,0,8,0"
+                        Command="{Binding CancelCommand}"
+                        Click="OnCancelClick" />
+
+                <Button Grid.Column="2"
+                        Content="保存"
+                        Width="100"
+                        Height="36"
+                        Background="#8b5cf6"
+                        Foreground="#f5f5f5"
+                        BorderThickness="0"
+                        CornerRadius="6"
+                        Command="{Binding ConfirmCommand}"
+                        Click="OnSaveClick">
+                    <Button.Styles>
+                        <Style Selector="Button:pointerover">
+                            <Setter Property="Background" Value="#7c3aed" />
+                        </Style>
+                        <Style Selector="Button:pressed">
+                            <Setter Property="Background" Value="#6d28d9" />
+                        </Style>
+                    </Button.Styles>
+                </Button>
+            </Grid>
+
+        </Grid>
+    </Border>
+
+</Window>

@@ -115,6 +115,26 @@ public partial class MainWindow : Window
                     viewModel.IsBatchInsertDialogOpen = false;
                 }
                 break;
+
+            case nameof(MainViewModel.IsEditCoreContentDialogOpen):
+                if (viewModel.IsEditCoreContentDialogOpen)
+                {
+                    var editVm = new ViewModels.Shot.EditCoreContentViewModel
+                    {
+                        TargetShot = viewModel.EditingCoreContentShot,
+                        TextInput = viewModel.EditingCoreContentShot?.CoreContent ?? string.Empty
+                    };
+                    var dialog = new EditCoreContentDialog { DataContext = editVm };
+                    await dialog.ShowDialog(this);
+
+                    if (editVm.IsConfirmed && editVm.TargetShot != null)
+                    {
+                        editVm.TargetShot.CoreContent = editVm.TextInput;
+                    }
+
+                    viewModel.IsEditCoreContentDialogOpen = false;
+                }
+                break;
         }
     }
 

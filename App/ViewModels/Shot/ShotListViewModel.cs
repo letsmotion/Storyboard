@@ -280,6 +280,7 @@ public partial class ShotListViewModel : ObservableObject
         shot.GenerateFirstFrameRequested += OnShotGenerateFirstFrameRequestedEvent;
         shot.GenerateLastFrameRequested += OnShotGenerateLastFrameRequestedEvent;
         shot.GenerateVideoRequested += OnShotGenerateVideoRequestedEvent;
+        shot.EditCoreContentRequested += OnShotEditCoreContentRequestedEvent;
         shot.PropertyChanged += Shot_PropertyChanged;
     }
 
@@ -295,6 +296,7 @@ public partial class ShotListViewModel : ObservableObject
         shot.GenerateFirstFrameRequested -= OnShotGenerateFirstFrameRequestedEvent;
         shot.GenerateLastFrameRequested -= OnShotGenerateLastFrameRequestedEvent;
         shot.GenerateVideoRequested -= OnShotGenerateVideoRequestedEvent;
+        shot.EditCoreContentRequested -= OnShotEditCoreContentRequestedEvent;
         shot.PropertyChanged -= Shot_PropertyChanged;
     }
 
@@ -314,6 +316,12 @@ public partial class ShotListViewModel : ObservableObject
     {
         if (sender is ShotItem shot)
             _messenger.Send(new AiParseRequestedMessage(shot));
+    }
+
+    private void OnShotEditCoreContentRequestedEvent(object? sender, EventArgs e)
+    {
+        if (sender is ShotItem shot)
+            _messenger.Send(new EditCoreContentRequestedMessage(shot));
     }
 
     private async void OnShotInsertBeforeRequestedEvent(object? sender, EventArgs e)

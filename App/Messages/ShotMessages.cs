@@ -29,6 +29,9 @@ public record BatchInsertShotRequestedMessage(ShotItem AnchorShot, bool insertAf
 // 显示批量插入对话框消息
 public record ShowBatchInsertDialogMessage(ShotItem AnchorShot, bool insertAfter);
 
+// 编辑核心内容请求消息
+public record EditCoreContentRequestedMessage(ShotItem Shot);
+
 // 抽帧完成消息
 public record FramesExtractedMessage(IReadOnlyList<ShotItem> Shots);
 

@@ -434,6 +434,7 @@ public partial class ShotItem : ObservableObject
     public event EventHandler? GenerateFirstFrameRequested;
     public event EventHandler? GenerateLastFrameRequested;
     public event EventHandler? GenerateVideoRequested;
+    public event EventHandler? EditCoreContentRequested;
 
     // Image size options for ComboBox
     // Note: Volcengine API requires minimum 3,686,400 pixels (e.g., 2560x1440 for 16:9)
@@ -497,6 +498,12 @@ public partial class ShotItem : ObservableObject
     private void AIParse()
     {
         AiParseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void EditCoreContent()
+    {
+        EditCoreContentRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]

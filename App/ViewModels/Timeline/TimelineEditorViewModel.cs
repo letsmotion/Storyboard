@@ -10,6 +10,7 @@ using Storyboard.Models.CapCut;
 using Storyboard.Models.Timeline;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -31,7 +32,15 @@ public partial class TimelineEditorViewModel : ObservableObject
     private bool _isAutoAdvancing;
     private const double AutoAdvanceThresholdSeconds = 0.05;
     private Guid? _loadedClipId;
+    private double? _loadedMediaStartSeconds;
     private LibVLCSharp.Shared.MediaPlayer? _autoAdvancePlayer;
+    private double? _pendingSeekSeconds;
+    private Guid? _pendingSeekClipId;
+    private bool _isApplyingPendingSeek;
+    private DispatcherTimer? _seekRetryTimer;
+    private int _seekRetryCount;
+    private const int MaxSeekRetries = 50;
+    private const double SeekToleranceSeconds = 0.05;
 
     // 撤销/重做栈
     private readonly Stack<ITimelineAction> _undoStack = new();
@@ -439,6 +448,7 @@ public partial class TimelineEditorViewModel : ObservableObject
 
         _playbackBaseTime = 0;
         _loadedClipId = null;
+        _loadedMediaStartSeconds = null;
         PlayheadTime = 0;
         PlayheadPosition = 0;
         Playback.State.CurrentTime = 0;
@@ -585,19 +595,70 @@ public partial class TimelineEditorViewModel : ObservableObject
     [RelayCommand]
     private void SeekToTime(double time)
     {
-        if (SelectedClip != null)
+        var desiredPlayhead = Math.Clamp(time, 0, TotalDuration);
+        PlayheadTime = desiredPlayhead;
+        PlayheadPosition = PlayheadTime * PixelsPerSecond;
+
+        var clipAtTime = FindClipAtTime(PlayheadTime);
+        if (clipAtTime == null)
         {
-            var clip = SelectedClip;
-            var localTime = Math.Clamp(time - clip.StartTime, 0, clip.Duration);
-            PlayheadTime = clip.StartTime + localTime;
-            PlayheadPosition = PlayheadTime * PixelsPerSecond;
-            Playback.SeekTo(localTime);
+            if (SelectedClip != null &&
+                PlayheadTime >= SelectedClip.StartTime &&
+                PlayheadTime <= SelectedClip.EndTime &&
+                IsClipPlayable(SelectedClip))
+            {
+                if (!IsClipMediaLoaded(SelectedClip))
+                {
+                    var mediaStartSeconds = CalcMediaSeconds(SelectedClip, PlayheadTime);
+                    LoadClipVideo(SelectedClip, mediaStartSeconds);
+                    PlayheadTime = desiredPlayhead;
+                    PlayheadPosition = PlayheadTime * PixelsPerSecond;
+                }
+
+                _playbackBaseTime = SelectedClip.StartTime;
+                var mediaSeconds = CalcMediaSeconds(SelectedClip, PlayheadTime);
+                QueuePendingSeek(mediaSeconds, SelectedClip.Id);
+                if (TrySeekMedia(mediaSeconds))
+                {
+                    ClearPendingSeek();
+                }
+            }
+
+            _messenger.Send(new PlayheadPositionChangedMessage(PlayheadTime, PlayheadPosition));
+            return;
         }
-        else
+
+        if (clipAtTime != null)
         {
-            PlayheadTime = Math.Clamp(time, 0, TotalDuration);
-            PlayheadPosition = PlayheadTime * PixelsPerSecond;
-            Playback.SeekTo(PlayheadTime);
+            if (SelectedClip != clipAtTime)
+            {
+                if (SelectedClip != null)
+                {
+                    SelectedClip.IsSelected = false;
+                }
+
+                SelectedClip = clipAtTime;
+                SelectedClip.IsSelected = true;
+            }
+
+            if (IsClipPlayable(clipAtTime))
+            {
+                if (!IsClipMediaLoaded(clipAtTime))
+                {
+                    var mediaStartSeconds = CalcMediaSeconds(clipAtTime, PlayheadTime);
+                    LoadClipVideo(clipAtTime, mediaStartSeconds);
+                    PlayheadTime = desiredPlayhead;
+                    PlayheadPosition = PlayheadTime * PixelsPerSecond;
+                }
+
+                _playbackBaseTime = clipAtTime.StartTime;
+                var mediaSeconds = CalcMediaSeconds(clipAtTime, PlayheadTime);
+                QueuePendingSeek(mediaSeconds, clipAtTime.Id);
+                if (TrySeekMedia(mediaSeconds))
+                {
+                    ClearPendingSeek();
+                }
+            }
         }
 
         _messenger.Send(new PlayheadPositionChangedMessage(PlayheadTime, PlayheadPosition));
@@ -606,12 +667,24 @@ public partial class TimelineEditorViewModel : ObservableObject
     [RelayCommand]
     private void PlayFromTimeline()
     {
+        var desiredPlayhead = PlayheadTime;
         var clip = SelectedClip;
         var clipAtPlayhead = FindClipAtTime(PlayheadTime);
-        if (clipAtPlayhead != null &&
-            (clip == null || PlayheadTime < clip.StartTime || PlayheadTime >= clip.EndTime))
+        if (clipAtPlayhead != null)
         {
-            clip = clipAtPlayhead;
+            if (clip == null || PlayheadTime < clip.StartTime || PlayheadTime >= clip.EndTime)
+            {
+                clip = clipAtPlayhead;
+            }
+        }
+        else
+        {
+            var nextClip = FindNextPlayableClipAfterTime(PlayheadTime);
+            if (nextClip != null)
+            {
+                clip = nextClip;
+                desiredPlayhead = nextClip.StartTime;
+            }
         }
 
         if (clip == null)
@@ -624,18 +697,19 @@ public partial class TimelineEditorViewModel : ObservableObject
             return;
         }
 
-        if (!EnsureClipLoadedForPlayback(clip))
+        if (!EnsureClipLoadedForPlayback(clip, desiredPlayhead))
         {
             var fallback = FindFirstPlayableClip();
-            if (fallback == null || !EnsureClipLoadedForPlayback(fallback))
+            if (fallback == null || !EnsureClipLoadedForPlayback(fallback, fallback.StartTime))
             {
                 return;
             }
 
             clip = fallback;
+            desiredPlayhead = clip.StartTime;
         }
 
-        EnsurePlaybackStart(clip);
+        EnsurePlaybackStart(clip, desiredPlayhead);
         Playback.PlayCommand.Execute(null);
     }
 
@@ -773,12 +847,45 @@ public partial class TimelineEditorViewModel : ObservableObject
             .FirstOrDefault();
     }
 
+    private TimelineClip? FindNextPlayableClipAfterTime(double time)
+    {
+        return Tracks
+            .SelectMany(t => t.Clips)
+            .Where(IsClipPlayable)
+            .Where(c => c.StartTime > time)
+            .OrderBy(c => c.StartTime)
+            .FirstOrDefault();
+    }
+
     private bool IsClipPlayable(TimelineClip clip)
     {
         return !string.IsNullOrWhiteSpace(clip.VideoPath) && File.Exists(clip.VideoPath);
     }
 
-    private bool EnsureClipLoadedForPlayback(TimelineClip clip)
+    private bool IsClipMediaLoaded(TimelineClip clip)
+    {
+        if (_loadedClipId != clip.Id)
+        {
+            return false;
+        }
+
+        var mediaPlayer = Playback.GetMediaPlayer();
+        return mediaPlayer?.Media != null;
+    }
+
+    private double CalcMediaSeconds(TimelineClip clip, double timelineSeconds)
+    {
+        var local = timelineSeconds - clip.StartTime;
+        local = Math.Clamp(local, 0, Math.Max(0, clip.Duration - 0.001));
+
+        var media = clip.SourceStart + local;
+        var maxMedia = clip.SourceStart + Math.Max(0, clip.SourceDuration - 0.001);
+        media = Math.Clamp(media, clip.SourceStart, maxMedia);
+
+        return media;
+    }
+
+    private bool EnsureClipLoadedForPlayback(TimelineClip clip, double? desiredPlayhead = null)
     {
         if (SelectedClip != clip)
         {
@@ -796,6 +903,20 @@ public partial class TimelineEditorViewModel : ObservableObject
             var mediaPlayer = Playback.GetMediaPlayer();
             if (mediaPlayer?.Media != null)
             {
+                if (!Playback.State.IsPlaying && desiredPlayhead.HasValue)
+                {
+                    var desiredPlayheadValue = desiredPlayhead.Value;
+                    if (desiredPlayheadValue >= clip.StartTime && desiredPlayheadValue < clip.EndTime)
+                    {
+                        var desiredMediaStartSeconds = CalcMediaSeconds(clip, desiredPlayheadValue);
+                        if (!_loadedMediaStartSeconds.HasValue ||
+                            Math.Abs(_loadedMediaStartSeconds.Value - desiredMediaStartSeconds) > SeekToleranceSeconds)
+                        {
+                            LoadClipVideo(clip, desiredMediaStartSeconds);
+                        }
+                    }
+                }
+
                 return true;
             }
         }
@@ -806,11 +927,29 @@ public partial class TimelineEditorViewModel : ObservableObject
             return false;
         }
 
-        LoadClipVideo(clip);
+        double? mediaStartSeconds = null;
+        var targetPlayhead = desiredPlayhead;
+        if (targetPlayhead.HasValue)
+        {
+            if (targetPlayhead.Value >= clip.StartTime && targetPlayhead.Value < clip.EndTime)
+            {
+                mediaStartSeconds = CalcMediaSeconds(clip, targetPlayhead.Value);
+            }
+        }
+        else if (PlayheadTime >= clip.StartTime && PlayheadTime < clip.EndTime)
+        {
+            mediaStartSeconds = CalcMediaSeconds(clip, PlayheadTime);
+        }
+        else
+        {
+            mediaStartSeconds = CalcMediaSeconds(clip, clip.StartTime);
+        }
+
+        LoadClipVideo(clip, mediaStartSeconds);
         return true;
     }
 
-    private void EnsurePlaybackStart(TimelineClip clip)
+    private void EnsurePlaybackStart(TimelineClip clip, double? desiredPlayhead = null)
     {
         if (clip.Duration <= 0)
         {
@@ -818,20 +957,28 @@ public partial class TimelineEditorViewModel : ObservableObject
         }
 
         var threshold = Math.Max(AutoAdvanceThresholdSeconds, 0.01);
-        var needsReset = PlayheadTime < clip.StartTime || PlayheadTime >= clip.EndTime - threshold;
+        var targetPlayhead = desiredPlayhead ?? PlayheadTime;
+        var needsReset = targetPlayhead < clip.StartTime || targetPlayhead >= clip.EndTime - threshold;
 
         _playbackBaseTime = clip.StartTime;
 
         if (needsReset)
         {
-            PlayheadTime = clip.StartTime;
+            targetPlayhead = clip.StartTime;
+            PlayheadTime = targetPlayhead;
             PlayheadPosition = PlayheadTime * PixelsPerSecond;
+            ClearPendingSeek();
+            StopSeekRetry();
             Playback.SeekTo(0);
             return;
         }
 
-        var localTime = Math.Clamp(PlayheadTime - clip.StartTime, 0, clip.Duration);
-        Playback.SeekTo(localTime);
+        PlayheadTime = targetPlayhead;
+        PlayheadPosition = PlayheadTime * PixelsPerSecond;
+        var mediaSeconds = CalcMediaSeconds(clip, targetPlayhead);
+        QueuePendingSeek(mediaSeconds, clip.Id);
+        StopSeekRetry();
+        StartSeekRetry();
     }
 
     private void TryAutoAdvancePlayback(bool force = false)
@@ -861,13 +1008,14 @@ public partial class TimelineEditorViewModel : ObservableObject
         {
             _playbackBaseTime = SelectedClip.EndTime;
             Playback.StopPlayback();
+            ClearPendingSeek();
             return;
         }
 
         _isAutoAdvancing = true;
         try
         {
-            if (!EnsureClipLoadedForPlayback(nextClip))
+            if (!EnsureClipLoadedForPlayback(nextClip, nextClip.StartTime))
             {
                 Playback.StopPlayback();
                 return;
@@ -891,15 +1039,160 @@ public partial class TimelineEditorViewModel : ObservableObject
         if (_autoAdvancePlayer != null)
         {
             _autoAdvancePlayer.EndReached -= OnMediaEndReached;
+            _autoAdvancePlayer.Playing -= OnMediaPlaying;
+            _autoAdvancePlayer.LengthChanged -= OnMediaLengthChanged;
+            _autoAdvancePlayer.SeekableChanged -= OnMediaSeekableChanged;
         }
 
         _autoAdvancePlayer = player;
         _autoAdvancePlayer.EndReached += OnMediaEndReached;
+        _autoAdvancePlayer.Playing += OnMediaPlaying;
+        _autoAdvancePlayer.LengthChanged += OnMediaLengthChanged;
+        _autoAdvancePlayer.SeekableChanged += OnMediaSeekableChanged;
     }
 
     private void OnMediaEndReached(object? sender, EventArgs e)
     {
         Dispatcher.UIThread.Post(() => TryAutoAdvancePlayback(force: true));
+    }
+
+    private void OnMediaPlaying(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.Post(ApplyPendingSeekIfAny);
+    }
+
+    private void OnMediaLengthChanged(object? sender, LibVLCSharp.Shared.MediaPlayerLengthChangedEventArgs e)
+    {
+        Dispatcher.UIThread.Post(ApplyPendingSeekIfAny);
+    }
+
+    private void OnMediaSeekableChanged(object? sender, LibVLCSharp.Shared.MediaPlayerSeekableChangedEventArgs e)
+    {
+        Dispatcher.UIThread.Post(ApplyPendingSeekIfAny);
+    }
+
+    private void QueuePendingSeek(double seconds, Guid clipId)
+    {
+        _pendingSeekSeconds = seconds;
+        _pendingSeekClipId = clipId;
+        StartSeekRetry();
+    }
+
+    private void ClearPendingSeek()
+    {
+        _pendingSeekSeconds = null;
+        _pendingSeekClipId = null;
+        StopSeekRetry();
+    }
+
+    private void ApplyPendingSeekIfAny()
+    {
+        if (_isApplyingPendingSeek || _pendingSeekSeconds == null)
+        {
+            return;
+        }
+
+        if (_pendingSeekClipId.HasValue && _loadedClipId.HasValue && _pendingSeekClipId != _loadedClipId)
+        {
+            return;
+        }
+
+        _isApplyingPendingSeek = true;
+        try
+        {
+            if (TrySeekMedia(_pendingSeekSeconds.Value))
+            {
+                ClearPendingSeek();
+            }
+        }
+        finally
+        {
+            _isApplyingPendingSeek = false;
+        }
+    }
+
+    private void StartSeekRetry()
+    {
+        if (_pendingSeekSeconds == null)
+        {
+            return;
+        }
+
+        _seekRetryCount = 0;
+        if (_seekRetryTimer == null)
+        {
+            _seekRetryTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(60), DispatcherPriority.Background, (s, e) =>
+            {
+                if (_pendingSeekSeconds == null)
+                {
+                    StopSeekRetry();
+                    return;
+                }
+
+                var mediaPlayer = Playback.GetMediaPlayer();
+                if (mediaPlayer != null && mediaPlayer.Length > 0)
+                {
+                    var current = mediaPlayer.Time / 1000.0;
+                    if (Math.Abs(current - _pendingSeekSeconds.Value) <= SeekToleranceSeconds)
+                    {
+                        ClearPendingSeek();
+                        return;
+                    }
+                }
+
+                TrySeekMedia(_pendingSeekSeconds.Value);
+
+                _seekRetryCount++;
+                if (_seekRetryCount >= MaxSeekRetries)
+                {
+                    ClearPendingSeek();
+                }
+            });
+        }
+
+        _seekRetryTimer.Start();
+    }
+
+    private void StopSeekRetry()
+    {
+        if (_seekRetryTimer != null)
+        {
+            _seekRetryTimer.Stop();
+        }
+        _seekRetryCount = 0;
+    }
+
+    private bool TrySeekMedia(double seconds)
+    {
+        var mediaPlayer = Playback.GetMediaPlayer();
+        if (mediaPlayer == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var targetMs = (long)(Math.Max(0, seconds) * 1000);
+
+            if (mediaPlayer.Length > 0)
+            {
+                var lengthSeconds = mediaPlayer.Length / 1000.0;
+                if (lengthSeconds > 0)
+                {
+                    var position = Math.Clamp(seconds / lengthSeconds, 0, 1);
+                    mediaPlayer.Position = (float)position;
+                }
+            }
+
+            mediaPlayer.Time = targetMs;
+
+            var currentSeconds = mediaPlayer.Time / 1000.0;
+            return Math.Abs(currentSeconds - seconds) <= SeekToleranceSeconds;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private TimelineTrack? FindTrackForClip(TimelineClip clip)
@@ -959,6 +1252,8 @@ public partial class TimelineEditorViewModel : ObservableObject
             SelectedClip = null;
             _playbackBaseTime = 0;
             _loadedClipId = null;
+            _loadedMediaStartSeconds = null;
+            ClearPendingSeek();
             return;
         }
 
@@ -972,13 +1267,19 @@ public partial class TimelineEditorViewModel : ObservableObject
         _logger.LogInformation("片段已选中: {ClipId}", SelectedClip.Id);
 
         // 加载并播放选中片段的视频
-        LoadClipVideo(SelectedClip);
+        var clipStartSeconds = SelectedClip != null
+            ? (PlayheadTime >= SelectedClip.StartTime && PlayheadTime < SelectedClip.EndTime
+                ? CalcMediaSeconds(SelectedClip, PlayheadTime)
+                : CalcMediaSeconds(SelectedClip, SelectedClip.StartTime))
+            : (double?)null;
+
+        LoadClipVideo(SelectedClip, clipStartSeconds);
     }
 
     /// <summary>
     /// 加载片段视频
     /// </summary>
-    private void LoadClipVideo(TimelineClip clip)
+    private void LoadClipVideo(TimelineClip clip, double? mediaStartSeconds = null)
     {
         if (string.IsNullOrEmpty(clip.VideoPath) || !System.IO.File.Exists(clip.VideoPath))
         {
@@ -1002,18 +1303,28 @@ public partial class TimelineEditorViewModel : ObservableObject
             }
 
             var media = new LibVLCSharp.Shared.Media(libVLC, clip.VideoPath);
+            var startSeconds = mediaStartSeconds ?? clip.SourceStart;
+            if (startSeconds > 0)
+            {
+                media.AddOption($":start-time={startSeconds.ToString(CultureInfo.InvariantCulture)}");
+            }
             mediaPlayer.Media = media;
             EnsureAutoAdvanceHook(mediaPlayer);
 
             // 更新播放状态
             Playback.State.TotalDuration = clip.Duration;
-            Playback.State.CurrentTime = 0;
             _playbackBaseTime = clip.StartTime;
-            PlayheadTime = clip.StartTime;
-            PlayheadPosition = PlayheadTime * PixelsPerSecond;
             _loadedClipId = clip.Id;
+            _loadedMediaStartSeconds = startSeconds;
+            if (PlayheadTime < clip.StartTime || PlayheadTime >= clip.EndTime)
+            {
+                PlayheadTime = clip.StartTime;
+                PlayheadPosition = PlayheadTime * PixelsPerSecond;
+                Playback.State.CurrentTime = 0;
+            }
+            ApplyPendingSeekIfAny();
 
-            _logger.LogInformation("加载视频: {Path}, 时长: {Duration:F2}s", clip.VideoPath, clip.Duration);
+            _logger.LogInformation("加载视频: {Path}, 时长: {Duration:F2}s, Start: {Start:F3}s", clip.VideoPath, clip.Duration, startSeconds);
         }
         catch (Exception ex)
         {
