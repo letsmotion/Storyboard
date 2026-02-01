@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using LibVLCSharp.Shared;
 using Microsoft.Extensions.Logging;
@@ -8,6 +9,7 @@ using Storyboard.Views;
 using Storyboard.ViewModels.Timeline;
 using Storyboard.Behaviors;
 using System;
+using System.Reactive.Linq;
 using System.Threading;
 
 namespace Storyboard.Views.Timeline;
@@ -20,6 +22,7 @@ public partial class TimelineEditorView : UserControl, IDisposable
     private bool _isDisposed;
     private readonly object _playerLock = new();
     private TimelineScrollSynchronizer? _scrollSynchronizer;
+    private IDisposable? _visibilitySubscription;
 
     // 静态初始化 LibVLC Core
     static TimelineEditorView()
@@ -31,14 +34,22 @@ public partial class TimelineEditorView : UserControl, IDisposable
     {
         InitializeComponent();
 
-        // 注册键盘事件
-        KeyDown += OnKeyDown;
+        // 注册键盘事件（隧道路由，保证子控件获得焦点时仍可响应）
+        AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
 
         // 注册鼠标滚轮事件（用于 Ctrl+滚轮缩放）
         PointerWheelChanged += OnPointerWheelChanged;
 
         // 确保控件可以接收焦点
         Focusable = true;
+
+        _visibilitySubscription = this.GetObservable(IsVisibleProperty).Subscribe(isVisible =>
+        {
+            if (isVisible)
+            {
+                Dispatcher.UIThread.Post(() => Focus());
+            }
+        });
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -52,7 +63,7 @@ public partial class TimelineEditorView : UserControl, IDisposable
         }
 
         // 自动获取焦点以接收键盘事件
-        Focus();
+        Dispatcher.UIThread.Post(() => Focus());
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -290,12 +301,14 @@ public partial class TimelineEditorView : UserControl, IDisposable
         _isDisposed = true;
 
         // 注销事件处理器
-        KeyDown -= OnKeyDown;
+        RemoveHandler(KeyDownEvent, OnKeyDown);
         PointerWheelChanged -= OnPointerWheelChanged;
 
         // 释放滚动同步
         _scrollSynchronizer?.Dispose();
         _scrollSynchronizer = null;
+        _visibilitySubscription?.Dispose();
+        _visibilitySubscription = null;
 
         lock (_playerLock)
         {
