@@ -1,4 +1,4 @@
-using Storyboard.Models;
+﻿using Storyboard.Models;
 using Storyboard.Models.CapCut;
 using System;
 using System.Collections.Generic;
@@ -8,20 +8,20 @@ using System.Linq;
 namespace Storyboard.Infrastructure.Services;
 
 /// <summary>
-/// 数据适配器 - 在 ShotItem 和 CapCut 格式之间转换
+/// 鏁版嵁閫傞厤鍣?- 鍦?ShotItem 鍜?CapCut 鏍煎紡涔嬮棿杞崲
 /// </summary>
 public static class DraftAdapter
 {
     private const long MICROSECONDS_PER_SECOND = 1_000_000;
 
     /// <summary>
-    /// 将 ShotItem 列表转换为 DraftContent
+    /// 灏?ShotItem 鍒楄〃杞崲涓?DraftContent
     /// </summary>
     public static void SyncShotsToDraft(List<ShotItem> shots, DraftContent draft)
     {
-        // 清空现有轨道
         draft.Tracks.Clear();
         draft.Materials.Videos.Clear();
+        draft.Materials.Speeds.Clear();
 
         if (shots == null || shots.Count == 0)
         {
@@ -29,11 +29,14 @@ public static class DraftAdapter
             return;
         }
 
-        // 创建视频轨道
         var videoTrack = new Track
         {
             Id = Guid.NewGuid().ToString("N").ToUpper(),
             Type = "video",
+            Attribute = 0,
+            Flag = 0,
+            Name = "video",
+            IsDefaultName = false,
             Segments = new List<Segment>()
         };
 
@@ -42,7 +45,6 @@ public static class DraftAdapter
 
         foreach (var shot in shots.OrderBy(s => s.ShotNumber))
         {
-            // 跳过没有视频的镜头
             if (string.IsNullOrEmpty(shot.GeneratedVideoPath) || !File.Exists(shot.GeneratedVideoPath))
             {
                 continue;
@@ -50,18 +52,36 @@ public static class DraftAdapter
 
             var materialId = Guid.NewGuid().ToString("N").ToUpper();
             var durationMicroseconds = (long)(shot.Duration * MICROSECONDS_PER_SECOND);
+            var fileName = Path.GetFileName(shot.GeneratedVideoPath);
+            var speedId = Guid.NewGuid().ToString("N").ToUpper();
 
-            // 添加视频素材
             draft.Materials.Videos.Add(new VideoMaterial
             {
                 Id = materialId,
+                MaterialId = materialId,
+                LocalMaterialId = string.Empty,
+                MaterialName = fileName,
                 Path = shot.GeneratedVideoPath,
+                Type = "video",
                 Duration = durationMicroseconds,
                 Width = 1920,
-                Height = 1080
+                Height = 1080,
+                CategoryId = string.Empty,
+                CategoryName = "local",
+                MediaPath = string.Empty,
+                CheckFlag = 63487,
+                Crop = new Crop(),
+                CropRatio = "free",
+                CropScale = 1.0,
+                AudioFade = null
             });
 
-            // 添加片段
+            draft.Materials.Speeds.Add(new SpeedMaterial
+            {
+                Id = speedId,
+                Speed = 1.0
+            });
+
             videoTrack.Segments.Add(new Segment
             {
                 Id = Guid.NewGuid().ToString("N").ToUpper(),
@@ -76,6 +96,11 @@ public static class DraftAdapter
                     Start = 0,
                     Duration = durationMicroseconds
                 },
+                Speed = 1.0,
+                Volume = 1.0,
+                ExtraMaterialRefs = new List<string> { speedId },
+                RenderIndex = 0,
+                TrackRenderIndex = 0,
                 Clip = new Clip
                 {
                     Alpha = 1.0,
@@ -83,7 +108,9 @@ public static class DraftAdapter
                     Scale = new Scale { X = 1.0, Y = 1.0 },
                     Transform = new Transform { X = 0.0, Y = 0.0 },
                     Flip = new Flip { Horizontal = false, Vertical = false }
-                }
+                },
+                UniformScale = new UniformScale { On = true, Value = 1.0 },
+                HdrSettings = new HdrSettings { Intensity = 1.0, Mode = 1, Nits = 1000 }
             });
 
             currentTime += durationMicroseconds;
@@ -95,7 +122,7 @@ public static class DraftAdapter
     }
 
     /// <summary>
-    /// 从 DraftContent 提取时间轴信息
+    /// 浠?DraftContent 鎻愬彇鏃堕棿杞翠俊鎭?
     /// </summary>
     public static TimelineInfo ExtractTimelineInfo(DraftContent draft)
     {
@@ -119,7 +146,8 @@ public static class DraftAdapter
 
             foreach (var segment in track.Segments)
             {
-                var material = draft.Materials.Videos.FirstOrDefault(v => v.Id == segment.MaterialId);
+                var material = draft.Materials.Videos.FirstOrDefault(v => v.MaterialId == segment.MaterialId || v.Id == segment.MaterialId);
+                var sourceRange = segment.SourceTimerange ?? segment.TargetTimerange;
 
                 trackInfo.Segments.Add(new SegmentInfo
                 {
@@ -127,8 +155,8 @@ public static class DraftAdapter
                     MaterialId = segment.MaterialId,
                     StartTimeSeconds = segment.TargetTimerange.Start / (double)MICROSECONDS_PER_SECOND,
                     DurationSeconds = segment.TargetTimerange.Duration / (double)MICROSECONDS_PER_SECOND,
-                    SourceStartSeconds = segment.SourceTimerange.Start / (double)MICROSECONDS_PER_SECOND,
-                    SourceDurationSeconds = segment.SourceTimerange.Duration / (double)MICROSECONDS_PER_SECOND,
+                    SourceStartSeconds = sourceRange.Start / (double)MICROSECONDS_PER_SECOND,
+                    SourceDurationSeconds = sourceRange.Duration / (double)MICROSECONDS_PER_SECOND,
                     VideoPath = material?.Path ?? string.Empty,
                     Width = material?.Width ?? 1920,
                     Height = material?.Height ?? 1080
@@ -142,7 +170,7 @@ public static class DraftAdapter
     }
 
     /// <summary>
-    /// 添加片段到草稿
+    /// 娣诲姞鐗囨鍒拌崏绋?
     /// </summary>
     public static void AddSegmentToDraft(DraftContent draft, ShotItem shot, double startTimeSeconds)
     {
@@ -151,7 +179,6 @@ public static class DraftAdapter
             return;
         }
 
-        // 获取或创建视频轨道
         var videoTrack = draft.Tracks.FirstOrDefault(t => t.Type == "video");
         if (videoTrack == null)
         {
@@ -159,6 +186,10 @@ public static class DraftAdapter
             {
                 Id = Guid.NewGuid().ToString("N").ToUpper(),
                 Type = "video",
+                Attribute = 0,
+                Flag = 0,
+                Name = "video",
+                IsDefaultName = false,
                 Segments = new List<Segment>()
             };
             draft.Tracks.Add(videoTrack);
@@ -167,18 +198,36 @@ public static class DraftAdapter
         var materialId = Guid.NewGuid().ToString("N").ToUpper();
         var durationMicroseconds = (long)(shot.Duration * MICROSECONDS_PER_SECOND);
         var startMicroseconds = (long)(startTimeSeconds * MICROSECONDS_PER_SECOND);
+        var fileName = Path.GetFileName(shot.GeneratedVideoPath);
+        var speedId = Guid.NewGuid().ToString("N").ToUpper();
 
-        // 添加视频素材
         draft.Materials.Videos.Add(new VideoMaterial
         {
             Id = materialId,
+            MaterialId = materialId,
+            LocalMaterialId = string.Empty,
+            MaterialName = fileName,
             Path = shot.GeneratedVideoPath,
+            Type = "video",
             Duration = durationMicroseconds,
             Width = 1920,
-            Height = 1080
+            Height = 1080,
+            CategoryId = string.Empty,
+            CategoryName = "local",
+            MediaPath = string.Empty,
+            CheckFlag = 63487,
+            Crop = new Crop(),
+            CropRatio = "free",
+            CropScale = 1.0,
+            AudioFade = null
         });
 
-        // 添加片段
+        draft.Materials.Speeds.Add(new SpeedMaterial
+        {
+            Id = speedId,
+            Speed = 1.0
+        });
+
         videoTrack.Segments.Add(new Segment
         {
             Id = Guid.NewGuid().ToString("N").ToUpper(),
@@ -192,15 +241,29 @@ public static class DraftAdapter
             {
                 Start = 0,
                 Duration = durationMicroseconds
-            }
+            },
+            Speed = 1.0,
+            Volume = 1.0,
+            ExtraMaterialRefs = new List<string> { speedId },
+            RenderIndex = 0,
+            TrackRenderIndex = 0,
+            Clip = new Clip
+            {
+                Alpha = 1.0,
+                Rotation = 0.0,
+                Scale = new Scale { X = 1.0, Y = 1.0 },
+                Transform = new Transform { X = 0.0, Y = 0.0 },
+                Flip = new Flip { Horizontal = false, Vertical = false }
+            },
+            UniformScale = new UniformScale { On = true, Value = 1.0 },
+            HdrSettings = new HdrSettings { Intensity = 1.0, Mode = 1, Nits = 1000 }
         });
 
-        // 更新总时长
         UpdateDraftDuration(draft);
     }
 
     /// <summary>
-    /// 从草稿中删除片段
+    /// 浠庤崏绋夸腑鍒犻櫎鐗囨
     /// </summary>
     public static void RemoveSegmentFromDraft(DraftContent draft, string segmentId)
     {
@@ -211,14 +274,17 @@ public static class DraftAdapter
             {
                 track.Segments.Remove(segment);
 
-                // 删除对应的素材
-                var material = draft.Materials.Videos.FirstOrDefault(v => v.Id == segment.MaterialId);
+                var material = draft.Materials.Videos.FirstOrDefault(v => v.MaterialId == segment.MaterialId || v.Id == segment.MaterialId);
                 if (material != null)
                 {
                     draft.Materials.Videos.Remove(material);
                 }
 
-                // 更新总时长
+                if (segment.ExtraMaterialRefs != null && segment.ExtraMaterialRefs.Count > 0)
+                {
+                    draft.Materials.Speeds.RemoveAll(s => segment.ExtraMaterialRefs.Contains(s.Id));
+                }
+
                 UpdateDraftDuration(draft);
                 break;
             }
@@ -226,7 +292,7 @@ public static class DraftAdapter
     }
 
     /// <summary>
-    /// 更新片段位置
+    /// 鏇存柊鐗囨浣嶇疆
     /// </summary>
     public static void UpdateSegmentPosition(DraftContent draft, string segmentId, double newStartTimeSeconds)
     {
@@ -243,7 +309,7 @@ public static class DraftAdapter
     }
 
     /// <summary>
-    /// 修剪片段（同时更新目标和源时间范围）
+    /// 淇壀鐗囨锛堝悓鏃舵洿鏂扮洰鏍囧拰婧愭椂闂磋寖鍥达級
     /// </summary>
     public static bool UpdateSegmentTrim(
         DraftContent draft,
@@ -260,6 +326,7 @@ public static class DraftAdapter
             {
                 segment.TargetTimerange.Start = (long)(newStartTimeSeconds * MICROSECONDS_PER_SECOND);
                 segment.TargetTimerange.Duration = (long)(newDurationSeconds * MICROSECONDS_PER_SECOND);
+                segment.SourceTimerange ??= new TimeRange();
                 segment.SourceTimerange.Start = (long)(newSourceStartSeconds * MICROSECONDS_PER_SECOND);
                 segment.SourceTimerange.Duration = (long)(newSourceDurationSeconds * MICROSECONDS_PER_SECOND);
 
@@ -272,8 +339,7 @@ public static class DraftAdapter
     }
 
     /// <summary>
-    /// 切割片段（返回新片段 ID）
-    /// </summary>
+    /// 鍒囧壊鐗囨锛堣繑鍥炴柊鐗囨 ID锛?    /// </summary>
     public static string? SplitSegment(DraftContent draft, string segmentId, double splitTimeSeconds)
     {
         foreach (var track in draft.Tracks)
@@ -297,11 +363,12 @@ public static class DraftAdapter
             var newSegmentId = Guid.NewGuid().ToString("N").ToUpper();
             var remainingDurationSeconds = segmentDurationSeconds - splitOffsetSeconds;
 
-            // Update original segment (left part)
             segment.TargetTimerange.Duration = (long)(splitOffsetSeconds * MICROSECONDS_PER_SECOND);
-            segment.SourceTimerange.Duration = (long)(splitOffsetSeconds * MICROSECONDS_PER_SECOND);
+            if (segment.SourceTimerange != null)
+            {
+                segment.SourceTimerange.Duration = (long)(splitOffsetSeconds * MICROSECONDS_PER_SECOND);
+            }
 
-            // Create right part
             var newSegment = new Segment
             {
                 Id = newSegmentId,
@@ -311,12 +378,20 @@ public static class DraftAdapter
                     Start = segment.TargetTimerange.Start + (long)(splitOffsetSeconds * MICROSECONDS_PER_SECOND),
                     Duration = (long)(remainingDurationSeconds * MICROSECONDS_PER_SECOND)
                 },
-                SourceTimerange = new TimeRange
+                SourceTimerange = segment.SourceTimerange == null ? null : new TimeRange
                 {
                     Start = segment.SourceTimerange.Start + (long)(splitOffsetSeconds * MICROSECONDS_PER_SECOND),
                     Duration = (long)(remainingDurationSeconds * MICROSECONDS_PER_SECOND)
                 },
-                Clip = CloneClip(segment.Clip)
+                Speed = segment.Speed,
+                Volume = segment.Volume,
+                ExtraMaterialRefs = segment.ExtraMaterialRefs != null ? new List<string>(segment.ExtraMaterialRefs) : new List<string>(),
+                RenderIndex = segment.RenderIndex,
+                TrackRenderIndex = segment.TrackRenderIndex,
+                TrackAttribute = segment.TrackAttribute,
+                Clip = CloneClip(segment.Clip),
+                UniformScale = segment.UniformScale,
+                HdrSettings = segment.HdrSettings
             };
 
             track.Segments.Insert(index + 1, newSegment);
@@ -328,7 +403,7 @@ public static class DraftAdapter
     }
 
     /// <summary>
-    /// 更新草稿总时长
+    /// 鏇存柊鑽夌鎬绘椂闀?
     /// </summary>
     private static void UpdateDraftDuration(DraftContent draft)
     {
@@ -350,10 +425,12 @@ public static class DraftAdapter
     }
 
     /// <summary>
-    /// 深拷贝片段剪辑信息
-    /// </summary>
-    private static Clip CloneClip(Clip clip)
+    /// 娣辨嫹璐濈墖娈靛壀杈戜俊鎭?    /// </summary>
+    private static Clip? CloneClip(Clip? clip)
     {
+        if (clip == null)
+            return null;
+
         return new Clip
         {
             Alpha = clip.Alpha,
@@ -377,7 +454,7 @@ public static class DraftAdapter
     }
 
     /// <summary>
-    /// 秒转微秒
+    /// 绉掕浆寰
     /// </summary>
     public static long SecondsToMicroseconds(double seconds)
     {
@@ -385,7 +462,7 @@ public static class DraftAdapter
     }
 
     /// <summary>
-    /// 微秒转秒
+    /// 寰杞
     /// </summary>
     public static double MicrosecondsToSeconds(long microseconds)
     {
@@ -394,7 +471,7 @@ public static class DraftAdapter
 }
 
 /// <summary>
-/// 时间轴信息（从 DraftContent 提取的简化视图）
+/// 鏃堕棿杞翠俊鎭紙浠?DraftContent 鎻愬彇鐨勭畝鍖栬鍥撅級
 /// </summary>
 public class TimelineInfo
 {
@@ -406,7 +483,7 @@ public class TimelineInfo
 }
 
 /// <summary>
-/// 轨道信息
+/// 杞ㄩ亾淇℃伅
 /// </summary>
 public class TrackInfo
 {
@@ -416,7 +493,7 @@ public class TrackInfo
 }
 
 /// <summary>
-/// 片段信息
+/// 鐗囨淇℃伅
 /// </summary>
 public class SegmentInfo
 {

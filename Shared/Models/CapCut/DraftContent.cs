@@ -1,11 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace Storyboard.Models.CapCut;
 
 /// <summary>
-/// CapCut 草稿内容模型 (draft_content.json)
+/// CapCut 鑽夌鍐呭妯″瀷 (draft_content.json)
 /// </summary>
 public class DraftContent
 {
@@ -13,7 +13,7 @@ public class DraftContent
     public CanvasConfig CanvasConfig { get; set; } = new();
 
     [JsonPropertyName("color_space")]
-    public int ColorSpace { get; set; } = 0;
+    public int ColorSpace { get; set; } = -1;
 
     [JsonPropertyName("config")]
     public DraftConfig Config { get; set; } = new();
@@ -42,11 +42,17 @@ public class DraftContent
     [JsonPropertyName("id")]
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
+    [JsonPropertyName("is_drop_frame_timecode")]
+    public bool IsDropFrameTimecode { get; set; }
+
     [JsonPropertyName("keyframe_graph_list")]
     public List<object> KeyframeGraphList { get; set; } = new();
 
     [JsonPropertyName("keyframes")]
     public Keyframes Keyframes { get; set; } = new();
+
+    [JsonPropertyName("lyrics_effects")]
+    public List<object> LyricsEffects { get; set; } = new();
 
     [JsonPropertyName("last_modified_platform")]
     public Platform LastModifiedPlatform { get; set; } = new();
@@ -66,11 +72,14 @@ public class DraftContent
     [JsonPropertyName("new_version")]
     public string NewVersion { get; set; } = "110.0.0";
 
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
     [JsonPropertyName("relationships")]
     public List<object> Relationships { get; set; } = new();
 
     [JsonPropertyName("render_index_track_mode_on")]
-    public bool RenderIndexTrackModeOn { get; set; }
+    public bool RenderIndexTrackModeOn { get; set; } = true;
 
     [JsonPropertyName("retouch_cover")]
     public object? RetouchCover { get; set; }
@@ -95,7 +104,7 @@ public class DraftContent
 }
 
 /// <summary>
-/// 画布配置
+/// 鐢诲竷閰嶇疆
 /// </summary>
 public class CanvasConfig
 {
@@ -110,7 +119,7 @@ public class CanvasConfig
 }
 
 /// <summary>
-/// 草稿配置
+/// 鑽夌閰嶇疆
 /// </summary>
 public class DraftConfig
 {
@@ -188,7 +197,7 @@ public class DraftConfig
 }
 
 /// <summary>
-/// 关键帧集合
+/// 鍏抽敭甯ч泦鍚?
 /// </summary>
 public class Keyframes
 {
@@ -218,7 +227,7 @@ public class Keyframes
 }
 
 /// <summary>
-/// 平台信息
+/// 骞冲彴淇℃伅
 /// </summary>
 public class Platform
 {
@@ -231,12 +240,24 @@ public class Platform
     [JsonPropertyName("app_version")]
     public string AppVersion { get; set; } = "5.9.0";
 
+    [JsonPropertyName("device_id")]
+    public string DeviceId { get; set; } = string.Empty;
+
+    [JsonPropertyName("hard_disk_id")]
+    public string HardDiskId { get; set; } = string.Empty;
+
+    [JsonPropertyName("mac_address")]
+    public string MacAddress { get; set; } = string.Empty;
+
     [JsonPropertyName("os")]
     public string Os { get; set; } = "windows";
+
+    [JsonPropertyName("os_version")]
+    public string OsVersion { get; set; } = string.Empty;
 }
 
 /// <summary>
-/// 素材集合
+/// 绱犳潗闆嗗悎
 /// </summary>
 public class Materials
 {
@@ -315,6 +336,9 @@ public class Materials
     [JsonPropertyName("multi_language_refs")]
     public List<object> MultiLanguageRefs { get; set; } = new();
 
+    [JsonPropertyName("placeholder_infos")]
+    public List<object> PlaceholderInfos { get; set; } = new();
+
     [JsonPropertyName("placeholders")]
     public List<object> Placeholders { get; set; } = new();
 
@@ -340,7 +364,7 @@ public class Materials
     public List<object> SoundChannelMappings { get; set; } = new();
 
     [JsonPropertyName("speeds")]
-    public List<object> Speeds { get; set; } = new();
+    public List<SpeedMaterial> Speeds { get; set; } = new();
 
     [JsonPropertyName("stickers")]
     public List<object> Stickers { get; set; } = new();
@@ -377,28 +401,114 @@ public class Materials
 }
 
 /// <summary>
+/// 速度素材
+/// </summary>
+public class SpeedMaterial
+{
+    [JsonPropertyName("curve_speed")]
+    public object? CurveSpeed { get; set; }
+
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = Guid.NewGuid().ToString("N").ToUpper();
+
+    [JsonPropertyName("mode")]
+    public int Mode { get; set; } = 0;
+
+    [JsonPropertyName("speed")]
+    public double Speed { get; set; } = 1.0;
+
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "speed";
+}
+
+/// <summary>
+/// 裁剪信息
+/// </summary>
+public class Crop
+{
+    [JsonPropertyName("upper_left_x")]
+    public double UpperLeftX { get; set; } = 0.0;
+
+    [JsonPropertyName("upper_left_y")]
+    public double UpperLeftY { get; set; } = 0.0;
+
+    [JsonPropertyName("upper_right_x")]
+    public double UpperRightX { get; set; } = 1.0;
+
+    [JsonPropertyName("upper_right_y")]
+    public double UpperRightY { get; set; } = 0.0;
+
+    [JsonPropertyName("lower_left_x")]
+    public double LowerLeftX { get; set; } = 0.0;
+
+    [JsonPropertyName("lower_left_y")]
+    public double LowerLeftY { get; set; } = 1.0;
+
+    [JsonPropertyName("lower_right_x")]
+    public double LowerRightX { get; set; } = 1.0;
+
+    [JsonPropertyName("lower_right_y")]
+    public double LowerRightY { get; set; } = 1.0;
+}
+
+/// <summary>
 /// 视频素材
 /// </summary>
 public class VideoMaterial
 {
-    [JsonPropertyName("id")]
-    public string Id { get; set; } = Guid.NewGuid().ToString();
+    [JsonPropertyName("audio_fade")]
+    public object? AudioFade { get; set; }
 
-    [JsonPropertyName("path")]
-    public string Path { get; set; } = string.Empty;
+    [JsonPropertyName("category_id")]
+    public string CategoryId { get; set; } = string.Empty;
+
+    [JsonPropertyName("category_name")]
+    public string CategoryName { get; set; } = "local";
+
+    [JsonPropertyName("check_flag")]
+    public int CheckFlag { get; set; } = 63487;
+
+    [JsonPropertyName("crop")]
+    public Crop Crop { get; set; } = new();
+
+    [JsonPropertyName("crop_ratio")]
+    public string CropRatio { get; set; } = "free";
+
+    [JsonPropertyName("crop_scale")]
+    public double CropScale { get; set; } = 1.0;
 
     [JsonPropertyName("duration")]
     public long Duration { get; set; }
 
-    [JsonPropertyName("width")]
-    public int Width { get; set; }
-
     [JsonPropertyName("height")]
     public int Height { get; set; }
-}
 
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = Guid.NewGuid().ToString("N").ToUpper();
+
+    [JsonPropertyName("local_material_id")]
+    public string LocalMaterialId { get; set; } = string.Empty;
+
+    [JsonPropertyName("material_id")]
+    public string MaterialId { get; set; } = string.Empty;
+
+    [JsonPropertyName("material_name")]
+    public string MaterialName { get; set; } = string.Empty;
+
+    [JsonPropertyName("media_path")]
+    public string MediaPath { get; set; } = string.Empty;
+
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "video";
+
+    [JsonPropertyName("width")]
+    public int Width { get; set; }
+}
 /// <summary>
-/// 轨道
+/// 杞ㄩ亾
 /// </summary>
 public class Track
 {
@@ -411,6 +521,12 @@ public class Track
     [JsonPropertyName("id")]
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
+    [JsonPropertyName("is_default_name")]
+    public bool IsDefaultName { get; set; } = true;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
     [JsonPropertyName("segments")]
     public List<Segment> Segments { get; set; } = new();
 
@@ -419,28 +535,109 @@ public class Track
 }
 
 /// <summary>
-/// 片段
+/// 鐗囨
 /// </summary>
 public class Segment
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
+    [JsonPropertyName("cartoon")]
+    public bool Cartoon { get; set; } = false;
+
+    [JsonPropertyName("clip")]
+    public Clip? Clip { get; set; }
+
+    [JsonPropertyName("common_keyframes")]
+    public List<object> CommonKeyframes { get; set; } = new();
+
+    [JsonPropertyName("enable_adjust")]
+    public bool EnableAdjust { get; set; } = true;
+
+    [JsonPropertyName("enable_color_correct_adjust")]
+    public bool EnableColorCorrectAdjust { get; set; } = false;
+
+    [JsonPropertyName("enable_color_curves")]
+    public bool EnableColorCurves { get; set; } = true;
+
+    [JsonPropertyName("enable_color_match_adjust")]
+    public bool EnableColorMatchAdjust { get; set; } = false;
+
+    [JsonPropertyName("enable_color_wheels")]
+    public bool EnableColorWheels { get; set; } = true;
+
+    [JsonPropertyName("enable_lut")]
+    public bool EnableLut { get; set; } = true;
+
+    [JsonPropertyName("enable_smart_color_adjust")]
+    public bool EnableSmartColorAdjust { get; set; } = false;
+
+    [JsonPropertyName("extra_material_refs")]
+    public List<string> ExtraMaterialRefs { get; set; } = new();
+
+    [JsonPropertyName("group_id")]
+    public string GroupId { get; set; } = string.Empty;
+
+    [JsonPropertyName("hdr_settings")]
+    public HdrSettings? HdrSettings { get; set; }
+
+    [JsonPropertyName("intensifies_audio")]
+    public bool IntensifiesAudio { get; set; } = false;
+
+    [JsonPropertyName("is_placeholder")]
+    public bool IsPlaceholder { get; set; } = false;
+
+    [JsonPropertyName("is_tone_modify")]
+    public bool IsToneModify { get; set; } = false;
+
+    [JsonPropertyName("keyframe_refs")]
+    public List<object> KeyframeRefs { get; set; } = new();
+
+    [JsonPropertyName("last_nonzero_volume")]
+    public double LastNonzeroVolume { get; set; } = 1.0;
+
     [JsonPropertyName("material_id")]
     public string MaterialId { get; set; } = string.Empty;
+
+    [JsonPropertyName("render_index")]
+    public int RenderIndex { get; set; } = 0;
+
+    [JsonPropertyName("reverse")]
+    public bool Reverse { get; set; } = false;
+
+    [JsonPropertyName("source_timerange")]
+    public TimeRange? SourceTimerange { get; set; }
+
+    [JsonPropertyName("speed")]
+    public double Speed { get; set; } = 1.0;
 
     [JsonPropertyName("target_timerange")]
     public TimeRange TargetTimerange { get; set; } = new();
 
-    [JsonPropertyName("source_timerange")]
-    public TimeRange SourceTimerange { get; set; } = new();
+    [JsonPropertyName("template_id")]
+    public string TemplateId { get; set; } = string.Empty;
 
-    [JsonPropertyName("clip")]
-    public Clip Clip { get; set; } = new();
+    [JsonPropertyName("template_scene")]
+    public string TemplateScene { get; set; } = "default";
+
+    [JsonPropertyName("track_attribute")]
+    public int TrackAttribute { get; set; } = 0;
+
+    [JsonPropertyName("track_render_index")]
+    public int TrackRenderIndex { get; set; } = 0;
+
+    [JsonPropertyName("uniform_scale")]
+    public UniformScale? UniformScale { get; set; }
+
+    [JsonPropertyName("visible")]
+    public bool Visible { get; set; } = true;
+
+    [JsonPropertyName("volume")]
+    public double Volume { get; set; } = 1.0;
 }
 
 /// <summary>
-/// 时间范围
+/// 鏃堕棿鑼冨洿
 /// </summary>
 public class TimeRange
 {
@@ -452,7 +649,7 @@ public class TimeRange
 }
 
 /// <summary>
-/// 片段属性
+/// 鐗囨灞炴€?
 /// </summary>
 public class Clip
 {
@@ -473,7 +670,7 @@ public class Clip
 }
 
 /// <summary>
-/// 翻转
+/// 缈昏浆
 /// </summary>
 public class Flip
 {
@@ -485,7 +682,7 @@ public class Flip
 }
 
 /// <summary>
-/// 缩放
+/// 缂╂斁
 /// </summary>
 public class Scale
 {
@@ -497,7 +694,7 @@ public class Scale
 }
 
 /// <summary>
-/// 变换
+/// 鍙樻崲
 /// </summary>
 public class Transform
 {
@@ -506,4 +703,31 @@ public class Transform
 
     [JsonPropertyName("y")]
     public double Y { get; set; } = 0.0;
+}
+
+/// <summary>
+/// HDR 璁剧疆
+/// </summary>
+public class HdrSettings
+{
+    [JsonPropertyName("intensity")]
+    public double Intensity { get; set; } = 1.0;
+
+    [JsonPropertyName("mode")]
+    public int Mode { get; set; } = 1;
+
+    [JsonPropertyName("nits")]
+    public int Nits { get; set; } = 1000;
+}
+
+/// <summary>
+/// 缁熶竴缂╂斁
+/// </summary>
+public class UniformScale
+{
+    [JsonPropertyName("on")]
+    public bool On { get; set; } = true;
+
+    [JsonPropertyName("value")]
+    public double Value { get; set; } = 1.0;
 }

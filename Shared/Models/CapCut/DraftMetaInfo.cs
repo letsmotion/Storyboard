@@ -18,6 +18,9 @@ public class DraftMetaInfo
     [JsonPropertyName("draft_cloud_last_action_download")]
     public bool DraftCloudLastActionDownload { get; set; }
 
+    [JsonPropertyName("draft_cloud_package_type")]
+    public string DraftCloudPackageType { get; set; } = string.Empty;
+
     [JsonPropertyName("draft_cloud_materials")]
     public List<object> DraftCloudMaterials { get; set; } = new();
 
@@ -47,6 +50,9 @@ public class DraftMetaInfo
 
     [JsonPropertyName("draft_id")]
     public string DraftId { get; set; } = Guid.NewGuid().ToString();
+
+    [JsonPropertyName("draft_is_ae_produce")]
+    public bool DraftIsAeProduce { get; set; }
 
     [JsonPropertyName("draft_is_ai_packaging_used")]
     public bool DraftIsAiPackagingUsed { get; set; }
@@ -84,6 +90,9 @@ public class DraftMetaInfo
     [JsonPropertyName("draft_name")]
     public string DraftName { get; set; } = string.Empty;
 
+    [JsonPropertyName("draft_need_rename_folder")]
+    public bool DraftNeedRenameFolder { get; set; }
+
     [JsonPropertyName("draft_new_version")]
     public string DraftNewVersion { get; set; } = string.Empty;
 
@@ -96,6 +105,9 @@ public class DraftMetaInfo
     [JsonPropertyName("draft_segment_extra_info")]
     public List<object> DraftSegmentExtraInfo { get; set; } = new();
 
+    [JsonPropertyName("draft_timeline_materials_size_")]
+    public long DraftTimelineMaterialsSize { get; set; }
+
     [JsonPropertyName("draft_type")]
     public string DraftType { get; set; } = string.Empty;
 
@@ -104,6 +116,15 @@ public class DraftMetaInfo
 
     [JsonPropertyName("tm_draft_cloud_modified")]
     public long TmDraftCloudModified { get; set; }
+
+    [JsonPropertyName("tm_draft_cloud_space_id")]
+    public long TmDraftCloudSpaceId { get; set; }
+
+    [JsonPropertyName("tm_draft_create")]
+    public long TmDraftCreate { get; set; }
+
+    [JsonPropertyName("tm_draft_modified")]
+    public long TmDraftModified { get; set; }
 
     [JsonPropertyName("tm_draft_removed")]
     public long TmDraftRemoved { get; set; }

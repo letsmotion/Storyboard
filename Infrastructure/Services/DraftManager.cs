@@ -77,7 +77,14 @@ public class DraftManager : IDraftManager
             meta.DraftId = draftId;
             meta.DraftName = projectName;
             meta.DraftFoldPath = draftDirectory;
-            meta.DraftRootPath = draftDirectory;
+            meta.DraftRootPath = Path.GetDirectoryName(draftDirectory) ?? draftDirectory;
+            meta.DraftRemovableStorageDevice = (Path.GetPathRoot(draftDirectory) ?? string.Empty)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            meta.DraftNeedRenameFolder = false;
+            meta.DraftTimelineMaterialsSize = 0;
+            var nowMicro = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1000;
+            meta.TmDraftCreate = nowMicro;
+            meta.TmDraftModified = nowMicro;
 
             // 保存初始草稿
             await SaveDraftAsync(draftDirectory, content, meta);
@@ -135,6 +142,7 @@ public class DraftManager : IDraftManager
 
             // 更新时间戳
             content.UpdateTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            meta.TmDraftModified = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1000;
 
             // 保存 draft_content.json
             var contentPath = Path.Combine(draftDirectory, "draft_content.json");

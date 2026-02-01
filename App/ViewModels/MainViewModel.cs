@@ -262,6 +262,7 @@ public partial class MainViewModel : ObservableObject
 
     public IRelayCommand ShowExportDialogCommand => Export.ShowExportDialogCommand;
     public IAsyncRelayCommand<string?> ExportVideoCommand => Export.ExportVideoCommand;
+    public IAsyncRelayCommand<string?> ExportToCapCutCommand => Export.ExportToCapCutCommand;
 
     public IRelayCommand<Models.GenerationJob?> CancelJobCommand => JobQueue.CancelJobCommand;
     public IRelayCommand<Models.GenerationJob?> RetryJobCommand => JobQueue.RetryJobCommand;
