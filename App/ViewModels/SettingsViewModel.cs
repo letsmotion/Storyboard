@@ -69,12 +69,21 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _migrationStatus = string.Empty;
 
-    // 更新设置
+    // 更新设置（仅用于手动检查）
     [ObservableProperty]
-    private bool _autoCheckUpdates = true;
+    private bool _isCheckingUpdate;
 
     [ObservableProperty]
-    private int _checkDelaySeconds = 3;
+    private string _updateStatus = string.Empty;
+
+    [ObservableProperty]
+    private string _latestVersion = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasUpdate;
+
+    [ObservableProperty]
+    private string _updateDownloadUrl = "https://github.com/BroderQi/Storyboard/releases/latest";
 
     public SettingsViewModel(
         ILogger<SettingsViewModel> logger,
@@ -98,6 +107,14 @@ public partial class SettingsViewModel : ObservableObject
     {
         // 加载版本信息
         CurrentVersion = _updateService.GetCurrentVersion();
+
+        // 如果是开发版本，尝试从程序集获取版本号
+        if (CurrentVersion == "Unknown" || CurrentVersion == "Dev")
+        {
+            var assemblyVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            CurrentVersion = assemblyVersion != null ? $"{assemblyVersion} (开发版)" : "开发版";
+        }
+
         CurrentUpdateSource = _updateService.GetCurrentSourceName();
 
         // 加载存储位置设置（从 UserSettings）
@@ -568,6 +585,71 @@ public partial class SettingsViewModel : ObservableObject
         {
             _logger.LogError(ex, "显示重启确认对话框失败");
             CloseDialog();
+        }
+    }
+
+    [RelayCommand]
+    private async Task CheckForUpdatesAsync()
+    {
+        try
+        {
+            IsCheckingUpdate = true;
+            UpdateStatus = "正在检查更新...";
+            HasUpdate = false;
+            LatestVersion = string.Empty;
+
+            _logger.LogInformation("手动检查更新");
+
+            // 检查是否为已安装版本
+            if (!_updateService.IsInstalled)
+            {
+                UpdateStatus = "当前为开发版本，无法检查更新。请下载正式安装包。";
+                _logger.LogWarning("开发版本无法检查更新");
+                return;
+            }
+
+            var updateInfo = await _updateService.CheckForUpdatesAsync();
+
+            if (updateInfo != null)
+            {
+                LatestVersion = updateInfo.TargetFullRelease.Version.ToString();
+                HasUpdate = true;
+                UpdateStatus = $"发现新版本: {LatestVersion}";
+                _logger.LogInformation("发现新版本: {Version}", LatestVersion);
+            }
+            else
+            {
+                UpdateStatus = "当前已是最新版本";
+                _logger.LogInformation("当前已是最新版本");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "检查更新失败");
+            UpdateStatus = $"检查更新失败: {ex.Message}";
+        }
+        finally
+        {
+            IsCheckingUpdate = false;
+        }
+    }
+
+    [RelayCommand]
+    private void OpenDownloadPage()
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = UpdateDownloadUrl,
+                UseShellExecute = true
+            };
+            System.Diagnostics.Process.Start(psi);
+            _logger.LogInformation("打开下载页面: {Url}", UpdateDownloadUrl);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "打开下载页面失败");
         }
     }
 }

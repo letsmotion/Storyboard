@@ -214,18 +214,15 @@
             </Grid>
         </Border>
 
-        <!-- Update Notification - Floating at top -->
-        <!-- TODO: 暂时禁用，需要进一步调试 StackOverflowException 问题 -->
+        <!-- Update Notification - Temporarily disabled due to StackOverflow issues -->
+        <!-- Users can manually check for updates in Settings dialog -->
         <!--
-        <Panel Grid.Row="1" Grid.RowSpan="2" ZIndex="1000" IsHitTestVisible="False"
-               IsVisible="{Binding UpdateNotification, Converter={x:Static ObjectConverters.IsNotNull}}">
-            <v:UpdateNotificationView
-                DataContext="{Binding UpdateNotification}"
-                VerticalAlignment="Top"
-                HorizontalAlignment="Center"
-                Margin="0,20,0,0"
-                IsHitTestVisible="True" />
-        </Panel>
+        <v:UpdateNotificationView Grid.Row="1" Grid.RowSpan="2"
+                                  ZIndex="1000"
+                                  x:Name="UpdateNotificationView"
+                                  VerticalAlignment="Top"
+                                  HorizontalAlignment="Center"
+                                  Margin="0,20,0,0" />
         -->
 
         <!-- Main Content -->

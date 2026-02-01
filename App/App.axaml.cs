@@ -55,34 +55,10 @@ public partial class App : Avalonia.Application
             mainWindow.Activate();
             desktop.MainWindow = mainWindow;
 
-            _ = CheckForUpdatesAsync();
+            // 不再自动检查更新，用户可以在设置中手动检查
         }
 
         base.OnFrameworkInitializationCompleted();
-    }
-
-    private async System.Threading.Tasks.Task CheckForUpdatesAsync()
-    {
-        try
-        {
-            // 延迟 3 秒后检查更新，避免影响启动速度
-            await System.Threading.Tasks.Task.Delay(3000);
-
-            var updateService = Services.GetRequiredService<UpdateService>();
-            var updateInfo = await updateService.CheckForUpdatesAsync();
-
-            if (updateInfo != null)
-            {
-                Log.Information($"发现新版本: {updateInfo.TargetFullRelease.Version}");
-                // 发送更新通知消息
-                var messenger = Services.GetRequiredService<IMessenger>();
-                messenger.Send(new Messages.UpdateAvailableMessage(updateInfo));
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "检查更新时出错");
-        }
     }
 
     private async System.Threading.Tasks.Task MigrateProviderSchemaIfNeededAsync()
