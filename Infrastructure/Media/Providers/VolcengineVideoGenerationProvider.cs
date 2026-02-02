@@ -294,7 +294,7 @@ public sealed class VolcengineVideoGenerationProvider : IVideoGenerationProvider
             throw new InvalidOperationException("No video model configured for Volcengine.");
 
         _logger.LogInformation("正在构建请求 payload...");
-        var payload = BuildPayload(model, contentItems, request.Shot.Duration, request.Shot, isReferenceMode);
+        var payload = BuildPayload(model, contentItems, request.Shot.EffectiveGeneratedDurationSeconds, request.Shot, isReferenceMode);
         _logger.LogInformation("Payload 构建完成");
 
         _logger.LogInformation("正在创建 HTTP 客户端...");
@@ -584,6 +584,7 @@ public sealed class VolcengineVideoGenerationProvider : IVideoGenerationProvider
         if (duration <= 0)
             return 0;
 
+        duration = Math.Min(duration, 12);
         return (int)Math.Round(duration);
     }
 

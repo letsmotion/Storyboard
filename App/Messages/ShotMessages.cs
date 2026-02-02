@@ -1,18 +1,29 @@
 using Storyboard.Models;
+using System.Collections.Generic;
 
 namespace Storyboard.Messages;
 
+public enum ShotUpdateSource
+{
+    Unknown = 0,
+    User = 1,
+    Timeline = 2
+}
+
 // 镜头添加消息
-public record ShotAddedMessage(ShotItem Shot);
+public record ShotAddedMessage(ShotItem Shot, ShotUpdateSource Source = ShotUpdateSource.Unknown);
 
 // 镜头删除消息
-public record ShotDeletedMessage(ShotItem Shot);
+public record ShotDeletedMessage(ShotItem Shot, ShotUpdateSource Source = ShotUpdateSource.Unknown);
 
 // 镜头更新消息
-public record ShotUpdatedMessage(ShotItem Shot);
+public record ShotUpdatedMessage(ShotItem Shot, ShotUpdateSource Source = ShotUpdateSource.Unknown);
 
 // 镜头移动消息
 public record ShotMovedMessage(ShotItem Shot, int FromIndex, int ToIndex);
+
+// 镜头编号重映射消息（用于时间轴内更新关联）
+public record ShotNumbersRemappedMessage(IReadOnlyDictionary<int, int> Map);
 
 // 镜头选中消息
 public record ShotSelectedMessage(ShotItem? Shot);

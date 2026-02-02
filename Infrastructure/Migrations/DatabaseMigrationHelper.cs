@@ -26,6 +26,13 @@ public static class DatabaseMigrationHelper
             // 检查并添加新列
             var columnsToAdd = new Dictionary<string, string>
             {
+                // Timebase / duration ticks
+                { "PlannedDurationTick", "INTEGER NOT NULL DEFAULT 0" },
+                { "GeneratedDurationTick", "INTEGER NOT NULL DEFAULT 0" },
+                { "ActualDurationTick", "INTEGER NOT NULL DEFAULT 0" },
+                { "TimingSource", "INTEGER NOT NULL DEFAULT 0" },
+                { "IsSyncedToTimeline", "INTEGER NOT NULL DEFAULT 1" },
+                { "IsDurationLocked", "INTEGER NOT NULL DEFAULT 0" },
                 // Material info fields
                 { "MaterialResolution", "TEXT NOT NULL DEFAULT ''" },
                 { "MaterialFileSize", "TEXT NOT NULL DEFAULT ''" },
@@ -92,6 +99,32 @@ public static class DatabaseMigrationHelper
 
                     using var command = connection.CreateCommand();
                     command.CommandText = $"ALTER TABLE Shots ADD COLUMN {columnName} {columnType}";
+                    await command.ExecuteNonQueryAsync();
+
+                    logger.LogInformation("成功添加列 {ColumnName}", columnName);
+                }
+                else
+                {
+                    logger.LogDebug("列 {ColumnName} 已存在，跳过", columnName);
+                }
+            }
+
+            // 添加 Projects 表的同步配置字段
+            var projectColumnsToAdd = new Dictionary<string, string>
+            {
+                { "SyncMode", "INTEGER NOT NULL DEFAULT 1" },  // Default to Bidirectional
+                { "FrameRate", "REAL NOT NULL DEFAULT 30.0" },
+                { "TimebaseUnit", "INTEGER NOT NULL DEFAULT 0" }  // Default to Milliseconds
+            };
+
+            foreach (var (columnName, columnType) in projectColumnsToAdd)
+            {
+                if (!await ColumnExistsAsync(connection, "Projects", columnName))
+                {
+                    logger.LogInformation("添加列 {ColumnName} 到 Projects 表", columnName);
+
+                    using var command = connection.CreateCommand();
+                    command.CommandText = $"ALTER TABLE Projects ADD COLUMN {columnName} {columnType}";
                     await command.ExecuteNonQueryAsync();
 
                     logger.LogInformation("成功添加列 {ColumnName}", columnName);

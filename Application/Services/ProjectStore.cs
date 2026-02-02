@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Storyboard.Application.Abstractions;
 using Storyboard.Domain.Entities;
+using Storyboard.Shared.Time;
 
 namespace Storyboard.Application.Services;
 
@@ -58,7 +59,7 @@ public sealed class ProjectStore : IProjectStore
             .OrderBy(s => s.ShotNumber)
             .Select(s => new ShotState(
                 s.ShotNumber,
-                s.Duration,
+                TimeTick.ToSeconds(ResolvePlannedDurationTick(s)),
                 s.StartTime,
                 s.EndTime,
                 s.FirstFramePrompt,
@@ -129,7 +130,13 @@ public sealed class ProjectStore : IProjectStore
                 s.UseLastFrameReference,
                 s.Seed,
                 s.CameraFixed,
-                s.Watermark))
+                s.Watermark,
+                ResolvePlannedDurationTick(s),
+                ResolveGeneratedDurationTick(s),
+                ResolveActualDurationTick(s),
+                s.TimingSource,
+                s.IsSyncedToTimeline,
+                s.IsDurationLocked))
             .ToList();
 
         return new ProjectState(
@@ -149,7 +156,11 @@ public sealed class ProjectStore : IProjectStore
             project.CreativeGoal,
             project.TargetAudience,
             project.VideoTone,
-            project.KeyMessage);
+            project.KeyMessage,
+            // Timeline sync configuration
+            project.SyncMode,
+            project.FrameRate,
+            project.TimebaseUnit);
     }
 
     private static IReadOnlyList<ShotAssetState> BuildAssetStates(Shot shot)
@@ -177,6 +188,20 @@ public sealed class ProjectStore : IProjectStore
         }
 
         return list;
+    }
+
+    private static long ResolvePlannedDurationTick(Shot shot)
+        => shot.PlannedDurationTick > 0 ? shot.PlannedDurationTick : TimeTick.FromSeconds(shot.Duration);
+
+    private static long ResolveGeneratedDurationTick(Shot shot)
+        => shot.GeneratedDurationTick;
+
+    private static long ResolveActualDurationTick(Shot shot)
+    {
+        if (shot.ActualDurationTick > 0)
+            return shot.ActualDurationTick;
+
+        return ResolvePlannedDurationTick(shot);
     }
 
     public async Task<string> CreateAsync(string projectName, CancellationToken cancellationToken = default)
@@ -236,6 +261,10 @@ public sealed class ProjectStore : IProjectStore
         project.TargetAudience = state.TargetAudience;
         project.VideoTone = state.VideoTone;
         project.KeyMessage = state.KeyMessage;
+        // Timeline sync configuration
+        project.SyncMode = state.SyncMode;
+        project.FrameRate = state.FrameRate;
+        project.TimebaseUnit = state.TimebaseUnit;
 
         // Replace shots (simple, predictable). Keep it thin, avoid tracking complex diffs.
         if (project.Shots.Count > 0)
@@ -253,7 +282,7 @@ public sealed class ProjectStore : IProjectStore
             {
                 ProjectId = project.Id,
                 ShotNumber = s.ShotNumber,
-                Duration = s.Duration,
+                Duration = TimeTick.ToSeconds(ResolvePlannedDurationTick(s)),
                 StartTime = s.StartTime,
                 EndTime = s.EndTime,
                 FirstFramePrompt = s.FirstFramePrompt,
@@ -324,6 +353,12 @@ public sealed class ProjectStore : IProjectStore
                 Seed = s.Seed,
                 CameraFixed = s.CameraFixed,
                 Watermark = s.Watermark,
+                PlannedDurationTick = ResolvePlannedDurationTick(s),
+                GeneratedDurationTick = ResolveGeneratedDurationTick(s),
+                ActualDurationTick = ResolveActualDurationTick(s),
+                TimingSource = s.TimingSource,
+                IsSyncedToTimeline = s.IsSyncedToTimeline,
+                IsDurationLocked = s.IsDurationLocked,
                 Assets = s.Assets
                     .Select(a => new ShotAsset
                     {
@@ -341,6 +376,20 @@ public sealed class ProjectStore : IProjectStore
             .ToList();
 
         await uow.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static long ResolvePlannedDurationTick(ShotState shot)
+        => shot.PlannedDurationTick > 0 ? shot.PlannedDurationTick : TimeTick.FromSeconds(shot.Duration);
+
+    private static long ResolveGeneratedDurationTick(ShotState shot)
+        => shot.GeneratedDurationTick;
+
+    private static long ResolveActualDurationTick(ShotState shot)
+    {
+        if (shot.ActualDurationTick > 0)
+            return shot.ActualDurationTick;
+
+        return ResolvePlannedDurationTick(shot);
     }
 
     public async Task DeleteAsync(string projectId, CancellationToken cancellationToken = default)

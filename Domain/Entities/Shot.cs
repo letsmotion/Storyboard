@@ -28,6 +28,36 @@ public sealed class Shot
     public double Duration { get; set; }
 
     /// <summary>
+    /// 规划时长（内部 tick，ms）
+    /// </summary>
+    public long PlannedDurationTick { get; set; }
+
+    /// <summary>
+    /// 生成时长（内部 tick，ms）
+    /// </summary>
+    public long GeneratedDurationTick { get; set; }
+
+    /// <summary>
+    /// 实际时长（内部 tick，ms）
+    /// </summary>
+    public long ActualDurationTick { get; set; }
+
+    /// <summary>
+    /// 时长来源
+    /// </summary>
+    public ShotTimingSource TimingSource { get; set; } = ShotTimingSource.ShotPlanned;
+
+    /// <summary>
+    /// 是否参与时间轴同步
+    /// </summary>
+    public bool IsSyncedToTimeline { get; set; } = true;
+
+    /// <summary>
+    /// 是否锁定时长（不参与批量调整）
+    /// </summary>
+    public bool IsDurationLocked { get; set; }
+
+    /// <summary>
     /// 镜头起始时间（秒）
     /// </summary>
     public double StartTime { get; set; }

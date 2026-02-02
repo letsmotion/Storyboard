@@ -125,7 +125,7 @@ public partial class VideoGenerationViewModel : ObservableObject
                     {
                         _logger.LogInformation("视频生成任务开始执行: Shot {ShotNumber}", shot.ShotNumber);
                         _logger.LogInformation("视频生成参数 - VideoPrompt: '{VideoPrompt}', Duration: {Duration}, Ratio: {Ratio}, Resolution: {Resolution}",
-                            shot.VideoPrompt, shot.Duration, shot.VideoRatio, shot.VideoResolution);
+                            shot.VideoPrompt, shot.EffectiveGeneratedDurationSeconds, shot.VideoRatio, shot.VideoResolution);
                         _logger.LogInformation("视频生成模式 - UseFirstFrameReference: {UseFirstFrame}, UseLastFrameReference: {UseLastFrame}, UseReferenceImages: {UseReference}",
                             shot.UseFirstFrameReference, shot.UseLastFrameReference, shot.UseReferenceImages);
 

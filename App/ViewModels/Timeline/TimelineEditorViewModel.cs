@@ -3,11 +3,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
+using Storyboard.Application.Services;
 using Storyboard.Infrastructure.Services;
 using Storyboard.Messages;
 using Storyboard.Models;
 using Storyboard.Models.CapCut;
 using Storyboard.Models.Timeline;
+using Storyboard.Shared.Time;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -27,6 +29,7 @@ public partial class TimelineEditorViewModel : ObservableObject
     private readonly IMessenger _messenger;
     private readonly ILogger<TimelineEditorViewModel> _logger;
     private readonly ITimelineInteractionService _interactionService;
+    private readonly ShotTimelineSyncService _syncService;
     private const double MinClipDurationSeconds = 0.1;
     private double _playbackBaseTime;
     private bool _isAutoAdvancing;
@@ -162,13 +165,15 @@ public partial class TimelineEditorViewModel : ObservableObject
         IDraftManager draftManager,
         IMessenger messenger,
         ILogger<TimelineEditorViewModel> logger,
-        ITimelineInteractionService interactionService)
+        ITimelineInteractionService interactionService,
+        ShotTimelineSyncService syncService)
     {
         Playback = playback;
         _draftManager = draftManager;
         _messenger = messenger;
         _logger = logger;
         _interactionService = interactionService;
+        _syncService = syncService;
 
         // 订阅 Tracks 集合变化，确保 TracksHeight 更新
         Tracks.CollectionChanged += (s, e) =>
@@ -181,6 +186,7 @@ public partial class TimelineEditorViewModel : ObservableObject
         _messenger.Register<ShotAddedMessage>(this, OnShotChanged);
         _messenger.Register<ShotDeletedMessage>(this, OnShotChanged);
         _messenger.Register<ShotUpdatedMessage>(this, OnShotChanged);
+        _messenger.Register<ShotNumbersRemappedMessage>(this, OnShotNumbersRemapped);
         _messenger.Register<ProjectDataLoadedMessage>(this, OnProjectDataLoaded);
         _messenger.Register<ClipSelectedMessage>(this, OnClipSelected);
 
@@ -1243,6 +1249,13 @@ public partial class TimelineEditorViewModel : ObservableObject
     // 消息处理
     private void OnShotChanged(object recipient, object message)
     {
+        if (message is ShotUpdatedMessage { Source: ShotUpdateSource.Timeline } ||
+            message is ShotAddedMessage { Source: ShotUpdateSource.Timeline } ||
+            message is ShotDeletedMessage { Source: ShotUpdateSource.Timeline })
+        {
+            return;
+        }
+
         // Shot 变化时重新同步
         _ = SyncShotsToTimelineAsync();
     }
@@ -1258,6 +1271,23 @@ public partial class TimelineEditorViewModel : ObservableObject
         {
             var projectName = message.ProjectState.Name;
             _ = LoadOrCreateDraftAsync(pathQuery.ProjectPath, projectName);
+        }
+    }
+
+    private void OnShotNumbersRemapped(object recipient, ShotNumbersRemappedMessage message)
+    {
+        if (message.Map == null || message.Map.Count == 0)
+            return;
+
+        foreach (var track in Tracks)
+        {
+            foreach (var clip in track.Clips)
+            {
+                if (message.Map.TryGetValue(clip.ShotNumber, out var newNumber))
+                {
+                    clip.ShotNumber = newNumber;
+                }
+            }
         }
     }
 
@@ -2091,6 +2121,69 @@ public partial class TimelineEditorViewModel : ObservableObject
                 _isDirty = true;
                 return;
             }
+        }
+    }
+
+    [RelayCommand]
+    private async Task RebuildShotsFromTimeline()
+    {
+        if (_draftContent == null || !IsDraftLoaded)
+        {
+            _logger.LogWarning("Cannot rebuild shots: draft not loaded");
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Rebuilding shots from timeline...");
+
+            var rebuiltShots = new List<ShotSnapshotData>();
+            int shotNumber = 1;
+
+            // Get video track clips
+            var videoTrack = Tracks.FirstOrDefault(t => t.Type == TrackType.Video);
+            if (videoTrack == null)
+            {
+                _logger.LogWarning("No video track found");
+                return;
+            }
+
+            // Create shots from clips
+            foreach (var clip in videoTrack.Clips.OrderBy(c => c.StartTime))
+            {
+                var shot = new ShotSnapshotData(
+                    shotNumber,
+                    clip.Duration,
+                    clip.StartTime,
+                    clip.EndTime,
+                    $"镜头 {shotNumber}",
+                    $"镜头 {shotNumber}",
+                    "全景",
+                    $"从时间轴重建的镜头 {shotNumber}",
+                    "",
+                    "",
+                    "通义万相"
+                );
+
+                rebuiltShots.Add(shot);
+                shotNumber++;
+            }
+
+            if (rebuiltShots.Count == 0)
+            {
+                _logger.LogWarning("No shots to rebuild from timeline");
+                return;
+            }
+
+            // Send message to replace shots
+            _messenger.Send(new RebuildShotsFromTimelineMessage());
+            _messenger.Send(new RestoreSnapshotMessage(rebuiltShots));
+
+            _logger.LogInformation("Rebuilt {Count} shots from timeline", rebuiltShots.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to rebuild shots from timeline");
         }
     }
 

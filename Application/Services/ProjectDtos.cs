@@ -1,3 +1,5 @@
+using Storyboard.Domain.Entities;
+
 namespace Storyboard.Application.Services;
 
 public sealed record ProjectSummary(
@@ -25,7 +27,11 @@ public sealed record ProjectState(
     string? CreativeGoal = null,
     string? TargetAudience = null,
     string? VideoTone = null,
-    string? KeyMessage = null);
+    string? KeyMessage = null,
+    // Timeline sync configuration
+    SyncMode SyncMode = SyncMode.Bidirectional,
+    double FrameRate = 30.0,
+    TimebaseUnit TimebaseUnit = TimebaseUnit.Milliseconds);
 
 public sealed record ShotState(
     int ShotNumber,
@@ -100,7 +106,13 @@ public sealed record ShotState(
     bool UseLastFrameReference = false,
     int? Seed = null,
     bool CameraFixed = false,
-    bool Watermark = false);
+    bool Watermark = false,
+    long PlannedDurationTick = 0,
+    long GeneratedDurationTick = 0,
+    long ActualDurationTick = 0,
+    ShotTimingSource TimingSource = ShotTimingSource.ShotPlanned,
+    bool IsSyncedToTimeline = true,
+    bool IsDurationLocked = false);
 
 public sealed record ShotAssetState(
     Domain.Entities.ShotAssetType Type,

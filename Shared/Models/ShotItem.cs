@@ -6,16 +6,37 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Linq;
 using Storyboard.Domain.Entities;
+using Storyboard.Shared.Time;
 
 namespace Storyboard.Models;
 
 public partial class ShotItem : ObservableObject
 {
+    private bool _suppressTickSync;
+
     [ObservableProperty]
     private int _shotNumber;
 
     [ObservableProperty]
     private double _duration;
+
+    [ObservableProperty]
+    private long _plannedDurationTick;
+
+    [ObservableProperty]
+    private long _generatedDurationTick;
+
+    [ObservableProperty]
+    private long _actualDurationTick;
+
+    [ObservableProperty]
+    private ShotTimingSource _timingSource = ShotTimingSource.ShotPlanned;
+
+    [ObservableProperty]
+    private bool _isSyncedToTimeline = true;
+
+    [ObservableProperty]
+    private bool _isDurationLocked;
 
     [ObservableProperty]
     private double _startTime;
@@ -366,7 +387,16 @@ public partial class ShotItem : ObservableObject
 
     public int MinDuration => SelectedModel.Contains("1-5-pro") ? 4 : 2;
 
-    public int EstimatedFrames => (int)(Duration * 24);
+    public double PlannedDurationSeconds => TimeTick.ToSeconds(PlannedDurationTick);
+
+    public double GeneratedDurationSeconds => TimeTick.ToSeconds(GeneratedDurationTick);
+
+    public double ActualDurationSeconds => TimeTick.ToSeconds(ActualDurationTick);
+
+    public double EffectiveGeneratedDurationSeconds
+        => TimeTick.ToSeconds(GeneratedDurationTick > 0 ? GeneratedDurationTick : PlannedDurationTick);
+
+    public int EstimatedFrames => (int)(EffectiveGeneratedDurationSeconds * 24);
 
     public string ResolutionWarning
     {
@@ -400,7 +430,7 @@ public partial class ShotItem : ObservableObject
             if (SupportsResolution && !string.IsNullOrWhiteSpace(VideoResolution))
                 sb.AppendLine($"分辨率: {VideoResolution}");
             if (UseDurationMode)
-                sb.AppendLine($"时长: {Duration:F1} 秒");
+                sb.AppendLine($"时长: {EffectiveGeneratedDurationSeconds:F1} 秒");
             else if (VideoFrames > 0)
                 sb.AppendLine($"帧数: {VideoFrames} 帧");
             if (GenerateAudio)
@@ -735,8 +765,65 @@ public partial class ShotItem : ObservableObject
 
     partial void OnDurationChanged(double value)
     {
+        if (!_suppressTickSync)
+        {
+            _suppressTickSync = true;
+            var ticks = TimeTick.FromSeconds(value);
+            if (PlannedDurationTick != ticks)
+                PlannedDurationTick = ticks;
+            if (TimingSource == ShotTimingSource.ShotPlanned)
+                ActualDurationTick = ticks;
+            if (GeneratedDurationTick == 0)
+                GeneratedDurationTick = ticks;
+            _suppressTickSync = false;
+        }
+
+        OnPropertyChanged(nameof(PlannedDurationSeconds));
+        OnPropertyChanged(nameof(GeneratedDurationSeconds));
+        OnPropertyChanged(nameof(ActualDurationSeconds));
+        OnPropertyChanged(nameof(EffectiveGeneratedDurationSeconds));
         OnPropertyChanged(nameof(EstimatedFrames));
         OnPropertyChanged(nameof(ParameterSummary));
+    }
+
+    partial void OnPlannedDurationTickChanged(long value)
+    {
+        if (_suppressTickSync)
+            return;
+
+        _suppressTickSync = true;
+        Duration = TimeTick.ToSeconds(value);
+        if (TimingSource == ShotTimingSource.ShotPlanned)
+            ActualDurationTick = value;
+        if (GeneratedDurationTick == 0)
+            GeneratedDurationTick = value;
+        _suppressTickSync = false;
+
+        OnPropertyChanged(nameof(PlannedDurationSeconds));
+        OnPropertyChanged(nameof(EffectiveGeneratedDurationSeconds));
+        OnPropertyChanged(nameof(EstimatedFrames));
+        OnPropertyChanged(nameof(ParameterSummary));
+    }
+
+    partial void OnGeneratedDurationTickChanged(long value)
+    {
+        OnPropertyChanged(nameof(GeneratedDurationSeconds));
+        OnPropertyChanged(nameof(EffectiveGeneratedDurationSeconds));
+        OnPropertyChanged(nameof(EstimatedFrames));
+        OnPropertyChanged(nameof(ParameterSummary));
+    }
+
+    partial void OnActualDurationTickChanged(long value)
+    {
+        OnPropertyChanged(nameof(ActualDurationSeconds));
+    }
+
+    partial void OnTimingSourceChanged(ShotTimingSource value)
+    {
+        if (value == ShotTimingSource.ShotPlanned)
+        {
+            ActualDurationTick = PlannedDurationTick;
+        }
     }
 
     partial void OnVideoRatioChanged(string value)

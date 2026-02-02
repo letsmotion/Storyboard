@@ -1,4 +1,5 @@
 ﻿using Storyboard.Models;
+using Storyboard.Shared.Time;
 using Storyboard.Models.CapCut;
 using System;
 using System.Collections.Generic;
@@ -41,7 +42,7 @@ public static class DraftAdapter
         };
 
         long currentTime = 0;
-        double totalDurationSeconds = 0;
+        long totalDurationTicks = 0;
 
         foreach (var shot in shots.OrderBy(s => s.ShotNumber))
         {
@@ -51,7 +52,8 @@ public static class DraftAdapter
             }
 
             var materialId = Guid.NewGuid().ToString("N").ToUpper();
-            var durationMicroseconds = (long)(shot.Duration * MICROSECONDS_PER_SECOND);
+            var durationTicks = ResolvePlannedDurationTick(shot);
+            var durationMicroseconds = TimeTick.ToMicroseconds(durationTicks);
             var fileName = Path.GetFileName(shot.GeneratedVideoPath);
             var speedId = Guid.NewGuid().ToString("N").ToUpper();
 
@@ -114,11 +116,11 @@ public static class DraftAdapter
             });
 
             currentTime += durationMicroseconds;
-            totalDurationSeconds += shot.Duration;
+            totalDurationTicks += durationTicks;
         }
 
         draft.Tracks.Add(videoTrack);
-        draft.Duration = (long)(totalDurationSeconds * MICROSECONDS_PER_SECOND);
+        draft.Duration = TimeTick.ToMicroseconds(totalDurationTicks);
     }
 
     /// <summary>
@@ -196,7 +198,8 @@ public static class DraftAdapter
         }
 
         var materialId = Guid.NewGuid().ToString("N").ToUpper();
-        var durationMicroseconds = (long)(shot.Duration * MICROSECONDS_PER_SECOND);
+        var durationTicks = ResolvePlannedDurationTick(shot);
+        var durationMicroseconds = TimeTick.ToMicroseconds(durationTicks);
         var startMicroseconds = (long)(startTimeSeconds * MICROSECONDS_PER_SECOND);
         var fileName = Path.GetFileName(shot.GeneratedVideoPath);
         var speedId = Guid.NewGuid().ToString("N").ToUpper();
@@ -458,7 +461,7 @@ public static class DraftAdapter
     /// </summary>
     public static long SecondsToMicroseconds(double seconds)
     {
-        return (long)(seconds * MICROSECONDS_PER_SECOND);
+        return TimeTick.ToMicroseconds(TimeTick.FromSeconds(seconds));
     }
 
     /// <summary>
@@ -466,7 +469,15 @@ public static class DraftAdapter
     /// </summary>
     public static double MicrosecondsToSeconds(long microseconds)
     {
-        return microseconds / (double)MICROSECONDS_PER_SECOND;
+        return TimeTick.ToSeconds(TimeTick.FromMicroseconds(microseconds));
+    }
+
+    private static long ResolvePlannedDurationTick(ShotItem shot)
+    {
+        if (shot.PlannedDurationTick > 0)
+            return shot.PlannedDurationTick;
+
+        return TimeTick.FromSeconds(shot.Duration);
     }
 }
 
@@ -508,3 +519,4 @@ public class SegmentInfo
     public int Width { get; set; }
     public int Height { get; set; }
 }
+

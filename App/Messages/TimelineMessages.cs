@@ -66,3 +66,8 @@ public class GetVideoImportInfoQuery
     public string? VideoDuration { get; set; }
     public double VideoDurationSeconds { get; set; }
 }
+
+/// <summary>
+/// 从时间轴重建分镜列表消息
+/// </summary>
+public record RebuildShotsFromTimelineMessage();

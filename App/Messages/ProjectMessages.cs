@@ -1,4 +1,5 @@
 using Storyboard.Application.Services;
+using Storyboard.Domain.Entities;
 using Storyboard.Models;
 
 namespace Storyboard.Messages;
@@ -23,3 +24,6 @@ public record ProjectUpdatedMessage(string ProjectId);
 
 // 视频导入消息
 public record VideoImportedMessage(string VideoPath);
+
+// 同步模式变更消息
+public record SyncModeChangedMessage(SyncMode SyncMode);

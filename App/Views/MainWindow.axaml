@@ -21,6 +21,7 @@
 
     <Window.Resources>
         <conv:BooleanNotConverter x:Key="BoolNot" />
+        <conv:SyncModeToColorConverter x:Key="SyncModeToColorConverter" />
     </Window.Resources>
 
     <Design.DataContext>
@@ -145,6 +146,82 @@
                                 Height="24"
                                 Background="#3f3f46"
                                 IsVisible="{Binding HasCurrentProject}" />
+
+                        <!-- Sync Mode Selector (Hidden) -->
+                        <TextBlock Text="同步模式:"
+                                   VerticalAlignment="Center"
+                                   Foreground="#a1a1aa"
+                                   FontSize="12"
+                                   IsVisible="False"
+                                   Margin="8,0,4,0" />
+
+                        <Button Classes="Ghost"
+                                IsVisible="False"
+                                Command="{Binding ChangeSyncModeCommand}"
+                                CommandParameter="ForwardOnly"
+                                ToolTip.Tip="仅分镜→时间轴（忽略时间轴修改）">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <PathIcon Data="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"
+                                          Width="14"
+                                          Height="14"
+                                          Foreground="{Binding SyncMode, Converter={StaticResource SyncModeToColorConverter}, ConverterParameter=ForwardOnly}" />
+                                <TextBlock Text="→"
+                                           FontSize="12"
+                                           Foreground="{Binding SyncMode, Converter={StaticResource SyncModeToColorConverter}, ConverterParameter=ForwardOnly}" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="Ghost"
+                                IsVisible="False"
+                                Command="{Binding ChangeSyncModeCommand}"
+                                CommandParameter="Bidirectional"
+                                ToolTip.Tip="双向同步（分镜↔时间轴）">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <PathIcon Data="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"
+                                          Width="14"
+                                          Height="14"
+                                          Foreground="{Binding SyncMode, Converter={StaticResource SyncModeToColorConverter}, ConverterParameter=Bidirectional}" />
+                                <TextBlock Text="↔"
+                                           FontSize="12"
+                                           Foreground="{Binding SyncMode, Converter={StaticResource SyncModeToColorConverter}, ConverterParameter=Bidirectional}" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="Ghost"
+                                IsVisible="False"
+                                Command="{Binding ChangeSyncModeCommand}"
+                                CommandParameter="TimelineOnly"
+                                ToolTip.Tip="仅时间轴→分镜（时间轴为准）">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <PathIcon Data="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"
+                                          Width="14"
+                                          Height="14"
+                                          Foreground="{Binding SyncMode, Converter={StaticResource SyncModeToColorConverter}, ConverterParameter=TimelineOnly}" />
+                                <TextBlock Text="←"
+                                           FontSize="12"
+                                           Foreground="{Binding SyncMode, Converter={StaticResource SyncModeToColorConverter}, ConverterParameter=TimelineOnly}" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Separator (Hidden) -->
+                        <Border Width="1"
+                                Height="24"
+                                Background="#3f3f46"
+                                IsVisible="False"
+                                Margin="8,0" />
+
+                        <!-- Rebuild from Timeline (Hidden) -->
+                        <Button Classes="Ghost"
+                                IsVisible="False"
+                                Command="{Binding TimelineEditor.RebuildShotsFromTimelineCommand}"
+                                ToolTip.Tip="从时间轴重建分镜列表">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <PathIcon Data="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"
+                                          Width="16"
+                                          Height="16" />
+                                <TextBlock Text="从时间轴重建" />
+                            </StackPanel>
+                        </Button>
 
                         <!-- Resource Library -->
                         <Button Classes="Ghost"

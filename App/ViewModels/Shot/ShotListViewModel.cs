@@ -4,8 +4,12 @@ using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Storyboard.Messages;
 using Storyboard.Application.Abstractions;
+using Storyboard.Application.Services;
+using Storyboard.Domain.Entities;
 using Storyboard.Models;
+using Storyboard.Shared.Time;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Linq;
@@ -21,6 +25,9 @@ public partial class ShotListViewModel : ObservableObject
     private readonly IMessenger _messenger;
     private readonly ILogger<ShotListViewModel> _logger;
     private readonly IAiShotService _aiShotService;
+    private readonly ShotTimelineSyncService _syncService;
+    private ShotUpdateSource _updateSource = ShotUpdateSource.User;
+    private SyncMode _currentSyncMode = SyncMode.Bidirectional;
 
     [ObservableProperty]
     private ObservableCollection<ShotItem> _shots = new();
@@ -71,11 +78,13 @@ public partial class ShotListViewModel : ObservableObject
     public ShotListViewModel(
         IMessenger messenger,
         ILogger<ShotListViewModel> logger,
-        IAiShotService aiShotService)
+        IAiShotService aiShotService,
+        ShotTimelineSyncService syncService)
     {
         _messenger = messenger;
         _logger = logger;
         _aiShotService = aiShotService;
+        _syncService = syncService;
 
         // 监听镜头集合变化
         Shots.CollectionChanged += Shots_CollectionChanged;
@@ -89,6 +98,9 @@ public partial class ShotListViewModel : ObservableObject
         _messenger.Register<ShotDeleteRequestedMessage>(this, OnShotDeleteRequested);
         _messenger.Register<FramesExtractedMessage>(this, OnFramesExtracted);
         _messenger.Register<RestoreSnapshotMessage>(this, OnRestoreSnapshot);
+        _messenger.Register<ClipTrimmedMessage>(this, OnClipTrimmed);
+        _messenger.Register<ClipsSplitMessage>(this, OnClipsSplit);
+        _messenger.Register<SyncModeChangedMessage>(this, OnSyncModeChanged);
 
         // 订阅查询消息 - 允许其他ViewModel查询镜头数据
         _messenger.Register<GetAllShotsQuery>(this, (r, m) => m.Shots = Shots.ToList());
@@ -117,7 +129,7 @@ public partial class ShotListViewModel : ObservableObject
         AttachShotEventHandlers(newShot);
         Shots.Add(newShot);
 
-        _messenger.Send(new ShotAddedMessage(newShot));
+        _messenger.Send(new ShotAddedMessage(newShot, ShotUpdateSource.User));
         _messenger.Send(new MarkUndoableChangeMessage());
 
         _logger.LogInformation("添加镜头: Shot {ShotNumber}", newShot.ShotNumber);
@@ -131,7 +143,7 @@ public partial class ShotListViewModel : ObservableObject
         AttachShotEventHandlers(shot);
         Shots.Add(shot);
 
-        _messenger.Send(new ShotAddedMessage(shot));
+        _messenger.Send(new ShotAddedMessage(shot, ShotUpdateSource.User));
         _messenger.Send(new MarkUndoableChangeMessage());
 
         _logger.LogInformation("添加镜头: Shot {ShotNumber}", shot.ShotNumber);
@@ -145,7 +157,7 @@ public partial class ShotListViewModel : ObservableObject
         AttachShotEventHandlers(shot);
         Shots.Insert(index, shot);
 
-        _messenger.Send(new ShotAddedMessage(shot));
+        _messenger.Send(new ShotAddedMessage(shot, ShotUpdateSource.User));
         _messenger.Send(new MarkUndoableChangeMessage());
 
         _logger.LogInformation("插入镜头: Shot {ShotNumber} at index {Index}", shot.ShotNumber, index);
@@ -207,6 +219,12 @@ public partial class ShotListViewModel : ObservableObject
         var duplicate = new ShotItem(original.ShotNumber + 1)
         {
             Duration = original.Duration,
+            PlannedDurationTick = original.PlannedDurationTick,
+            GeneratedDurationTick = original.GeneratedDurationTick,
+            ActualDurationTick = original.ActualDurationTick,
+            TimingSource = original.TimingSource,
+            IsSyncedToTimeline = original.IsSyncedToTimeline,
+            IsDurationLocked = original.IsDurationLocked,
             StartTime = original.EndTime,
             EndTime = original.EndTime + original.Duration,
             FirstFramePrompt = original.FirstFramePrompt,
@@ -246,7 +264,7 @@ public partial class ShotListViewModel : ObservableObject
         Shots.Insert(index + 1, duplicate);
         RenumberShots();
 
-        _messenger.Send(new ShotAddedMessage(duplicate));
+        _messenger.Send(new ShotAddedMessage(duplicate, ShotUpdateSource.User));
         _messenger.Send(new MarkUndoableChangeMessage());
 
         _logger.LogInformation("复制镜头: Shot {ShotNumber}", original.ShotNumber);
@@ -262,7 +280,7 @@ public partial class ShotListViewModel : ObservableObject
         Shots.Remove(shot);
         RenumberShots();
 
-        _messenger.Send(new ShotDeletedMessage(shot));
+        _messenger.Send(new ShotDeletedMessage(shot, ShotUpdateSource.User));
         _messenger.Send(new MarkUndoableChangeMessage());
 
         _logger.LogInformation("删除镜头: Shot {ShotNumber}", shot.ShotNumber);
@@ -432,7 +450,7 @@ public partial class ShotListViewModel : ObservableObject
         Shots.Insert(index + 1, newShot);
         RenumberShots();
 
-        _messenger.Send(new ShotAddedMessage(newShot));
+        _messenger.Send(new ShotAddedMessage(newShot, ShotUpdateSource.User));
         _messenger.Send(new MarkUndoableChangeMessage());
 
         SelectedShot = newShot;
@@ -477,7 +495,7 @@ public partial class ShotListViewModel : ObservableObject
         Shots.Insert(index, newShot);
         RenumberShots();
 
-        _messenger.Send(new ShotAddedMessage(newShot));
+        _messenger.Send(new ShotAddedMessage(newShot, ShotUpdateSource.User));
         _messenger.Send(new MarkUndoableChangeMessage());
 
         SelectedShot = newShot;
@@ -517,10 +535,18 @@ public partial class ShotListViewModel : ObservableObject
                 return;
             }
 
-            _messenger.Send(new ShotUpdatedMessage(shot));
+            if (e.PropertyName is nameof(ShotItem.Duration) or
+                nameof(ShotItem.PlannedDurationTick) or
+                nameof(ShotItem.ActualDurationTick))
+            {
+                UpdateSummaryCounts();
+            }
+
+            _messenger.Send(new ShotUpdatedMessage(shot, _updateSource));
 
             // 某些属性变更需要标记为可撤销
-            if (e.PropertyName is nameof(ShotItem.Duration) or nameof(ShotItem.FirstFramePrompt) or nameof(ShotItem.LastFramePrompt))
+            if (_updateSource == ShotUpdateSource.User &&
+                e.PropertyName is nameof(ShotItem.Duration) or nameof(ShotItem.FirstFramePrompt) or nameof(ShotItem.LastFramePrompt))
             {
                 _messenger.Send(new MarkUndoableChangeMessage());
             }
@@ -583,9 +609,19 @@ public partial class ShotListViewModel : ObservableObject
         // 加载镜头数据
         foreach (var shotState in message.ProjectState.Shots)
         {
+            var plannedTick = shotState.PlannedDurationTick > 0
+                ? shotState.PlannedDurationTick
+                : TimeTick.FromSeconds(shotState.Duration);
+            var actualTick = shotState.ActualDurationTick > 0 ? shotState.ActualDurationTick : plannedTick;
+
             var shot = new ShotItem(shotState.ShotNumber)
             {
-                Duration = shotState.Duration,
+                PlannedDurationTick = plannedTick,
+                GeneratedDurationTick = shotState.GeneratedDurationTick,
+                ActualDurationTick = actualTick,
+                TimingSource = shotState.TimingSource,
+                IsSyncedToTimeline = shotState.IsSyncedToTimeline,
+                IsDurationLocked = shotState.IsDurationLocked,
                 StartTime = shotState.StartTime,
                 EndTime = shotState.EndTime,
                 FirstFramePrompt = shotState.FirstFramePrompt,
@@ -745,6 +781,96 @@ public partial class ShotListViewModel : ObservableObject
         _logger.LogInformation("抽帧完成，加载 {Count} 个镜头到列表", Shots.Count);
     }
 
+    private void OnClipTrimmed(object recipient, ClipTrimmedMessage message)
+    {
+        var clip = message.Clip;
+        if (clip == null || clip.ShotNumber <= 0)
+            return;
+
+        var shot = Shots.FirstOrDefault(s => s.ShotNumber == clip.ShotNumber);
+        if (shot == null)
+            return;
+
+        // Check if we should sync timeline changes to this shot
+        if (!_syncService.ShouldSyncTimelineToShot(_currentSyncMode, shot))
+        {
+            _logger.LogDebug(
+                "Skipping timeline trim sync for shot #{ShotNumber} (mode: {SyncMode}, synced: {IsSynced})",
+                shot.ShotNumber, _currentSyncMode, shot.IsSyncedToTimeline);
+            return;
+        }
+
+        var newTick = TimeTick.FromSeconds(clip.Duration);
+
+        WithUpdateSource(ShotUpdateSource.Timeline, () =>
+        {
+            _syncService.ApplyTimelineDurationToShot(shot, newTick);
+        });
+    }
+
+    private void OnClipsSplit(object recipient, ClipsSplitMessage message)
+    {
+        var originalClip = message.OriginalClip;
+        if (originalClip == null || originalClip.ShotNumber <= 0)
+            return;
+
+        var originalShot = Shots.FirstOrDefault(s => s.ShotNumber == originalClip.ShotNumber);
+        if (originalShot == null)
+            return;
+
+        // Check if we should sync timeline changes
+        if (!_syncService.ShouldSyncTimelineToShot(_currentSyncMode, originalShot))
+        {
+            _logger.LogDebug(
+                "Skipping timeline split sync for shot #{ShotNumber} (mode: {SyncMode})",
+                originalShot.ShotNumber, _currentSyncMode);
+            return;
+        }
+
+        var leftTick = TimeTick.FromSeconds(originalClip.Duration);
+        var rightTick = TimeTick.FromSeconds(message.NewClip.Duration);
+
+        WithUpdateSource(ShotUpdateSource.Timeline, () =>
+        {
+            _syncService.ApplyTimelineDurationToShot(originalShot, leftTick);
+        });
+
+        var oldNumbers = Shots.ToDictionary(s => s, s => s.ShotNumber);
+
+        var newShot = CloneShotForSplit(originalShot);
+        _syncService.ApplyTimelineDurationToShot(newShot, rightTick);
+
+        AttachShotEventHandlers(newShot);
+        var insertIndex = Shots.IndexOf(originalShot);
+        Shots.Insert(insertIndex + 1, newShot);
+        RenumberShots();
+
+        message.NewClip.ShotNumber = newShot.ShotNumber;
+
+        _messenger.Send(new ShotAddedMessage(newShot, ShotUpdateSource.Timeline));
+
+        var map = new Dictionary<int, int>();
+        foreach (var shot in Shots)
+        {
+            if (!oldNumbers.TryGetValue(shot, out var oldNumber))
+                continue;
+
+            if (oldNumber != shot.ShotNumber)
+                map[oldNumber] = shot.ShotNumber;
+        }
+
+        if (map.Count > 0)
+            _messenger.Send(new ShotNumbersRemappedMessage(map));
+
+        UpdateSummaryCounts();
+    }
+
+    private void OnSyncModeChanged(object recipient, SyncModeChangedMessage message)
+    {
+        _currentSyncMode = message.SyncMode;
+        _logger.LogInformation("Sync mode changed to: {SyncMode}", _currentSyncMode);
+    }
+
     private void OnRestoreSnapshot(object recipient, RestoreSnapshotMessage message)
     {
         // 清空现有镜头（不触发事件）
@@ -784,5 +910,101 @@ public partial class ShotListViewModel : ObservableObject
         }
 
         _logger.LogInformation("从快照恢复 {Count} 个镜头", message.Shots.Count);
+    }
+
+    private void WithUpdateSource(ShotUpdateSource source, Action action)
+    {
+        var previous = _updateSource;
+        _updateSource = source;
+        try
+        {
+            action();
+        }
+        finally
+        {
+            _updateSource = previous;
+        }
+    }
+
+    private static ShotItem CloneShotForSplit(ShotItem original)
+    {
+        var clone = new ShotItem(original.ShotNumber + 1)
+        {
+            Duration = original.Duration,
+            PlannedDurationTick = original.PlannedDurationTick,
+            GeneratedDurationTick = original.GeneratedDurationTick,
+            ActualDurationTick = original.ActualDurationTick,
+            TimingSource = original.TimingSource,
+            IsSyncedToTimeline = original.IsSyncedToTimeline,
+            IsDurationLocked = original.IsDurationLocked,
+            StartTime = original.StartTime,
+            EndTime = original.EndTime,
+            FirstFramePrompt = original.FirstFramePrompt,
+            LastFramePrompt = original.LastFramePrompt,
+            ShotType = original.ShotType,
+            CoreContent = original.CoreContent,
+            ActionCommand = original.ActionCommand,
+            SceneSettings = original.SceneSettings,
+            SelectedModel = original.SelectedModel,
+            ImageSize = original.ImageSize,
+            NegativePrompt = original.NegativePrompt,
+            AspectRatio = original.AspectRatio,
+            LightingType = original.LightingType,
+            TimeOfDay = original.TimeOfDay,
+            Composition = original.Composition,
+            ColorStyle = original.ColorStyle,
+            LensType = original.LensType,
+            VideoPrompt = original.VideoPrompt,
+            SceneDescription = original.SceneDescription,
+            ActionDescription = original.ActionDescription,
+            StyleDescription = original.StyleDescription,
+            VideoNegativePrompt = original.VideoNegativePrompt,
+            CameraMovement = original.CameraMovement,
+            ShootingStyle = original.ShootingStyle,
+            VideoEffect = original.VideoEffect,
+            VideoResolution = original.VideoResolution,
+            VideoRatio = original.VideoRatio,
+            VideoFrames = original.VideoFrames,
+            UseFirstFrameReference = original.UseFirstFrameReference,
+            UseLastFrameReference = original.UseLastFrameReference,
+            Seed = original.Seed,
+            CameraFixed = original.CameraFixed,
+            Watermark = original.Watermark,
+            FirstFrameImagePath = original.FirstFrameImagePath,
+            LastFrameImagePath = original.LastFrameImagePath,
+            GeneratedVideoPath = original.GeneratedVideoPath,
+            MaterialThumbnailPath = original.MaterialThumbnailPath,
+            MaterialFilePath = original.MaterialFilePath,
+            MaterialResolution = original.MaterialResolution,
+            MaterialFileSize = original.MaterialFileSize,
+            MaterialFormat = original.MaterialFormat,
+            MaterialColorTone = original.MaterialColorTone,
+            MaterialBrightness = original.MaterialBrightness
+        };
+
+        CopyAssets(original.FirstFrameAssets, clone.FirstFrameAssets);
+        CopyAssets(original.LastFrameAssets, clone.LastFrameAssets);
+        CopyAssets(original.VideoAssets, clone.VideoAssets);
+
+        return clone;
+    }
+
+    private static void CopyAssets(System.Collections.ObjectModel.ObservableCollection<ShotAssetItem> source,
+        System.Collections.ObjectModel.ObservableCollection<ShotAssetItem> target)
+    {
+        foreach (var asset in source)
+        {
+            target.Add(new ShotAssetItem
+            {
+                Type = asset.Type,
+                FilePath = asset.FilePath,
+                ThumbnailPath = asset.ThumbnailPath,
+                VideoThumbnailPath = asset.VideoThumbnailPath,
+                Prompt = asset.Prompt,
+                Model = asset.Model,
+                CreatedAt = asset.CreatedAt,
+                IsSelected = asset.IsSelected
+            });
+        }
     }
 }

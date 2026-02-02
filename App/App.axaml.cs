@@ -200,6 +200,7 @@ public partial class App : Avalonia.Application
         services.AddSingleton<VideoAnalysisService>();
         services.AddSingleton<IVideoAnalysisService>(sp => sp.GetRequiredService<VideoAnalysisService>());
         services.AddSingleton<IVideoMetadataService>(sp => sp.GetRequiredService<VideoAnalysisService>());
+        services.AddSingleton<ShotTimelineSyncService>();
         services.AddSingleton<IFrameExtractionService, FrameExtractionService>();
         services.AddSingleton<ISmartStoryboardService, SmartStoryboardService>();
         services.AddSingleton<IAiShotService, AiShotService>();

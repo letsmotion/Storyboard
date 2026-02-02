@@ -126,6 +126,10 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string? _keyMessage;
 
+    // 同步模式
+    [ObservableProperty]
+    private SyncMode _syncMode = SyncMode.Bidirectional;
+
     // 版本信息
     [ObservableProperty]
     private string _versionText = GetVersionText();
@@ -523,6 +527,41 @@ public partial class MainViewModel : ObservableObject
         IsRightPanelVisible = true;
         RightPanelWidth = 384;
         _logger.LogInformation("布局已恢复为默认值");
+    }
+
+    [RelayCommand]
+    private async Task ChangeSyncMode(string? mode)
+    {
+        if (string.IsNullOrWhiteSpace(mode))
+            return;
+
+        var newMode = mode switch
+        {
+            "ForwardOnly" => SyncMode.ForwardOnly,
+            "Bidirectional" => SyncMode.Bidirectional,
+            "TimelineOnly" => SyncMode.TimelineOnly,
+            _ => SyncMode.Bidirectional
+        };
+
+        SyncMode = newMode;
+        _messenger.Send(new SyncModeChangedMessage(newMode));
+
+        _logger.LogInformation("Sync mode changed to: {SyncMode}", newMode);
+        StatusMessage = $"同步模式: {GetSyncModeDisplayName(newMode)}";
+
+        // Save to project
+        await SaveProjectAsync();
+    }
+
+    private static string GetSyncModeDisplayName(SyncMode mode)
+    {
+        return mode switch
+        {
+            SyncMode.ForwardOnly => "仅分镜→时间轴",
+            SyncMode.Bidirectional => "双向同步",
+            SyncMode.TimelineOnly => "仅时间轴→分镜",
+            _ => "未知"
+        };
     }
 
     // 对话框命令
@@ -938,8 +977,12 @@ public partial class MainViewModel : ObservableObject
         VideoTone = state.VideoTone;
         KeyMessage = state.KeyMessage;
 
-        _logger.LogInformation("创作意图已加载: Goal={Goal}, Audience={Audience}",
-            CreativeGoal, TargetAudience);
+        // Load sync mode
+        SyncMode = state.SyncMode;
+        _messenger.Send(new SyncModeChangedMessage(state.SyncMode));
+
+        _logger.LogInformation("创作意图已加载: Goal={Goal}, Audience={Audience}, SyncMode={SyncMode}",
+            CreativeGoal, TargetAudience, SyncMode);
 
         // 触发 Timeline 加载草稿
         if (!string.IsNullOrEmpty(CurrentProjectId))
@@ -965,6 +1008,7 @@ public partial class MainViewModel : ObservableObject
         TargetAudience = null;
         VideoTone = null;
         KeyMessage = null;
+        SyncMode = SyncMode.Bidirectional;  // Reset to default
 
         _logger.LogInformation("创作意图已清空");
     }
@@ -979,7 +1023,7 @@ public partial class MainViewModel : ObservableObject
 
         ApplyImageToShot(SelectedShot, message.FilePath, message.IsFirstFrame);
 
-        _messenger.Send(new ShotUpdatedMessage(SelectedShot));
+        _messenger.Send(new ShotUpdatedMessage(SelectedShot, ShotUpdateSource.User));
         _messenger.Send(new MarkUndoableChangeMessage());
     }
 
@@ -1130,7 +1174,11 @@ public partial class MainViewModel : ObservableObject
             CreativeGoal,
             TargetAudience,
             VideoTone,
-            KeyMessage
+            KeyMessage,
+            // Timeline sync configuration
+            SyncMode,
+            30.0,  // FrameRate - could be made configurable later
+            TimebaseUnit.Milliseconds
         );
     }
 

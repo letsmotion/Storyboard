@@ -89,6 +89,21 @@ public sealed class Project
     public string? KeyMessage { get; set; }
 
     /// <summary>
+    /// 时间轴同步模式
+    /// </summary>
+    public SyncMode SyncMode { get; set; } = SyncMode.Bidirectional;
+
+    /// <summary>
+    /// 项目帧率（默认 30 fps）
+    /// </summary>
+    public double FrameRate { get; set; } = 30.0;
+
+    /// <summary>
+    /// 时间基准单位
+    /// </summary>
+    public TimebaseUnit TimebaseUnit { get; set; } = TimebaseUnit.Milliseconds;
+
+    /// <summary>
     /// 项目下的镜头列表
     /// </summary>
     public List<Shot> Shots { get; set; } = new();
