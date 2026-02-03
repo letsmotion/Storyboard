@@ -37,6 +37,8 @@ public class ImageProviderDefaults
     public string ResponseFormat { get; set; } = "b64_json";
     public bool Watermark { get; set; } = false;
     public bool Stream { get; set; } = false;
+    public int Images { get; set; } = 1;
+    public bool PromptExtend { get; set; } = true;
 }
 
 /// <summary>
@@ -50,6 +52,7 @@ public class VideoGenerationDefaults
 public class VideoProviderDefaults
 {
     public string Resolution { get; set; } = "1080p";
+    public string Size { get; set; } = string.Empty;
     public string Ratio { get; set; } = string.Empty;
     public int DurationSeconds { get; set; } = 0;
     public bool Watermark { get; set; } = false;
@@ -57,4 +60,6 @@ public class VideoProviderDefaults
     public string ServiceTier { get; set; } = "default";
     public bool GenerateAudio { get; set; } = false;
     public bool Draft { get; set; } = false;
+    public bool PromptExtend { get; set; } = true;
+    public string ShotType { get; set; } = "single";
 }

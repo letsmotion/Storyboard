@@ -204,8 +204,10 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IFrameExtractionService, FrameExtractionService>();
         services.AddSingleton<ISmartStoryboardService, SmartStoryboardService>();
         services.AddSingleton<IAiShotService, AiShotService>();
+        services.AddSingleton<IImageGenerationProvider, QwenImageGenerationProvider>();
         services.AddSingleton<IImageGenerationProvider, VolcengineImageGenerationProvider>();
         services.AddSingleton<IImageGenerationService, ImageGenerationService>();
+        services.AddSingleton<IVideoGenerationProvider, QwenVideoGenerationProvider>();
         services.AddSingleton<IVideoGenerationProvider, VolcengineVideoGenerationProvider>();
         services.AddSingleton<IVideoGenerationService, VideoGenerationService>();
         services.AddSingleton<IFinalRenderService, FinalRenderService>();

@@ -47,7 +47,7 @@ public class QwenServiceProvider : BaseAIServiceProvider
         EnsureConfigured();
         EnsureModel(request.Model);
         var payload = BuildRequestPayload(request, stream: false);
-        using var httpClient = CreateHttpClient(Config.Endpoint, Config.TimeoutSeconds);
+        using var httpClient = CreateChatClient();
         httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Config.ApiKey);
 
         var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
@@ -71,7 +71,7 @@ public class QwenServiceProvider : BaseAIServiceProvider
         EnsureConfigured();
         EnsureModel(request.Model);
         var payload = BuildRequestPayload(request, stream: true);
-        using var httpClient = CreateHttpClient(Config.Endpoint, Config.TimeoutSeconds);
+        using var httpClient = CreateChatClient();
         httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Config.ApiKey);
 
         var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
@@ -214,6 +214,37 @@ public class QwenServiceProvider : BaseAIServiceProvider
             AIChatRole.Assistant => "assistant",
             _ => "user"
         };
+    }
+
+    private HttpClient CreateChatClient()
+    {
+        var baseAddress = BuildChatBaseAddress(Config.Endpoint);
+        return new HttpClient
+        {
+            BaseAddress = baseAddress,
+            Timeout = TimeSpan.FromSeconds(Config.TimeoutSeconds)
+        };
+    }
+
+    private static Uri BuildChatBaseAddress(string endpoint)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint))
+            throw new InvalidOperationException("Endpoint is required.");
+
+        var normalized = endpoint.TrimEnd('/');
+        if (!normalized.EndsWith("/compatible-mode/v1", StringComparison.OrdinalIgnoreCase))
+        {
+            if (normalized.EndsWith("/api/v1/services/aigc", StringComparison.OrdinalIgnoreCase))
+                normalized = normalized[..^"/api/v1/services/aigc".Length];
+            if (normalized.EndsWith("/api/v1/services", StringComparison.OrdinalIgnoreCase))
+                normalized = normalized[..^"/api/v1/services".Length];
+            if (normalized.EndsWith("/api/v1", StringComparison.OrdinalIgnoreCase))
+                normalized = normalized[..^"/api/v1".Length];
+
+            normalized = $"{normalized.TrimEnd('/')}/compatible-mode/v1";
+        }
+
+        return new Uri($"{normalized}/");
     }
 
     private class QwenResponse

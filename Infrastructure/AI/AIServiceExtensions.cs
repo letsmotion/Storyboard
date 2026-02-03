@@ -4,6 +4,8 @@ using Storyboard.AI.Core;
 using Storyboard.AI.Prompts;
 using Storyboard.AI.Providers;
 using Storyboard.Infrastructure.Configuration;
+using Storyboard.Infrastructure.Media;
+using Storyboard.Infrastructure.Media.Providers;
 
 namespace Storyboard.AI;
 
@@ -22,6 +24,10 @@ public static class AIServiceExtensions
 
         services.AddSingleton<IAIServiceProvider, QwenServiceProvider>();
         services.AddSingleton<IAIServiceProvider, VolcengineServiceProvider>();
+        services.AddSingleton<IImageGenerationProvider, QwenImageGenerationProvider>();
+        services.AddSingleton<IImageGenerationProvider, VolcengineImageGenerationProvider>();
+        services.AddSingleton<IVideoGenerationProvider, QwenVideoGenerationProvider>();
+        services.AddSingleton<IVideoGenerationProvider, VolcengineVideoGenerationProvider>();
         services.AddSingleton<PromptManagementService>();
         services.AddSingleton<AIServiceManager>();
 

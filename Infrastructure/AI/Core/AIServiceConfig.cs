@@ -66,9 +66,20 @@ public sealed class VolcengineImageConfig
     public string OptimizePromptMode { get; set; } = string.Empty;
 }
 
+public sealed class QwenImageConfig
+{
+    public string Size { get; set; } = "1664*928";
+    public string ResponseFormat { get; set; } = "url";
+    public bool Watermark { get; set; } = false;
+    public bool Stream { get; set; } = false;
+    public int Images { get; set; } = 1;
+    public bool PromptExtend { get; set; } = true;
+}
+
 public class ImageServicesConfiguration
 {
     public ImageProviderType DefaultProvider { get; set; } = ImageProviderType.Volcengine;
+    public QwenImageConfig Qwen { get; set; } = new();
     public VolcengineImageConfig Volcengine { get; set; } = new();
 }
 
@@ -87,8 +98,21 @@ public sealed class VolcengineVideoConfig
     public bool Draft { get; set; } = false;
 }
 
+public sealed class QwenVideoConfig
+{
+    public string Resolution { get; set; } = "720P";
+    public string Size { get; set; } = "1280*720";
+    public int DurationSeconds { get; set; } = 0;
+    public int? Fps { get; set; } = 24;
+    public int? Seed { get; set; }
+    public bool Watermark { get; set; } = false;
+    public bool PromptExtend { get; set; } = true;
+    public string ShotType { get; set; } = "single";
+}
+
 public class VideoServicesConfiguration
 {
     public VideoProviderType DefaultProvider { get; set; } = VideoProviderType.Volcengine;
+    public QwenVideoConfig Qwen { get; set; } = new();
     public VolcengineVideoConfig Volcengine { get; set; } = new();
 }

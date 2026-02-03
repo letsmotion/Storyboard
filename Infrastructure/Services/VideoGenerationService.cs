@@ -62,7 +62,7 @@ public sealed class VideoGenerationService : IVideoGenerationService
         var model = ResolveModel(provider, shot.SelectedModel, aiConfig);
         _logger.LogInformation("使用模型: {Model}", model);
 
-        var (width, height) = ResolveDimensions(videoConfig.Volcengine.Resolution);
+        var (width, height) = ResolveDimensions(ResolveResolution(videoConfig, provider.ProviderType));
         _logger.LogInformation("分辨率: {Width}x{Height}", width, height);
 
         var request = new VideoGenerationRequest(
@@ -124,17 +124,40 @@ public sealed class VideoGenerationService : IVideoGenerationService
             provider.SupportedModels.Any(m => string.Equals(m, model, StringComparison.OrdinalIgnoreCase)))
             return model;
 
-        if (config.Defaults.Video.Provider == AIProviderType.Volcengine &&
+        if (config.Defaults.Video.Provider == AIProviderType.Qwen &&
+            provider.ProviderType == VideoProviderType.Qwen &&
             !string.IsNullOrWhiteSpace(config.Defaults.Video.Model))
         {
             return config.Defaults.Video.Model;
         }
 
-        var providerConfig = config.Providers.Volcengine;
-        if (string.IsNullOrWhiteSpace(providerConfig.DefaultModels.Video))
-            throw new InvalidOperationException("No default video model configured for Volcengine.");
+        if (config.Defaults.Video.Provider == AIProviderType.Volcengine &&
+            provider.ProviderType == VideoProviderType.Volcengine &&
+            !string.IsNullOrWhiteSpace(config.Defaults.Video.Model))
+        {
+            return config.Defaults.Video.Model;
+        }
+
+        var providerConfig = provider.ProviderType switch
+        {
+            VideoProviderType.Qwen => config.Providers.Qwen,
+            VideoProviderType.Volcengine => config.Providers.Volcengine,
+            _ => null
+        };
+
+        if (providerConfig == null || string.IsNullOrWhiteSpace(providerConfig.DefaultModels.Video))
+            throw new InvalidOperationException($"No default video model configured for {provider.DisplayName}.");
 
         return providerConfig.DefaultModels.Video;
+    }
+
+    private static string? ResolveResolution(VideoServicesConfiguration config, VideoProviderType providerType)
+    {
+        return providerType switch
+        {
+            VideoProviderType.Qwen => config.Qwen.Resolution,
+            _ => config.Volcengine.Resolution
+        };
     }
 
     private static (int Width, int Height) ResolveDimensions(string? resolution)

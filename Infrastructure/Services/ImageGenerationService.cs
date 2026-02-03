@@ -47,7 +47,7 @@ public sealed class ImageGenerationService : IImageGenerationService
         var aiConfig = _configMonitor.CurrentValue;
         var imageConfig = aiConfig.Image;
         var provider = ResolveProvider(imageConfig);
-        var (width, height) = ResolveSize(imageConfig.Volcengine);
+        var (width, height) = ResolveSize(imageConfig, provider.ProviderType);
         var resolvedModel = ResolveModel(provider, model, aiConfig);
 
         var request = new ImageGenerationRequest(
@@ -156,8 +156,8 @@ public sealed class ImageGenerationService : IImageGenerationService
         else
         {
             // No size specified, use default from config
-            (width, height) = ResolveSize(imageConfig.Volcengine);
-            sizeParam = imageConfig.Volcengine.Size;
+            (width, height) = ResolveSize(imageConfig, provider.ProviderType);
+            sizeParam = GetDefaultSize(imageConfig, provider.ProviderType);
         }
 
         var model = ResolveModel(provider, shot.SelectedModel, aiConfig);
@@ -243,6 +243,15 @@ public sealed class ImageGenerationService : IImageGenerationService
         return fallback;
     }
 
+    private static (int Width, int Height) ResolveSize(ImageServicesConfiguration config, ImageProviderType providerType)
+    {
+        return providerType switch
+        {
+            ImageProviderType.Qwen => ResolveSize(config.Qwen),
+            _ => ResolveSize(config.Volcengine)
+        };
+    }
+
     private static (int Width, int Height) ResolveSize(VolcengineImageConfig config)
     {
         if (string.IsNullOrWhiteSpace(config.Size))
@@ -262,6 +271,34 @@ public sealed class ImageGenerationService : IImageGenerationService
         return (2048, 2048);
     }
 
+    private static (int Width, int Height) ResolveSize(QwenImageConfig config)
+    {
+        if (string.IsNullOrWhiteSpace(config.Size))
+            return (1024, 1024);
+
+        var size = config.Size.Trim();
+        if (TryParseSize(size, out var width, out var height))
+            return (width, height);
+
+        if (string.Equals(size, "1K", StringComparison.OrdinalIgnoreCase))
+            return (1024, 1024);
+        if (string.Equals(size, "2K", StringComparison.OrdinalIgnoreCase))
+            return (2048, 2048);
+        if (string.Equals(size, "4K", StringComparison.OrdinalIgnoreCase))
+            return (4096, 4096);
+
+        return (1024, 1024);
+    }
+
+    private static string? GetDefaultSize(ImageServicesConfiguration config, ImageProviderType providerType)
+    {
+        return providerType switch
+        {
+            ImageProviderType.Qwen => config.Qwen.Size,
+            _ => config.Volcengine.Size
+        };
+    }
+
     private static string ResolveModel(IImageGenerationProvider provider, string model, AIServicesConfiguration config)
     {
         if (!string.IsNullOrWhiteSpace(model) &&
@@ -270,15 +307,29 @@ public sealed class ImageGenerationService : IImageGenerationService
             return model;
         }
 
-        if (config.Defaults.Image.Provider == AIProviderType.Volcengine &&
+        if (config.Defaults.Image.Provider == AIProviderType.Qwen &&
+            provider.ProviderType == ImageProviderType.Qwen &&
             !string.IsNullOrWhiteSpace(config.Defaults.Image.Model))
         {
             return config.Defaults.Image.Model;
         }
 
-        var providerConfig = config.Providers.Volcengine;
-        if (string.IsNullOrWhiteSpace(providerConfig.DefaultModels.Image))
-            throw new InvalidOperationException("No default image model configured for Volcengine.");
+        if (config.Defaults.Image.Provider == AIProviderType.Volcengine &&
+            provider.ProviderType == ImageProviderType.Volcengine &&
+            !string.IsNullOrWhiteSpace(config.Defaults.Image.Model))
+        {
+            return config.Defaults.Image.Model;
+        }
+
+        var providerConfig = provider.ProviderType switch
+        {
+            ImageProviderType.Qwen => config.Providers.Qwen,
+            ImageProviderType.Volcengine => config.Providers.Volcengine,
+            _ => null
+        };
+
+        if (providerConfig == null || string.IsNullOrWhiteSpace(providerConfig.DefaultModels.Image))
+            throw new InvalidOperationException($"No default image model configured for {provider.DisplayName}.");
 
         return providerConfig.DefaultModels.Image;
     }
@@ -290,7 +341,7 @@ public sealed class ImageGenerationService : IImageGenerationService
         if (string.IsNullOrWhiteSpace(size))
             return false;
 
-        var parts = size.Split('x', 'X');
+        var parts = size.Split('x', 'X', '*', '×', '脳');
         if (parts.Length == 2 &&
             int.TryParse(parts[0], out width) &&
             int.TryParse(parts[1], out height) &&

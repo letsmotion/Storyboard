@@ -6,7 +6,7 @@
       "Enabled": true,
       "DefaultModels": {
         "Text": "qwen-max",
-        "Image": "YOUR_IMAGE_MODEL",
+        "Image": "qwen-image-max",
         "Video": "wan2.6-i2v"
       }
     },
@@ -23,6 +23,14 @@
   },
   "Image": {
     "Providers": {
+      "Qwen": {
+        "Size": "1664*928",
+        "ResponseFormat": "url",
+        "Watermark": false,
+        "Stream": false,
+        "Images": 1,
+        "PromptExtend": true
+      },
       "Volcengine": {
         "Size": "2K",
         "ResponseFormat": "b64_json",
@@ -33,6 +41,19 @@
   },
   "Video": {
     "Providers": {
+      "Qwen": {
+        "Resolution": "720P",
+        "Size": "1280*720",
+        "Ratio": "",
+        "DurationSeconds": 0,
+        "Watermark": false,
+        "ReturnLastFrame": false,
+        "ServiceTier": "default",
+        "GenerateAudio": false,
+        "Draft": false,
+        "PromptExtend": true,
+        "ShotType": "single"
+      },
       "Volcengine": {
         "Resolution": "1080p",
         "Ratio": "",
