@@ -10,6 +10,11 @@
       "Supports": ["Text", "Image", "Video"],
       "RequiredFields": ["ApiKey", "Endpoint"],
       "OptionalFields": ["TimeoutSeconds", "DefaultModels"]
+    },
+    "NewApi": {
+      "Supports": ["Text", "Image", "Video", "Audio", "Embeddings", "Rerank", "Realtime"],
+      "RequiredFields": ["ApiKey", "Endpoint"],
+      "OptionalFields": ["TimeoutSeconds", "DefaultModels", "RoutingHints"]
     }
   }
 }

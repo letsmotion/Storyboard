@@ -206,9 +206,11 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IAiShotService, AiShotService>();
         services.AddSingleton<IImageGenerationProvider, QwenImageGenerationProvider>();
         services.AddSingleton<IImageGenerationProvider, VolcengineImageGenerationProvider>();
+        services.AddSingleton<IImageGenerationProvider, NewApiImageGenerationProvider>();
         services.AddSingleton<IImageGenerationService, ImageGenerationService>();
         services.AddSingleton<IVideoGenerationProvider, QwenVideoGenerationProvider>();
         services.AddSingleton<IVideoGenerationProvider, VolcengineVideoGenerationProvider>();
+        services.AddSingleton<IVideoGenerationProvider, NewApiVideoGenerationProvider>();
         services.AddSingleton<IVideoGenerationService, VideoGenerationService>();
         services.AddSingleton<IFinalRenderService, FinalRenderService>();
         services.AddSingleton<ICapCutExportService, CapCutExportService>();
@@ -229,6 +231,7 @@ public partial class App : Avalonia.Application
         services.AddSingleton<AI.Prompts.PromptManagementService>();
         services.AddSingleton<AI.Core.IAIServiceProvider, AI.Providers.QwenServiceProvider>();
         services.AddSingleton<AI.Core.IAIServiceProvider, AI.Providers.VolcengineServiceProvider>();
+        services.AddSingleton<AI.Core.IAIServiceProvider, AI.Providers.NewApiServiceProvider>();
 
         services.AddSingleton<AIServiceManager>();
     }

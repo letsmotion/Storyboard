@@ -24,10 +24,13 @@ public static class AIServiceExtensions
 
         services.AddSingleton<IAIServiceProvider, QwenServiceProvider>();
         services.AddSingleton<IAIServiceProvider, VolcengineServiceProvider>();
+        services.AddSingleton<IAIServiceProvider, NewApiServiceProvider>();
         services.AddSingleton<IImageGenerationProvider, QwenImageGenerationProvider>();
         services.AddSingleton<IImageGenerationProvider, VolcengineImageGenerationProvider>();
+        services.AddSingleton<IImageGenerationProvider, NewApiImageGenerationProvider>();
         services.AddSingleton<IVideoGenerationProvider, QwenVideoGenerationProvider>();
         services.AddSingleton<IVideoGenerationProvider, VolcengineVideoGenerationProvider>();
+        services.AddSingleton<IVideoGenerationProvider, NewApiVideoGenerationProvider>();
         services.AddSingleton<PromptManagementService>();
         services.AddSingleton<AIServiceManager>();
 

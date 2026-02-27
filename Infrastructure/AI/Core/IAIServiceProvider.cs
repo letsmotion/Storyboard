@@ -8,7 +8,9 @@ public enum AIProviderType
     /// <summary>Qwen</summary>
     Qwen,
     /// <summary>Volcengine</summary>
-    Volcengine
+    Volcengine,
+    /// <summary>New API gateway</summary>
+    NewApi
 }
 
 [Flags]

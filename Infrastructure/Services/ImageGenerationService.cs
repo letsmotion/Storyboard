@@ -248,6 +248,8 @@ public sealed class ImageGenerationService : IImageGenerationService
         return providerType switch
         {
             ImageProviderType.Qwen => ResolveSize(config.Qwen),
+            ImageProviderType.Volcengine => ResolveSize(config.Volcengine),
+            ImageProviderType.NewApi => ResolveSize(config.NewApi),
             _ => ResolveSize(config.Volcengine)
         };
     }
@@ -290,21 +292,46 @@ public sealed class ImageGenerationService : IImageGenerationService
         return (1024, 1024);
     }
 
+    private static (int Width, int Height) ResolveSize(NewApiImageConfig config)
+    {
+        if (string.IsNullOrWhiteSpace(config.Size))
+            return (1024, 1024);
+
+        var size = config.Size.Trim();
+        if (TryParseSize(size, out var width, out var height))
+            return (width, height);
+
+        if (string.Equals(size, "1K", StringComparison.OrdinalIgnoreCase))
+            return (1024, 1024);
+        if (string.Equals(size, "2K", StringComparison.OrdinalIgnoreCase))
+            return (2048, 2048);
+        if (string.Equals(size, "4K", StringComparison.OrdinalIgnoreCase))
+            return (4096, 4096);
+
+        return (1024, 1024);
+    }
+
     private static string? GetDefaultSize(ImageServicesConfiguration config, ImageProviderType providerType)
     {
         return providerType switch
         {
             ImageProviderType.Qwen => config.Qwen.Size,
+            ImageProviderType.Volcengine => config.Volcengine.Size,
+            ImageProviderType.NewApi => config.NewApi.Size,
             _ => config.Volcengine.Size
         };
     }
 
     private static string ResolveModel(IImageGenerationProvider provider, string model, AIServicesConfiguration config)
     {
-        if (!string.IsNullOrWhiteSpace(model) &&
-            provider.SupportedModels.Any(m => string.Equals(m, model, StringComparison.OrdinalIgnoreCase)))
+        if (!string.IsNullOrWhiteSpace(model))
         {
-            return model;
+            var supportedModels = provider.SupportedModels;
+            if (supportedModels.Count == 0 ||
+                supportedModels.Any(m => string.Equals(m, model, StringComparison.OrdinalIgnoreCase)))
+            {
+                return model;
+            }
         }
 
         if (config.Defaults.Image.Provider == AIProviderType.Qwen &&
@@ -321,10 +348,18 @@ public sealed class ImageGenerationService : IImageGenerationService
             return config.Defaults.Image.Model;
         }
 
+        if (config.Defaults.Image.Provider == AIProviderType.NewApi &&
+            provider.ProviderType == ImageProviderType.NewApi &&
+            !string.IsNullOrWhiteSpace(config.Defaults.Image.Model))
+        {
+            return config.Defaults.Image.Model;
+        }
+
         var providerConfig = provider.ProviderType switch
         {
             ImageProviderType.Qwen => config.Providers.Qwen,
             ImageProviderType.Volcengine => config.Providers.Volcengine,
+            ImageProviderType.NewApi => config.Providers.NewApi,
             _ => null
         };
 

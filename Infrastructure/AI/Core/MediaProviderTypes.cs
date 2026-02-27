@@ -3,11 +3,13 @@ namespace Storyboard.AI.Core;
 public enum ImageProviderType
 {
     Qwen,
-    Volcengine
+    Volcengine,
+    NewApi
 }
 
 public enum VideoProviderType
 {
     Qwen,
-    Volcengine
+    Volcengine,
+    NewApi
 }

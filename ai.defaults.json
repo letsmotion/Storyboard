@@ -19,6 +19,16 @@
         "Image": "doubao-seedream-4-5-251128",
         "Video": "doubao-seedance-1-0-lite-i2v-250428"
       }
+    },
+    "NewApi": {
+      "Endpoint": "http://127.0.0.1:3000/v1",
+      "TimeoutSeconds": 120,
+      "Enabled": false,
+      "DefaultModels": {
+        "Text": "qwen-max",
+        "Image": "qwen-image-max",
+        "Video": "wan2.6-i2v"
+      }
     }
   },
   "Image": {
@@ -36,6 +46,14 @@
         "ResponseFormat": "b64_json",
         "Watermark": false,
         "Stream": false
+      },
+      "NewApi": {
+        "Size": "1024x1024",
+        "ResponseFormat": "b64_json",
+        "Watermark": false,
+        "Stream": false,
+        "Images": 1,
+        "ProviderHint": ""
       }
     }
   },
@@ -63,6 +81,14 @@
         "ServiceTier": "default",
         "GenerateAudio": false,
         "Draft": false
+      },
+      "NewApi": {
+        "Resolution": "1080p",
+        "Ratio": "16:9",
+        "DurationSeconds": 12,
+        "Watermark": false,
+        "ReturnLastFrame": false,
+        "ProviderHint": ""
       }
     }
   }

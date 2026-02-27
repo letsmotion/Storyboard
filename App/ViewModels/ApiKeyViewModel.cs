@@ -86,8 +86,17 @@ public partial class ApiKeyViewModel : ObservableObject
     [ObservableProperty] private string _volcengineDefaultImageModel = string.Empty;
     [ObservableProperty] private string _volcengineDefaultVideoModel = string.Empty;
 
+    [ObservableProperty] private bool _newApiEnabled;
+    [ObservableProperty] private string _newApiApiKey = string.Empty;
+    [ObservableProperty] private string _newApiEndpoint = string.Empty;
+    [ObservableProperty] private int _newApiTimeoutSeconds = 120;
+    [ObservableProperty] private string _newApiDefaultTextModel = string.Empty;
+    [ObservableProperty] private string _newApiDefaultImageModel = string.Empty;
+    [ObservableProperty] private string _newApiDefaultVideoModel = string.Empty;
+
     public bool IsQwenSelected => SelectedProvider == AIProviderType.Qwen;
     public bool IsVolcengineSelected => SelectedProvider == AIProviderType.Volcengine;
+    public bool IsNewApiSelected => SelectedProvider == AIProviderType.NewApi;
 
     private void LoadFromFile()
     {
@@ -119,18 +128,29 @@ public partial class ApiKeyViewModel : ObservableObject
         VolcengineDefaultTextModel = volc.DefaultModels.Text;
         VolcengineDefaultImageModel = volc.DefaultModels.Image;
         VolcengineDefaultVideoModel = volc.DefaultModels.Video;
+
+        var newApi = cfg.Providers.NewApi;
+        NewApiEnabled = newApi.Enabled;
+        NewApiApiKey = newApi.ApiKey;
+        NewApiEndpoint = newApi.Endpoint;
+        NewApiTimeoutSeconds = newApi.TimeoutSeconds;
+        NewApiDefaultTextModel = newApi.DefaultModels.Text;
+        NewApiDefaultImageModel = newApi.DefaultModels.Image;
+        NewApiDefaultVideoModel = newApi.DefaultModels.Video;
     }
 
     partial void OnSelectedProviderChanged(AIProviderType value)
     {
         OnPropertyChanged(nameof(IsQwenSelected));
         OnPropertyChanged(nameof(IsVolcengineSelected));
+        OnPropertyChanged(nameof(IsNewApiSelected));
     }
 
     partial void OnDefaultTextProviderChanged(AIProviderType value)
     {
         DefaultTextModel = value switch
         {
+            AIProviderType.NewApi => NewApiDefaultTextModel,
             AIProviderType.Volcengine => VolcengineDefaultTextModel,
             _ => QwenDefaultTextModel
         };
@@ -138,13 +158,17 @@ public partial class ApiKeyViewModel : ObservableObject
 
     partial void OnDefaultTextModelChanged(string value)
     {
-        if (DefaultTextProvider == AIProviderType.Volcengine)
+        switch (DefaultTextProvider)
         {
-            VolcengineDefaultTextModel = value;
-        }
-        else
-        {
-            QwenDefaultTextModel = value;
+            case AIProviderType.Volcengine:
+                VolcengineDefaultTextModel = value;
+                break;
+            case AIProviderType.NewApi:
+                NewApiDefaultTextModel = value;
+                break;
+            default:
+                QwenDefaultTextModel = value;
+                break;
         }
     }
 
@@ -152,6 +176,7 @@ public partial class ApiKeyViewModel : ObservableObject
     {
         DefaultImageModel = value switch
         {
+            AIProviderType.NewApi => NewApiDefaultImageModel,
             AIProviderType.Volcengine => VolcengineDefaultImageModel,
             _ => QwenDefaultImageModel
         };
@@ -159,13 +184,17 @@ public partial class ApiKeyViewModel : ObservableObject
 
     partial void OnDefaultImageModelChanged(string value)
     {
-        if (DefaultImageProvider == AIProviderType.Volcengine)
+        switch (DefaultImageProvider)
         {
-            VolcengineDefaultImageModel = value;
-        }
-        else
-        {
-            QwenDefaultImageModel = value;
+            case AIProviderType.Volcengine:
+                VolcengineDefaultImageModel = value;
+                break;
+            case AIProviderType.NewApi:
+                NewApiDefaultImageModel = value;
+                break;
+            default:
+                QwenDefaultImageModel = value;
+                break;
         }
     }
 
@@ -173,6 +202,7 @@ public partial class ApiKeyViewModel : ObservableObject
     {
         DefaultVideoModel = value switch
         {
+            AIProviderType.NewApi => NewApiDefaultVideoModel,
             AIProviderType.Volcengine => VolcengineDefaultVideoModel,
             _ => QwenDefaultVideoModel
         };
@@ -180,13 +210,17 @@ public partial class ApiKeyViewModel : ObservableObject
 
     partial void OnDefaultVideoModelChanged(string value)
     {
-        if (DefaultVideoProvider == AIProviderType.Volcengine)
+        switch (DefaultVideoProvider)
         {
-            VolcengineDefaultVideoModel = value;
-        }
-        else
-        {
-            QwenDefaultVideoModel = value;
+            case AIProviderType.Volcengine:
+                VolcengineDefaultVideoModel = value;
+                break;
+            case AIProviderType.NewApi:
+                NewApiDefaultVideoModel = value;
+                break;
+            default:
+                QwenDefaultVideoModel = value;
+                break;
         }
     }
 
@@ -232,8 +266,18 @@ public partial class ApiKeyViewModel : ObservableObject
                 VolcengineDefaultImageModel,
                 VolcengineDefaultVideoModel);
 
+            var newApiConfig = BuildProviderUserConfig(
+                NewApiApiKey,
+                NewApiEnabled,
+                NewApiEndpoint,
+                NewApiTimeoutSeconds,
+                NewApiDefaultTextModel,
+                NewApiDefaultImageModel,
+                NewApiDefaultVideoModel);
+
             _configComposer.SaveUserConfiguration("Qwen", qwenConfig);
             _configComposer.SaveUserConfiguration("Volcengine", volcConfig);
+            _configComposer.SaveUserConfiguration("NewApi", newApiConfig);
 
             var userSettings = _userSettingsStore.Load();
             userSettings.DefaultProviders.TextProvider = DefaultTextProvider.ToString();

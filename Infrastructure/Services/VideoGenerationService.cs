@@ -120,9 +120,15 @@ public sealed class VideoGenerationService : IVideoGenerationService
 
     private static string ResolveModel(IVideoGenerationProvider provider, string model, AIServicesConfiguration config)
     {
-        if (!string.IsNullOrWhiteSpace(model) &&
-            provider.SupportedModels.Any(m => string.Equals(m, model, StringComparison.OrdinalIgnoreCase)))
-            return model;
+        if (!string.IsNullOrWhiteSpace(model))
+        {
+            var supportedModels = provider.SupportedModels;
+            if (supportedModels.Count == 0 ||
+                supportedModels.Any(m => string.Equals(m, model, StringComparison.OrdinalIgnoreCase)))
+            {
+                return model;
+            }
+        }
 
         if (config.Defaults.Video.Provider == AIProviderType.Qwen &&
             provider.ProviderType == VideoProviderType.Qwen &&
@@ -138,10 +144,18 @@ public sealed class VideoGenerationService : IVideoGenerationService
             return config.Defaults.Video.Model;
         }
 
+        if (config.Defaults.Video.Provider == AIProviderType.NewApi &&
+            provider.ProviderType == VideoProviderType.NewApi &&
+            !string.IsNullOrWhiteSpace(config.Defaults.Video.Model))
+        {
+            return config.Defaults.Video.Model;
+        }
+
         var providerConfig = provider.ProviderType switch
         {
             VideoProviderType.Qwen => config.Providers.Qwen,
             VideoProviderType.Volcengine => config.Providers.Volcengine,
+            VideoProviderType.NewApi => config.Providers.NewApi,
             _ => null
         };
 
@@ -156,6 +170,8 @@ public sealed class VideoGenerationService : IVideoGenerationService
         return providerType switch
         {
             VideoProviderType.Qwen => config.Qwen.Resolution,
+            VideoProviderType.Volcengine => config.Volcengine.Resolution,
+            VideoProviderType.NewApi => config.NewApi.Resolution,
             _ => config.Volcengine.Resolution
         };
     }

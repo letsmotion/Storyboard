@@ -31,6 +31,7 @@ public sealed class AIProvidersConfiguration
 {
     public AIProviderConfiguration Qwen { get; set; } = new();
     public AIProviderConfiguration Volcengine { get; set; } = new();
+    public AIProviderConfiguration NewApi { get; set; } = new();
 }
 
 public sealed class AIServiceDefaultSelection
@@ -81,6 +82,7 @@ public class ImageServicesConfiguration
     public ImageProviderType DefaultProvider { get; set; } = ImageProviderType.Volcengine;
     public QwenImageConfig Qwen { get; set; } = new();
     public VolcengineImageConfig Volcengine { get; set; } = new();
+    public NewApiImageConfig NewApi { get; set; } = new();
 }
 
 public sealed class VolcengineVideoConfig
@@ -115,4 +117,25 @@ public class VideoServicesConfiguration
     public VideoProviderType DefaultProvider { get; set; } = VideoProviderType.Volcengine;
     public QwenVideoConfig Qwen { get; set; } = new();
     public VolcengineVideoConfig Volcengine { get; set; } = new();
+    public NewApiVideoConfig NewApi { get; set; } = new();
+}
+
+public sealed class NewApiImageConfig
+{
+    public string Size { get; set; } = "1024x1024";
+    public string ResponseFormat { get; set; } = "b64_json";
+    public bool Watermark { get; set; }
+    public int Images { get; set; } = 1;
+    public bool Stream { get; set; }
+    public string? ProviderHint { get; set; }
+}
+
+public sealed class NewApiVideoConfig
+{
+    public string Resolution { get; set; } = "1080p";
+    public string Ratio { get; set; } = "16:9";
+    public int DurationSeconds { get; set; }
+    public bool Watermark { get; set; }
+    public bool ReturnLastFrame { get; set; }
+    public string? ProviderHint { get; set; }
 }

@@ -39,6 +39,7 @@ public class ImageProviderDefaults
     public bool Stream { get; set; } = false;
     public int Images { get; set; } = 1;
     public bool PromptExtend { get; set; } = true;
+    public string? ProviderHint { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -62,4 +63,5 @@ public class VideoProviderDefaults
     public bool Draft { get; set; } = false;
     public bool PromptExtend { get; set; } = true;
     public string ShotType { get; set; } = "single";
+    public string? ProviderHint { get; set; } = string.Empty;
 }

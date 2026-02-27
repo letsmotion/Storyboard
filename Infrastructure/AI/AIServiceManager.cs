@@ -329,6 +329,7 @@ public class AIServiceManager
         {
             AIProviderType.Qwen => config.Providers.Qwen,
             AIProviderType.Volcengine => config.Providers.Volcengine,
+            AIProviderType.NewApi => config.Providers.NewApi,
             _ => null
         };
 
