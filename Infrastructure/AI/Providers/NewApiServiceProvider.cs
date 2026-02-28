@@ -61,12 +61,31 @@ public sealed class NewApiServiceProvider : BaseAIServiceProvider
 
         if (!response.IsSuccessStatusCode)
         {
-            Logger.LogError("NewApi request failed: {Body}", responseBody);
-            throw new InvalidOperationException($"NewApi request failed: {responseBody}");
+            Logger.LogError("NewApi request failed with status {StatusCode}: {Body}", response.StatusCode, responseBody);
+            throw new InvalidOperationException($"NewApi request failed with status {response.StatusCode}: {responseBody}");
         }
 
-        var result = JsonSerializer.Deserialize<OpenAiResponse>(responseBody, JsonOptions);
-        return result?.Choices?.FirstOrDefault()?.Message?.Content ?? string.Empty;
+        // Check if response looks like JSON
+        var trimmedBody = responseBody.TrimStart();
+        if (string.IsNullOrWhiteSpace(trimmedBody) || (!trimmedBody.StartsWith("{") && !trimmedBody.StartsWith("[")))
+        {
+            Logger.LogError("NewApi returned non-JSON response. Content-Type: {ContentType}, Body preview: {BodyPreview}",
+                response.Content.Headers.ContentType?.ToString() ?? "unknown",
+                trimmedBody.Length > 200 ? trimmedBody.Substring(0, 200) : trimmedBody);
+            throw new InvalidOperationException($"NewApi returned non-JSON response. Check endpoint URL configuration. Response starts with: {(trimmedBody.Length > 50 ? trimmedBody.Substring(0, 50) : trimmedBody)}");
+        }
+
+        try
+        {
+            var result = JsonSerializer.Deserialize<OpenAiResponse>(responseBody, JsonOptions);
+            return result?.Choices?.FirstOrDefault()?.Message?.Content ?? string.Empty;
+        }
+        catch (JsonException ex)
+        {
+            Logger.LogError(ex, "Failed to deserialize NewApi response. Body preview: {BodyPreview}",
+                responseBody.Length > 500 ? responseBody.Substring(0, 500) : responseBody);
+            throw new InvalidOperationException($"Failed to parse NewApi response as JSON. This usually means the endpoint URL is incorrect or the API is not OpenAI-compatible.", ex);
+        }
     }
 
     public override async IAsyncEnumerable<string> ChatStreamAsync(
@@ -165,7 +184,13 @@ public sealed class NewApiServiceProvider : BaseAIServiceProvider
 
     private HttpClient CreateHttpClient()
     {
-        return CreateHttpClient(Config.Endpoint, Config.TimeoutSeconds);
+        // Ensure endpoint includes /v1 for OpenAI-compatible API
+        var endpoint = Config.Endpoint;
+        if (!string.IsNullOrWhiteSpace(endpoint) && !endpoint.Contains("/v1"))
+        {
+            endpoint = endpoint.TrimEnd('/') + "/v1";
+        }
+        return CreateHttpClient(endpoint, Config.TimeoutSeconds);
     }
 
     private object BuildRequestPayload(AIChatRequest request, bool stream)
