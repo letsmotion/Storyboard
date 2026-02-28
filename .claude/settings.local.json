@@ -39,7 +39,8 @@
       "Bash(dotnet clean:*)",
       "Bash(git checkout:*)",
       "Bash(ping:*)",
-      "Read(//c/Users/Administrator/AppData/Local/Storyboard/**)"
+      "Read(//c/Users/Administrator/AppData/Local/Storyboard/**)",
+      "WebFetch(domain:docs.newapi.pro)"
     ],
     "additionalDirectories": [
       "d:\\project\\分镜大师"

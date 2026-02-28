@@ -109,11 +109,31 @@ public sealed class NewApiImageGenerationProvider : IImageGenerationProvider
 
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogError("NewApi image generation failed: {Body}", responseBody);
-            throw new InvalidOperationException($"NewApi image generation failed: {responseBody}");
+            _logger.LogError("NewApi image generation failed with status {StatusCode}: {Body}", response.StatusCode, responseBody);
+            throw new InvalidOperationException($"NewApi image generation failed with status {response.StatusCode}: {responseBody}");
         }
 
-        var result = JsonSerializer.Deserialize<ImageGenerationResponse>(responseBody, JsonOptions);
+        // Check if response looks like JSON
+        var trimmedBody = responseBody.TrimStart();
+        if (string.IsNullOrWhiteSpace(trimmedBody) || (!trimmedBody.StartsWith("{") && !trimmedBody.StartsWith("[")))
+        {
+            _logger.LogError("NewApi returned non-JSON response for image generation. Content-Type: {ContentType}, Body preview: {BodyPreview}",
+                response.Content.Headers.ContentType?.ToString() ?? "unknown",
+                trimmedBody.Length > 200 ? trimmedBody.Substring(0, 200) : trimmedBody);
+            throw new InvalidOperationException($"NewApi returned non-JSON response. Check endpoint URL configuration. Response starts with: {(trimmedBody.Length > 50 ? trimmedBody.Substring(0, 50) : trimmedBody)}");
+        }
+
+        ImageGenerationResponse? result;
+        try
+        {
+            result = JsonSerializer.Deserialize<ImageGenerationResponse>(responseBody, JsonOptions);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Failed to deserialize NewApi image generation response. Body preview: {BodyPreview}",
+                responseBody.Length > 500 ? responseBody.Substring(0, 500) : responseBody);
+            throw new InvalidOperationException($"Failed to parse NewApi response as JSON. This usually means the endpoint URL is incorrect or the API is not OpenAI-compatible.", ex);
+        }
         if (result?.Data == null || result.Data.Count == 0)
         {
             throw new InvalidOperationException("NewApi image generation returned no data.");
@@ -149,9 +169,15 @@ public sealed class NewApiImageGenerationProvider : IImageGenerationProvider
         if (string.IsNullOrWhiteSpace(baseAddress))
             throw new InvalidOperationException("Endpoint is required for NewApi image generation.");
 
+        // Ensure endpoint includes /v1 for OpenAI-compatible API
+        if (!baseAddress.Contains("/v1"))
+        {
+            baseAddress = baseAddress + "/v1";
+        }
+
         var client = new HttpClient
         {
-            BaseAddress = new Uri($"{baseAddress.TrimEnd('/')}/"),
+            BaseAddress = new Uri($"{baseAddress}/"),
             Timeout = TimeSpan.FromSeconds(ProviderConfig.TimeoutSeconds)
         };
         client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ProviderConfig.ApiKey);

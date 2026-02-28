@@ -76,12 +76,32 @@ public sealed class NewApiVideoGenerationProvider : IVideoGenerationProvider
 
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogError("NewApi video generation failed: {Body}", responseBody);
-            throw new InvalidOperationException($"NewApi video generation failed: {responseBody}");
+            _logger.LogError("NewApi video generation failed with status {StatusCode}: {Body}", response.StatusCode, responseBody);
+            throw new InvalidOperationException($"NewApi video generation failed with status {response.StatusCode}: {responseBody}");
         }
 
-        var createResponse = JsonSerializer.Deserialize<VideoStatusResponse>(responseBody, JsonOptions)
+        // Check if response looks like JSON
+        var trimmedBody = responseBody.TrimStart();
+        if (string.IsNullOrWhiteSpace(trimmedBody) || (!trimmedBody.StartsWith("{") && !trimmedBody.StartsWith("[")))
+        {
+            _logger.LogError("NewApi returned non-JSON response for video generation. Content-Type: {ContentType}, Body preview: {BodyPreview}",
+                response.Content.Headers.ContentType?.ToString() ?? "unknown",
+                trimmedBody.Length > 200 ? trimmedBody.Substring(0, 200) : trimmedBody);
+            throw new InvalidOperationException($"NewApi returned non-JSON response. Check endpoint URL configuration. Response starts with: {(trimmedBody.Length > 50 ? trimmedBody.Substring(0, 50) : trimmedBody)}");
+        }
+
+        VideoStatusResponse createResponse;
+        try
+        {
+            createResponse = JsonSerializer.Deserialize<VideoStatusResponse>(responseBody, JsonOptions)
                              ?? throw new InvalidOperationException("Unable to parse NewApi video generation response.");
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Failed to deserialize NewApi video generation response. Body preview: {BodyPreview}",
+                responseBody.Length > 500 ? responseBody.Substring(0, 500) : responseBody);
+            throw new InvalidOperationException($"Failed to parse NewApi response as JSON. This usually means the endpoint URL is incorrect or the API is not OpenAI-compatible.", ex);
+        }
         var taskId = createResponse.Id;
         if (string.IsNullOrWhiteSpace(taskId))
             throw new InvalidOperationException("NewApi video generation did not return a task id.");
@@ -106,6 +126,12 @@ public sealed class NewApiVideoGenerationProvider : IVideoGenerationProvider
         if (string.IsNullOrWhiteSpace(endpoint))
             throw new InvalidOperationException("Endpoint is required for NewApi video generation.");
 
+        // Ensure endpoint includes /v1 for OpenAI-compatible API
+        if (!endpoint.Contains("/v1"))
+        {
+            endpoint = endpoint + "/v1";
+        }
+
         var client = new HttpClient
         {
             BaseAddress = new Uri($"{endpoint}/"),
@@ -123,6 +149,17 @@ public sealed class NewApiVideoGenerationProvider : IVideoGenerationProvider
         int durationSeconds)
     {
         var form = new MultipartFormDataContent($"----StoryboardBoundary{Guid.NewGuid():N}");
+
+        var referenceImage = TryLoadReferenceImage(shot);
+        var hasReferenceImage = referenceImage.HasValue;
+
+        // Determine task type based on whether we have a reference image
+        var taskType = hasReferenceImage ? "i2v" : "t2v";
+
+        _logger.LogInformation("Building video generation request: Model={Model}, TaskType={TaskType}, HasReferenceImage={HasReference}, FirstFramePath={FirstFrame}, LastFramePath={LastFrame}",
+            model, taskType, hasReferenceImage, shot.FirstFrameImagePath ?? "null", shot.LastFrameImagePath ?? "null");
+
+        form.Add(new StringContent(taskType), "task_type");
 
         form.Add(new StringContent(model), "model");
         form.Add(new StringContent(prompt, Encoding.UTF8), "prompt");
@@ -150,13 +187,13 @@ public sealed class NewApiVideoGenerationProvider : IVideoGenerationProvider
             form.Add(new StringContent(JsonSerializer.Serialize(metadata), Encoding.UTF8, "application/json"), "metadata");
         }
 
-        var referenceImage = TryLoadReferenceImage(shot);
-        if (referenceImage.HasValue)
+        if (hasReferenceImage)
         {
             var (bytes, fileName) = referenceImage.Value;
             var imageContent = new ByteArrayContent(bytes);
             imageContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
             form.Add(imageContent, "input_reference", fileName);
+            _logger.LogInformation("Added reference image: {FileName}, Size={Size} bytes", fileName, bytes.Length);
         }
 
         return form;
@@ -191,9 +228,35 @@ public sealed class NewApiVideoGenerationProvider : IVideoGenerationProvider
 
     private static (byte[] Bytes, string FileName)? TryLoadReferenceImage(ShotItem shot)
     {
-        var path = !string.IsNullOrWhiteSpace(shot.FirstFrameImagePath)
-            ? shot.FirstFrameImagePath
-            : shot.LastFrameImagePath;
+        string? path = null;
+
+        // Priority 1: Explicitly set paths
+        if (!string.IsNullOrWhiteSpace(shot.FirstFrameImagePath))
+        {
+            path = shot.FirstFrameImagePath;
+        }
+        else if (!string.IsNullOrWhiteSpace(shot.LastFrameImagePath))
+        {
+            path = shot.LastFrameImagePath;
+        }
+        // Priority 2: If UseFirstFrameReference is checked, try to get from FirstFrameAssets
+        else if (shot.UseFirstFrameReference && shot.FirstFrameAssets.Count > 0)
+        {
+            var firstAsset = shot.FirstFrameAssets.FirstOrDefault();
+            if (firstAsset != null && !string.IsNullOrWhiteSpace(firstAsset.FilePath))
+            {
+                path = firstAsset.FilePath;
+            }
+        }
+        // Priority 3: If UseLastFrameReference is checked, try to get from LastFrameAssets
+        else if (shot.UseLastFrameReference && shot.LastFrameAssets.Count > 0)
+        {
+            var lastAsset = shot.LastFrameAssets.FirstOrDefault();
+            if (lastAsset != null && !string.IsNullOrWhiteSpace(lastAsset.FilePath))
+            {
+                path = lastAsset.FilePath;
+            }
+        }
 
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             return null;
