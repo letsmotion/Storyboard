@@ -73,7 +73,6 @@
                         <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
                             <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
                                 <TextBlock Text="New API" FontSize="14" FontWeight="SemiBold" Foreground="#f5f5f5" />
-                                <TextBlock Text="{Binding NewApiDefaultTextModel}" FontSize="12" Foreground="#a1a1aa" />
                             </StackPanel>
                             <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <Border Background="#14532d" CornerRadius="10" Padding="10,3" IsVisible="{Binding NewApiEnabled}">
@@ -85,24 +84,15 @@
 
                         <Border Background="#0a0a0a" BorderBrush="#27272a" BorderThickness="1" CornerRadius="8" Padding="12"
                                 IsVisible="{Binding IsNewApiSelected}">
-                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto">
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="API 密钥" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
                                 <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding NewApiApiKey}" PasswordChar="*" Classes="Modern" Margin="0,0,0,10" />
 
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="地址" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
                                 <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding NewApiEndpoint}" Classes="Modern" Margin="0,0,0,10" />
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="超时时间(秒)" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
-                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding NewApiTimeoutSeconds}" Classes="Modern" Margin="0,0,0,10" />
-
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="默认文本模型" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
-                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding NewApiDefaultTextModel}" Classes="Modern" Margin="0,0,0,10" />
-
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="默认图像模型" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
-                                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding NewApiDefaultImageModel}" Classes="Modern" Margin="0,0,0,10" />
-
-                                <TextBlock Grid.Row="5" Grid.Column="0" Text="默认视频模型" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,0" />
-                                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding NewApiDefaultVideoModel}" Classes="Modern" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="超时时间(秒)" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,0" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding NewApiTimeoutSeconds}" Classes="Modern" />
                             </Grid>
                         </Border>
                     </StackPanel>
@@ -119,7 +109,6 @@
                         <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
                             <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
                                 <TextBlock Text="Qwen" FontSize="14" FontWeight="SemiBold" Foreground="#f5f5f5" />
-                                <TextBlock Text="{Binding QwenDefaultTextModel}" FontSize="12" Foreground="#a1a1aa" />
                             </StackPanel>
                             <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <Border Background="#14532d" CornerRadius="10" Padding="10,3" IsVisible="{Binding QwenEnabled}">
@@ -131,24 +120,15 @@
 
                         <Border Background="#0a0a0a" BorderBrush="#27272a" BorderThickness="1" CornerRadius="8" Padding="12"
                                 IsVisible="{Binding IsQwenSelected}">
-                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto">
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="API 密钥" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
                                 <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding QwenApiKey}" PasswordChar="*" Classes="Modern" Margin="0,0,0,10" />
 
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="端点" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
                                 <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding QwenEndpoint}" Classes="Modern" Margin="0,0,0,10" />
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="超时时间(秒)" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
-                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding QwenTimeoutSeconds}" Classes="Modern" Margin="0,0,0,10" />
-
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="默认文本模型" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
-                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding QwenDefaultTextModel}" Classes="Modern" Margin="0,0,0,10" />
-
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="默认图像模型" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
-                                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding QwenDefaultImageModel}" Classes="Modern" Margin="0,0,0,10" />
-
-                                <TextBlock Grid.Row="5" Grid.Column="0" Text="默认视频模型" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,0" />
-                                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding QwenDefaultVideoModel}" Classes="Modern" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="超时时间(秒)" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,0" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding QwenTimeoutSeconds}" Classes="Modern" />
                             </Grid>
                         </Border>
                     </StackPanel>
@@ -165,7 +145,6 @@
                         <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
                             <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
                                 <TextBlock Text="Volcengine" FontSize="14" FontWeight="SemiBold" Foreground="#f5f5f5" />
-                                <TextBlock Text="{Binding VolcengineDefaultTextModel}" FontSize="12" Foreground="#a1a1aa" />
                             </StackPanel>
                             <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <Border Background="#14532d" CornerRadius="10" Padding="10,3" IsVisible="{Binding VolcengineEnabled}">
@@ -177,24 +156,15 @@
 
                         <Border Background="#0a0a0a" BorderBrush="#27272a" BorderThickness="1" CornerRadius="8" Padding="12"
                                 IsVisible="{Binding IsVolcengineSelected}">
-                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto">
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="API 密钥" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
                                 <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding VolcengineApiKey}" PasswordChar="*" Classes="Modern" Margin="0,0,0,10" />
 
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="地址" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
                                 <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding VolcengineEndpoint}" Classes="Modern" Margin="0,0,0,10" />
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="超时时间(秒)" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
-                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding VolcengineTimeoutSeconds}" Classes="Modern" Margin="0,0,0,10" />
-
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="默认文本模型" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
-                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding VolcengineDefaultTextModel}" Classes="Modern" Margin="0,0,0,10" />
-
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="默认图像模型" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,10" />
-                                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding VolcengineDefaultImageModel}" Classes="Modern" Margin="0,0,0,10" />
-
-                                <TextBlock Grid.Row="5" Grid.Column="0" Text="默认视频模型" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,0" />
-                                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding VolcengineDefaultVideoModel}" Classes="Modern" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="超时时间(秒)" Foreground="#a1a1aa" FontSize="12" Margin="0,0,10,0" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding VolcengineTimeoutSeconds}" Classes="Modern" />
                             </Grid>
                         </Border>
                     </StackPanel>

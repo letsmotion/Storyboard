@@ -5,9 +5,9 @@
       "TimeoutSeconds": 120,
       "Enabled": true,
       "DefaultModels": {
-        "Text": "qwen-max",
-        "Image": "qwen-image-max",
-        "Video": "wan2.6-i2v"
+        "Text": "doubao-seed-1-6-251015",
+        "Image": "doubao-seedream-4-5-251128",
+        "Video": "doubao-seedance-1-0-lite-i2v-250428"
       }
     },
     "Volcengine": {
@@ -24,11 +24,11 @@
       "Endpoint": "http://127.0.0.1:3000/v1",
       "TimeoutSeconds": 120,
       "Enabled": false,
-      "DefaultModels": {
-        "Text": "qwen-max",
-        "Image": "qwen-image-max",
-        "Video": "wan2.6-i2v"
-      }
+        "DefaultModels": {
+            "Text": "doubao-seed-1-6-251015",
+            "Image": "doubao-seedream-4-5-251128",
+            "Video": "doubao-seedance-1-0-lite-i2v-250428"
+        }
     }
   },
   "Image": {

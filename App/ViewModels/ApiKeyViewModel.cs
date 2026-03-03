@@ -68,31 +68,22 @@ public partial class ApiKeyViewModel : ObservableObject
     private string _defaultVideoModel = string.Empty;
 
     [ObservableProperty]
-    private AIProviderType _selectedProvider = AIProviderType.Qwen;
+    private AIProviderType _selectedProvider = AIProviderType.NewApi;
 
     [ObservableProperty] private bool _qwenEnabled;
     [ObservableProperty] private string _qwenApiKey = string.Empty;
     [ObservableProperty] private string _qwenEndpoint = string.Empty;
     [ObservableProperty] private int _qwenTimeoutSeconds = 120;
-    [ObservableProperty] private string _qwenDefaultTextModel = string.Empty;
-    [ObservableProperty] private string _qwenDefaultImageModel = string.Empty;
-    [ObservableProperty] private string _qwenDefaultVideoModel = string.Empty;
 
     [ObservableProperty] private bool _volcengineEnabled;
     [ObservableProperty] private string _volcengineApiKey = string.Empty;
     [ObservableProperty] private string _volcengineEndpoint = string.Empty;
     [ObservableProperty] private int _volcengineTimeoutSeconds = 120;
-    [ObservableProperty] private string _volcengineDefaultTextModel = string.Empty;
-    [ObservableProperty] private string _volcengineDefaultImageModel = string.Empty;
-    [ObservableProperty] private string _volcengineDefaultVideoModel = string.Empty;
 
     [ObservableProperty] private bool _newApiEnabled;
     [ObservableProperty] private string _newApiApiKey = string.Empty;
     [ObservableProperty] private string _newApiEndpoint = string.Empty;
     [ObservableProperty] private int _newApiTimeoutSeconds = 120;
-    [ObservableProperty] private string _newApiDefaultTextModel = string.Empty;
-    [ObservableProperty] private string _newApiDefaultImageModel = string.Empty;
-    [ObservableProperty] private string _newApiDefaultVideoModel = string.Empty;
 
     public bool IsQwenSelected => SelectedProvider == AIProviderType.Qwen;
     public bool IsVolcengineSelected => SelectedProvider == AIProviderType.Volcengine;
@@ -109,34 +100,25 @@ public partial class ApiKeyViewModel : ObservableObject
         DefaultVideoProvider = cfg.Defaults.Video.Provider;
         DefaultVideoModel = cfg.Defaults.Video.Model;
 
-        SelectedProvider = DefaultTextProvider;
+        SelectedProvider = AIProviderType.NewApi;
 
         var qwen = cfg.Providers.Qwen;
         QwenEnabled = qwen.Enabled;
         QwenApiKey = qwen.ApiKey;
         QwenEndpoint = qwen.Endpoint;
         QwenTimeoutSeconds = qwen.TimeoutSeconds;
-        QwenDefaultTextModel = qwen.DefaultModels.Text;
-        QwenDefaultImageModel = qwen.DefaultModels.Image;
-        QwenDefaultVideoModel = qwen.DefaultModels.Video;
 
         var volc = cfg.Providers.Volcengine;
         VolcengineEnabled = volc.Enabled;
         VolcengineApiKey = volc.ApiKey;
         VolcengineEndpoint = volc.Endpoint;
         VolcengineTimeoutSeconds = volc.TimeoutSeconds;
-        VolcengineDefaultTextModel = volc.DefaultModels.Text;
-        VolcengineDefaultImageModel = volc.DefaultModels.Image;
-        VolcengineDefaultVideoModel = volc.DefaultModels.Video;
 
         var newApi = cfg.Providers.NewApi;
         NewApiEnabled = newApi.Enabled;
         NewApiApiKey = newApi.ApiKey;
         NewApiEndpoint = newApi.Endpoint;
         NewApiTimeoutSeconds = newApi.TimeoutSeconds;
-        NewApiDefaultTextModel = newApi.DefaultModels.Text;
-        NewApiDefaultImageModel = newApi.DefaultModels.Image;
-        NewApiDefaultVideoModel = newApi.DefaultModels.Video;
     }
 
     partial void OnSelectedProviderChanged(AIProviderType value)
@@ -148,80 +130,17 @@ public partial class ApiKeyViewModel : ObservableObject
 
     partial void OnDefaultTextProviderChanged(AIProviderType value)
     {
-        DefaultTextModel = value switch
-        {
-            AIProviderType.NewApi => NewApiDefaultTextModel,
-            AIProviderType.Volcengine => VolcengineDefaultTextModel,
-            _ => QwenDefaultTextModel
-        };
-    }
-
-    partial void OnDefaultTextModelChanged(string value)
-    {
-        switch (DefaultTextProvider)
-        {
-            case AIProviderType.Volcengine:
-                VolcengineDefaultTextModel = value;
-                break;
-            case AIProviderType.NewApi:
-                NewApiDefaultTextModel = value;
-                break;
-            default:
-                QwenDefaultTextModel = value;
-                break;
-        }
+        DefaultTextModel = string.Empty;
     }
 
     partial void OnDefaultImageProviderChanged(AIProviderType value)
     {
-        DefaultImageModel = value switch
-        {
-            AIProviderType.NewApi => NewApiDefaultImageModel,
-            AIProviderType.Volcengine => VolcengineDefaultImageModel,
-            _ => QwenDefaultImageModel
-        };
-    }
-
-    partial void OnDefaultImageModelChanged(string value)
-    {
-        switch (DefaultImageProvider)
-        {
-            case AIProviderType.Volcengine:
-                VolcengineDefaultImageModel = value;
-                break;
-            case AIProviderType.NewApi:
-                NewApiDefaultImageModel = value;
-                break;
-            default:
-                QwenDefaultImageModel = value;
-                break;
-        }
+        DefaultImageModel = string.Empty;
     }
 
     partial void OnDefaultVideoProviderChanged(AIProviderType value)
     {
-        DefaultVideoModel = value switch
-        {
-            AIProviderType.NewApi => NewApiDefaultVideoModel,
-            AIProviderType.Volcengine => VolcengineDefaultVideoModel,
-            _ => QwenDefaultVideoModel
-        };
-    }
-
-    partial void OnDefaultVideoModelChanged(string value)
-    {
-        switch (DefaultVideoProvider)
-        {
-            case AIProviderType.Volcengine:
-                VolcengineDefaultVideoModel = value;
-                break;
-            case AIProviderType.NewApi:
-                NewApiDefaultVideoModel = value;
-                break;
-            default:
-                QwenDefaultVideoModel = value;
-                break;
-        }
+        DefaultVideoModel = string.Empty;
     }
 
     [RelayCommand]
@@ -252,28 +171,19 @@ public partial class ApiKeyViewModel : ObservableObject
                 QwenApiKey,
                 QwenEnabled,
                 QwenEndpoint,
-                QwenTimeoutSeconds,
-                QwenDefaultTextModel,
-                QwenDefaultImageModel,
-                QwenDefaultVideoModel);
+                QwenTimeoutSeconds);
 
             var volcConfig = BuildProviderUserConfig(
                 VolcengineApiKey,
                 VolcengineEnabled,
                 VolcengineEndpoint,
-                VolcengineTimeoutSeconds,
-                VolcengineDefaultTextModel,
-                VolcengineDefaultImageModel,
-                VolcengineDefaultVideoModel);
+                VolcengineTimeoutSeconds);
 
             var newApiConfig = BuildProviderUserConfig(
                 NewApiApiKey,
                 NewApiEnabled,
                 NewApiEndpoint,
-                NewApiTimeoutSeconds,
-                NewApiDefaultTextModel,
-                NewApiDefaultImageModel,
-                NewApiDefaultVideoModel);
+                NewApiTimeoutSeconds);
 
             _configComposer.SaveUserConfiguration("Qwen", qwenConfig);
             _configComposer.SaveUserConfiguration("Volcengine", volcConfig);
@@ -299,42 +209,15 @@ public partial class ApiKeyViewModel : ObservableObject
         string apiKey,
         bool enabled,
         string endpoint,
-        int timeoutSeconds,
-        string defaultTextModel,
-        string defaultImageModel,
-        string defaultVideoModel)
+        int timeoutSeconds)
     {
-        var config = new ProviderUserConfig
+        return new ProviderUserConfig
         {
             ApiKey = string.IsNullOrWhiteSpace(apiKey) ? null : apiKey.Trim(),
             Enabled = enabled,
             Endpoint = string.IsNullOrWhiteSpace(endpoint) ? null : endpoint.Trim(),
             TimeoutSeconds = timeoutSeconds
         };
-
-        var defaultModels = new Dictionary<string, string>();
-
-        if (!string.IsNullOrWhiteSpace(defaultTextModel))
-        {
-            defaultModels["Text"] = defaultTextModel.Trim();
-        }
-
-        if (!string.IsNullOrWhiteSpace(defaultImageModel))
-        {
-            defaultModels["Image"] = defaultImageModel.Trim();
-        }
-
-        if (!string.IsNullOrWhiteSpace(defaultVideoModel))
-        {
-            defaultModels["Video"] = defaultVideoModel.Trim();
-        }
-
-        if (defaultModels.Count > 0)
-        {
-            config.DefaultModels = defaultModels;
-        }
-
-        return config;
     }
 
     [RelayCommand]
