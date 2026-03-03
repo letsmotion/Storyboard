@@ -49,6 +49,10 @@ public class AIConfigurationComposer
 
         // 3. 加载 User Overrides（用户覆盖）
         var userOverrides = _overridesStore.Load();
+        if (_schema != null && NormalizeUserOverrides(userOverrides))
+        {
+            _overridesStore.Save(userOverrides);
+        }
 
         // 4. 合成最终配置
         return ComposeConfiguration(userOverrides);
@@ -65,7 +69,13 @@ public class AIConfigurationComposer
             LoadDefaults();
         }
 
+        if (_schema == null)
+        {
+            LoadSchema();
+        }
+
         var overrides = _overridesStore.Load();
+        var allowedFields = GetAllowedFields(providerName);
 
         // 获取默认配置
         ProviderDefaultConfig? defaultConfig = null;
@@ -75,63 +85,41 @@ public class AIConfigurationComposer
         var diffConfig = new ProviderUserConfig();
 
         // ApiKey 始终保存（敏感信息，不在 defaults 中）
-        if (!string.IsNullOrWhiteSpace(userConfig.ApiKey))
+        if (IsAllowedField(allowedFields, "ApiKey") &&
+            !string.IsNullOrWhiteSpace(userConfig.ApiKey))
         {
             diffConfig.ApiKey = userConfig.ApiKey;
         }
 
         // 只保存与默认值不同的 Enabled
-        if (userConfig.Enabled.HasValue &&
+        if (IsAllowedField(allowedFields, "Enabled") &&
+            userConfig.Enabled.HasValue &&
             (!hasDefaults || userConfig.Enabled.Value != defaultConfig!.Enabled))
         {
             diffConfig.Enabled = userConfig.Enabled;
         }
 
         // 只保存与默认值不同的 Endpoint
-        if (!string.IsNullOrWhiteSpace(userConfig.Endpoint) &&
+        if (IsAllowedField(allowedFields, "Endpoint") &&
+            !string.IsNullOrWhiteSpace(userConfig.Endpoint) &&
             (!hasDefaults || userConfig.Endpoint != defaultConfig!.Endpoint))
         {
             diffConfig.Endpoint = userConfig.Endpoint;
         }
 
         // 只保存与默认值不同的 TimeoutSeconds
-        if (userConfig.TimeoutSeconds.HasValue &&
+        if (IsAllowedField(allowedFields, "TimeoutSeconds") &&
+            userConfig.TimeoutSeconds.HasValue &&
             (!hasDefaults || userConfig.TimeoutSeconds.Value != defaultConfig!.TimeoutSeconds))
         {
             diffConfig.TimeoutSeconds = userConfig.TimeoutSeconds;
-        }
-
-        // 只保存与默认值不同的 DefaultModels
-        if (userConfig.DefaultModels != null && userConfig.DefaultModels.Count > 0)
-        {
-            diffConfig.DefaultModels = new Dictionary<string, string>();
-
-            foreach (var (modelType, modelValue) in userConfig.DefaultModels)
-            {
-                // 检查是否与默认值不同
-                var isDifferent = !hasDefaults ||
-                                  !defaultConfig!.DefaultModels.TryGetValue(modelType, out var defaultModel) ||
-                                  modelValue != defaultModel;
-
-                if (isDifferent && !string.IsNullOrWhiteSpace(modelValue))
-                {
-                    diffConfig.DefaultModels[modelType] = modelValue;
-                }
-            }
-
-            // 如果没有差异，不保存 DefaultModels
-            if (diffConfig.DefaultModels.Count == 0)
-            {
-                diffConfig.DefaultModels = null;
-            }
         }
 
         // 如果所有字段都为空（除了 ApiKey），则完全移除该 Provider 配置
         if (string.IsNullOrWhiteSpace(diffConfig.ApiKey) &&
             !diffConfig.Enabled.HasValue &&
             string.IsNullOrWhiteSpace(diffConfig.Endpoint) &&
-            !diffConfig.TimeoutSeconds.HasValue &&
-            diffConfig.DefaultModels == null)
+            !diffConfig.TimeoutSeconds.HasValue)
         {
             overrides.Providers.Remove(providerName);
             _logger.LogInformation("用户配置已移除 (无差异): {Provider}", providerName);
@@ -143,6 +131,116 @@ public class AIConfigurationComposer
         }
 
         _overridesStore.Save(overrides);
+    }
+
+    private HashSet<string>? GetAllowedFields(string providerName)
+    {
+        if (_schema == null)
+            return null;
+
+        if (!_schema.Providers.TryGetValue(providerName, out var providerDef))
+            return null;
+
+        var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var field in providerDef.RequiredFields)
+        {
+            allowed.Add(field);
+        }
+        foreach (var field in providerDef.OptionalFields)
+        {
+            allowed.Add(field);
+        }
+        return allowed;
+    }
+
+    private static bool IsAllowedField(HashSet<string>? allowedFields, string fieldName)
+    {
+        return allowedFields == null || allowedFields.Contains(fieldName);
+    }
+
+    private bool NormalizeUserOverrides(UserAIOverrides userOverrides)
+    {
+        if (_schema == null || _schema.Providers.Count == 0)
+            return false;
+
+        var changed = false;
+        var schemaLookup = _schema.Providers.Keys
+            .ToDictionary(k => k, k => k, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var providerKey in userOverrides.Providers.Keys.ToList())
+        {
+            if (!schemaLookup.TryGetValue(providerKey, out var canonical))
+            {
+                userOverrides.Providers.Remove(providerKey);
+                changed = true;
+                continue;
+            }
+
+            if (!string.Equals(providerKey, canonical, StringComparison.Ordinal))
+            {
+                if (!userOverrides.Providers.ContainsKey(canonical))
+                {
+                    userOverrides.Providers[canonical] = userOverrides.Providers[providerKey];
+                }
+                userOverrides.Providers.Remove(providerKey);
+                changed = true;
+            }
+        }
+
+        foreach (var (providerName, userConfig) in userOverrides.Providers.ToList())
+        {
+            if (!_schema.Providers.TryGetValue(providerName, out var providerDef))
+            {
+                userOverrides.Providers.Remove(providerName);
+                changed = true;
+                continue;
+            }
+
+            var allowedFields = new HashSet<string>(
+                providerDef.RequiredFields.Concat(providerDef.OptionalFields),
+                StringComparer.OrdinalIgnoreCase);
+
+            if (!allowedFields.Contains("ApiKey") || string.IsNullOrWhiteSpace(userConfig.ApiKey))
+            {
+                if (userConfig.ApiKey != null)
+                {
+                    userConfig.ApiKey = null;
+                    changed = true;
+                }
+            }
+
+            if (!allowedFields.Contains("Enabled") && userConfig.Enabled.HasValue)
+            {
+                userConfig.Enabled = null;
+                changed = true;
+            }
+
+            if (!allowedFields.Contains("Endpoint") || string.IsNullOrWhiteSpace(userConfig.Endpoint))
+            {
+                if (userConfig.Endpoint != null)
+                {
+                    userConfig.Endpoint = null;
+                    changed = true;
+                }
+            }
+
+            if (!allowedFields.Contains("TimeoutSeconds") && userConfig.TimeoutSeconds.HasValue)
+            {
+                userConfig.TimeoutSeconds = null;
+                changed = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(userConfig.ApiKey) &&
+                !userConfig.Enabled.HasValue &&
+                string.IsNullOrWhiteSpace(userConfig.Endpoint) &&
+                !userConfig.TimeoutSeconds.HasValue)
+            {
+                userOverrides.Providers.Remove(providerName);
+                changed = true;
+            }
+        }
+
+        return changed;
     }
 
     /// <summary>
@@ -241,17 +339,17 @@ public class AIConfigurationComposer
             Text = new AIServiceDefaultSelection
             {
                 Provider = ParseProviderType(textProviderName),
-                Model = GetProviderDefaultModel(textProviderName, "Text", userOverrides) ?? ""
+                Model = ResolveDefaultModel(userSettings.DefaultProviders.TextModel, textProviderName, "Text", userOverrides)
             },
             Image = new AIServiceDefaultSelection
             {
                 Provider = ParseProviderType(imageProviderName),
-                Model = GetProviderDefaultModel(imageProviderName, "Image", userOverrides) ?? ""
+                Model = ResolveDefaultModel(userSettings.DefaultProviders.ImageModel, imageProviderName, "Image", userOverrides)
             },
             Video = new AIServiceDefaultSelection
             {
                 Provider = ParseProviderType(videoProviderName),
-                Model = GetProviderDefaultModel(videoProviderName, "Video", userOverrides) ?? ""
+                Model = ResolveDefaultModel(userSettings.DefaultProviders.VideoModel, videoProviderName, "Video", userOverrides)
             }
         };
 
@@ -283,17 +381,28 @@ public class AIConfigurationComposer
             userOverrides.Providers.Remove(unknownProvider);
         }
 
-        // 验证每个 Provider 的必填字段
+        // ???? Provider ?????
         foreach (var (providerName, userConfig) in userOverrides.Providers)
         {
             if (!_schema.Providers.TryGetValue(providerName, out var providerDef))
                 continue;
 
-            // 检查 ApiKey 是否存在（这是最关键的必填字段）
+            bool? enabled = userConfig.Enabled;
+            if (!enabled.HasValue && _defaults?.Providers.TryGetValue(providerName, out var defaultConfig) == true)
+            {
+                enabled = defaultConfig.Enabled;
+            }
+
+            if (enabled == false)
+            {
+                continue;
+            }
+
+            // ?? ApiKey ????????????????
             if (providerDef.RequiredFields.Contains("ApiKey") &&
                 string.IsNullOrWhiteSpace(userConfig.ApiKey))
             {
-                _logger.LogWarning("{Provider} 缺少必填字段: ApiKey", providerName);
+                _logger.LogWarning("{Provider} ??????: ApiKey", providerName);
             }
         }
     }
@@ -334,15 +443,6 @@ public class AIConfigurationComposer
             if (userConfig.TimeoutSeconds.HasValue)
                 providerConfig.TimeoutSeconds = userConfig.TimeoutSeconds.Value;
 
-            if (userConfig.DefaultModels != null)
-            {
-                if (userConfig.DefaultModels.TryGetValue("Text", out var text))
-                    providerConfig.DefaultModels.Text = text;
-                if (userConfig.DefaultModels.TryGetValue("Image", out var image))
-                    providerConfig.DefaultModels.Image = image;
-                if (userConfig.DefaultModels.TryGetValue("Video", out var video))
-                    providerConfig.DefaultModels.Video = video;
-            }
         }
 
         return providerConfig;
@@ -452,12 +552,6 @@ public class AIConfigurationComposer
     private string? GetProviderDefaultModel(string providerName, string modelType, UserAIOverrides userOverrides)
     {
         // 先查找用户覆盖
-        if (userOverrides.Providers.TryGetValue(providerName, out var userConfig) &&
-            userConfig.DefaultModels?.TryGetValue(modelType, out var userModel) == true)
-        {
-            return userModel;
-        }
-
         // 回退到系统默认值
         if (_defaults?.Providers.TryGetValue(providerName, out var defaultConfig) == true &&
             defaultConfig.DefaultModels.TryGetValue(modelType, out var defaultModel))
@@ -466,6 +560,16 @@ public class AIConfigurationComposer
         }
 
         return null;
+    }
+
+    private string ResolveDefaultModel(string? userModel, string providerName, string modelType, UserAIOverrides userOverrides)
+    {
+        if (!string.IsNullOrWhiteSpace(userModel))
+        {
+            return userModel.Trim();
+        }
+
+        return GetProviderDefaultModel(providerName, modelType, userOverrides) ?? string.Empty;
     }
 
     /// <summary>

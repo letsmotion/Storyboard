@@ -275,9 +275,23 @@ public class AIServiceManager
     public async Task<Dictionary<AIProviderType, bool>> ValidateAllProvidersAsync()
     {
         var results = new Dictionary<AIProviderType, bool>();
+        var config = _configComposer.LoadConfiguration();
 
         foreach (var provider in _providers)
         {
+            var enabled = provider.ProviderType switch
+            {
+                AIProviderType.Qwen => config.Providers.Qwen.Enabled,
+                AIProviderType.Volcengine => config.Providers.Volcengine.Enabled,
+                AIProviderType.NewApi => config.Providers.NewApi.Enabled,
+                _ => false
+            };
+
+            if (!enabled)
+            {
+                continue;
+            }
+
             var isValid = await provider.ValidateConfigurationAsync().ConfigureAwait(false);
             results[provider.ProviderType] = isValid;
         }

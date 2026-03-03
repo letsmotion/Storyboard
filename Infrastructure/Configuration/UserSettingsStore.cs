@@ -89,5 +89,8 @@ public class UserSettingsStore
         settings.UI ??= new UiSettings();
         settings.UI.Layout ??= new LayoutSettings();
         settings.DefaultProviders ??= new DefaultProviderSettings();
+        settings.DefaultProviders.TextModel ??= string.Empty;
+        settings.DefaultProviders.ImageModel ??= string.Empty;
+        settings.DefaultProviders.VideoModel ??= string.Empty;
     }
 }

@@ -130,17 +130,37 @@ public partial class ApiKeyViewModel : ObservableObject
 
     partial void OnDefaultTextProviderChanged(AIProviderType value)
     {
-        DefaultTextModel = string.Empty;
+        DefaultTextModel = GetProviderDefaultModel(value, "Text");
     }
 
     partial void OnDefaultImageProviderChanged(AIProviderType value)
     {
-        DefaultImageModel = string.Empty;
+        DefaultImageModel = GetProviderDefaultModel(value, "Image");
     }
 
     partial void OnDefaultVideoProviderChanged(AIProviderType value)
     {
-        DefaultVideoModel = string.Empty;
+        DefaultVideoModel = GetProviderDefaultModel(value, "Video");
+    }
+
+    private string GetProviderDefaultModel(AIProviderType providerType, string modelType)
+    {
+        var cfg = _configComposer.LoadConfiguration();
+        var providerConfig = providerType switch
+        {
+            AIProviderType.Qwen => cfg.Providers.Qwen,
+            AIProviderType.Volcengine => cfg.Providers.Volcengine,
+            AIProviderType.NewApi => cfg.Providers.NewApi,
+            _ => cfg.Providers.Qwen
+        };
+
+        return modelType switch
+        {
+            "Text" => providerConfig.DefaultModels.Text,
+            "Image" => providerConfig.DefaultModels.Image,
+            "Video" => providerConfig.DefaultModels.Video,
+            _ => string.Empty
+        };
     }
 
     [RelayCommand]
@@ -193,6 +213,9 @@ public partial class ApiKeyViewModel : ObservableObject
             userSettings.DefaultProviders.TextProvider = DefaultTextProvider.ToString();
             userSettings.DefaultProviders.ImageProvider = DefaultImageProvider.ToString();
             userSettings.DefaultProviders.VideoProvider = DefaultVideoProvider.ToString();
+            userSettings.DefaultProviders.TextModel = DefaultTextModel?.Trim() ?? string.Empty;
+            userSettings.DefaultProviders.ImageModel = DefaultImageModel?.Trim() ?? string.Empty;
+            userSettings.DefaultProviders.VideoModel = DefaultVideoModel?.Trim() ?? string.Empty;
             _userSettingsStore.Save(userSettings);
 
             error = null;

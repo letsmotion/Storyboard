@@ -56,7 +56,10 @@ public class LayoutSettings
 /// </summary>
 public class DefaultProviderSettings
 {
-    public string TextProvider { get; set; } = "Volcengine";
-    public string ImageProvider { get; set; } = "Volcengine";
-    public string VideoProvider { get; set; } = "Volcengine";
+    public string TextProvider { get; set; } = "NewApi";
+    public string ImageProvider { get; set; } = "NewApi";
+    public string VideoProvider { get; set; } = "NewApi";
+    public string TextModel { get; set; } = string.Empty;
+    public string ImageModel { get; set; } = string.Empty;
+    public string VideoModel { get; set; } = string.Empty;
 }

@@ -38,8 +38,4 @@ public class ProviderUserConfig
     /// </summary>
     public int? TimeoutSeconds { get; set; }
 
-    /// <summary>
-    /// 用户自定义的模型选择
-    /// </summary>
-    public Dictionary<string, string>? DefaultModels { get; set; }
 }
