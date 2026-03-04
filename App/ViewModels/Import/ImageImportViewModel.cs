@@ -4,6 +4,7 @@ using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Storyboard.Application.Abstractions;
 using Storyboard.Application.Services;
@@ -24,7 +25,6 @@ namespace Storyboard.ViewModels.Import;
 /// </summary>
 public partial class ImageImportViewModel : ObservableObject
 {
-    private readonly IShotRepository _shotRepository;
     private readonly IUnitOfWorkFactory _unitOfWorkFactory;
     private readonly StoragePathService _storagePathService;
     private readonly IMessenger _messenger;
@@ -51,13 +51,11 @@ public partial class ImageImportViewModel : ObservableObject
     private string? _errorMessage;
 
     public ImageImportViewModel(
-        IShotRepository shotRepository,
         IUnitOfWorkFactory unitOfWorkFactory,
         StoragePathService storagePathService,
         IMessenger messenger,
         ILogger<ImageImportViewModel> logger)
     {
-        _shotRepository = shotRepository;
         _unitOfWorkFactory = unitOfWorkFactory;
         _storagePathService = storagePathService;
         _messenger = messenger;
@@ -142,11 +140,19 @@ public partial class ImageImportViewModel : ObservableObject
             Directory.CreateDirectory(importDir);
             _logger.LogInformation("Created import directory: {Dir}", importDir);
 
-            // 获取当前最大分镜编号
-            var query = new GetAllShotsQuery();
-            _messenger.Send(query);
-            var existingShots = query.Shots ?? new List<ShotItem>();
-            var nextShotNumber = existingShots.Any() ? existingShots.Max(s => s.ShotNumber) + 1 : 1;
+            // 获取当前最大分镜编号 - 直接从数据库查询以确保数据准确
+            int nextShotNumber = 1;
+            var queryUow = await _unitOfWorkFactory.CreateAsync();
+            await using (queryUow)
+            {
+                var maxShotNumber = await queryUow.Shots
+                    .QueryByProject(_currentProjectId)
+                    .Select(s => (int?)s.ShotNumber)
+                    .MaxAsync();
+
+                nextShotNumber = (maxShotNumber ?? 0) + 1;
+                _logger.LogInformation("Next shot number will be: {ShotNumber}", nextShotNumber);
+            }
 
             var createdShots = new List<Domain.Entities.Shot>();
             var validImages = SelectedImages.Where(i => i.IsValid).ToList();
@@ -196,7 +202,7 @@ public partial class ImageImportViewModel : ObservableObject
             var uow = await _unitOfWorkFactory.CreateAsync();
             await using (uow)
             {
-                await _shotRepository.AddRangeAsync(createdShots);
+                await uow.Shots.AddRangeAsync(createdShots);
                 await uow.SaveChangesAsync();
             }
 
