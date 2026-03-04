@@ -171,7 +171,7 @@
 						        BorderThickness="1"
 						        CornerRadius="6"
 						        Padding="4">
-							<Grid ColumnDefinitions="*,*">
+							<Grid ColumnDefinitions="*,*,*">
 								<Button Grid.Column="0"
 								        Classes="Secondary"
 								        HorizontalAlignment="Stretch"
@@ -200,6 +200,21 @@
 										          Height="14"
 										          Foreground="#3b82f6" />
 										<TextBlock Text="视频导入" FontSize="12" />
+									</StackPanel>
+								</Button>
+								<Button Grid.Column="2"
+								        Classes="Secondary"
+								        HorizontalAlignment="Stretch"
+								        Command="{Binding SelectCreationModeCommand}"
+								        CommandParameter="Image"
+								        Background="{Binding CreationMode, Converter={StaticResource CreationModeToBackgroundConverter}, ConverterParameter=Image}"
+								        BorderThickness="0">
+									<StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+										<PathIcon Data="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"
+										          Width="14"
+										          Height="14"
+										          Foreground="#10b981" />
+										<TextBlock Text="图片导入" FontSize="12" />
 									</StackPanel>
 								</Button>
 							</Grid>
@@ -385,6 +400,122 @@
 										</StackPanel>
 									</Button>
 								</StackPanel>
+							</StackPanel>
+						</StackPanel>
+
+						<!-- Tab Content: Image Mode -->
+						<StackPanel Spacing="12" IsVisible="{Binding IsImageMode}">
+							<TextBlock Text="适合：已有参考图片，需要根据图片生成视频分镜"
+							           FontSize="11"
+							           Foreground="#71717a"
+							           TextWrapping="Wrap" />
+
+							<!-- Image Import Button -->
+							<StackPanel Spacing="12" IsVisible="{Binding ImageImport.HasImages, Converter={StaticResource BoolNot}}">
+								<Button Classes="Secondary"
+								        HorizontalAlignment="Stretch"
+								        Command="{Binding ImageImport.ImportImagesCommand}">
+									<StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+										<PathIcon Data="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"
+										          Width="14"
+										          Height="14" />
+										<TextBlock Text="选择图片文件" FontSize="13" />
+									</StackPanel>
+								</Button>
+
+								<!-- Error Message -->
+								<Border Background="#7f1d1d"
+								        BorderBrush="#991b1b"
+								        BorderThickness="1"
+								        CornerRadius="4"
+								        Padding="8"
+								        IsVisible="{Binding ImageImport.ErrorMessage, Converter={x:Static ObjectConverters.IsNotNull}}">
+									<TextBlock Text="{Binding ImageImport.ErrorMessage}"
+									           FontSize="12"
+									           Foreground="#fecaca"
+									           TextWrapping="Wrap" />
+								</Border>
+							</StackPanel>
+
+							<!-- Image List -->
+							<StackPanel Spacing="10" IsVisible="{Binding ImageImport.HasImages}">
+								<TextBlock Text="{Binding ImageImport.ImageCountText}"
+								           FontSize="13"
+								           FontWeight="SemiBold"
+								           Foreground="#10b981" />
+
+								<!-- Image Items -->
+								<ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
+									<ItemsControl ItemsSource="{Binding ImageImport.SelectedImages}">
+										<ItemsControl.ItemTemplate>
+											<DataTemplate>
+												<Border Background="#1a1a1a"
+												        BorderBrush="#3f3f46"
+												        BorderThickness="1"
+												        CornerRadius="4"
+												        Padding="8"
+												        Margin="0,0,0,6">
+													<StackPanel Spacing="4">
+														<TextBlock Text="{Binding FileName}"
+														           FontSize="12"
+														           Foreground="#f5f5f5"
+														           TextTrimming="CharacterEllipsis" />
+														<TextBlock FontSize="11" Foreground="#71717a">
+															<Run Text="{Binding ImageSize}" />
+															<Run Text=" · " />
+															<Run Text="{Binding FileSize}" />
+														</TextBlock>
+														<TextBlock Text="{Binding ValidationError}"
+														           FontSize="11"
+														           Foreground="#f87171"
+														           IsVisible="{Binding IsValid, Converter={StaticResource BoolNot}}" />
+													</StackPanel>
+												</Border>
+											</DataTemplate>
+										</ItemsControl.ItemTemplate>
+									</ItemsControl>
+								</ScrollViewer>
+
+								<!-- Divider -->
+								<Border Height="1" Background="#27272a" Margin="0,8" />
+
+								<!-- Action Buttons -->
+								<StackPanel Spacing="8">
+									<Button Classes="Primary"
+									        HorizontalAlignment="Stretch"
+									        Command="{Binding ImageImport.CreateShotsCommand}"
+									        IsEnabled="{Binding ImageImport.IsCreatingShots, Converter={StaticResource BoolNot}}">
+										<StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+											<PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+											          Width="14"
+											          Height="14" />
+											<TextBlock Text="创建分镜" FontSize="13" />
+										</StackPanel>
+									</Button>
+
+									<Button Classes="Secondary"
+									        HorizontalAlignment="Stretch"
+									        Command="{Binding ImageImport.ClearImagesCommand}">
+										<StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+											<PathIcon Data="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+											          Width="14"
+											          Height="14" />
+											<TextBlock Text="清空列表" FontSize="13" />
+										</StackPanel>
+									</Button>
+								</StackPanel>
+
+								<!-- Hint -->
+								<Border Background="#18181b"
+								        BorderBrush="#10b981"
+								        BorderThickness="1"
+								        CornerRadius="4"
+								        Padding="8">
+									<TextBlock Text="创建分镜后，请使用批量AI分析生成视频提示词和图片描述"
+									           FontSize="11"
+									           Foreground="#10b981"
+									           TextWrapping="Wrap" />
+								</Border>
 							</StackPanel>
 						</StackPanel>
 					</StackPanel>

@@ -69,3 +69,6 @@ public class GetCurrentProjectPathQuery
 {
     public string? ProjectPath { get; set; }
 }
+
+// 从图片创建分镜完成消息
+public record ShotsCreatedFromImagesMessage(int SuccessCount);

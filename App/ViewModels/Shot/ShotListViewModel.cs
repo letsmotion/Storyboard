@@ -97,6 +97,7 @@ public partial class ShotListViewModel : ObservableObject
         _messenger.Register<ShotDuplicateRequestedMessage>(this, OnShotDuplicateRequested);
         _messenger.Register<ShotDeleteRequestedMessage>(this, OnShotDeleteRequested);
         _messenger.Register<FramesExtractedMessage>(this, OnFramesExtracted);
+        _messenger.Register<ShotsCreatedFromImagesMessage>(this, OnShotsCreatedFromImages);
         _messenger.Register<RestoreSnapshotMessage>(this, OnRestoreSnapshot);
         _messenger.Register<ClipTrimmedMessage>(this, OnClipTrimmed);
         _messenger.Register<ClipsSplitMessage>(this, OnClipsSplit);
@@ -779,6 +780,14 @@ public partial class ShotListViewModel : ObservableObject
         }
 
         _logger.LogInformation("抽帧完成，加载 {Count} 个镜头到列表", Shots.Count);
+    }
+
+    private void OnShotsCreatedFromImages(object recipient, ShotsCreatedFromImagesMessage message)
+    {
+        _logger.LogInformation("从图片创建了 {Count} 个分镜", message.SuccessCount);
+
+        // 简单地记录日志,实际的刷新会由ProjectManagement触发
+        // 用户需要重新打开项目或刷新来看到新分镜
     }
 
     private void OnClipTrimmed(object recipient, ClipTrimmedMessage message)

@@ -41,6 +41,7 @@ public partial class MainViewModel : ObservableObject
     public ProjectManagementViewModel ProjectManagement { get; }
     public ShotListViewModel ShotList { get; }
     public VideoImportViewModel VideoImport { get; }
+    public ImageImportViewModel ImageImport { get; }
     public FrameExtractionViewModel FrameExtraction { get; }
     public AiAnalysisViewModel AiAnalysis { get; }
     public ImageGenerationViewModel ImageGeneration { get; }
@@ -157,10 +158,11 @@ public partial class MainViewModel : ObservableObject
 
     // 创作模式属性
     [ObservableProperty]
-    private string _creationMode = "Text"; // "Text" or "Video"
+    private string _creationMode = "Text"; // "Text", "Video", or "Image"
 
     public bool IsTextMode => CreationMode == "Text";
     public bool IsVideoMode => CreationMode == "Video";
+    public bool IsImageMode => CreationMode == "Image";
 
     // 委托属性 - 暴露子 ViewModel 的属性以保持向后兼容
     public bool HasProjects => ProjectManagement.HasProjects;
@@ -302,6 +304,7 @@ public partial class MainViewModel : ObservableObject
         ProjectManagementViewModel projectManagement,
         ShotListViewModel shotList,
         VideoImportViewModel videoImport,
+        ImageImportViewModel imageImport,
         FrameExtractionViewModel frameExtraction,
         AiAnalysisViewModel aiAnalysis,
         ImageGenerationViewModel imageGeneration,
@@ -322,6 +325,7 @@ public partial class MainViewModel : ObservableObject
         ProjectManagement = projectManagement;
         ShotList = shotList;
         VideoImport = videoImport;
+        ImageImport = imageImport;
         FrameExtraction = frameExtraction;
         AiAnalysis = aiAnalysis;
         ImageGeneration = imageGeneration;
@@ -721,11 +725,12 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void SelectCreationMode(string mode)
     {
-        if (mode == "Text" || mode == "Video")
+        if (mode == "Text" || mode == "Video" || mode == "Image")
         {
             CreationMode = mode;
             OnPropertyChanged(nameof(IsTextMode));
             OnPropertyChanged(nameof(IsVideoMode));
+            OnPropertyChanged(nameof(IsImageMode));
             _logger.LogInformation("切换创作模式: {Mode}", mode);
         }
     }

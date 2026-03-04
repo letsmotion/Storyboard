@@ -181,6 +181,7 @@ public partial class App : Avalonia.Application
         services.AddTransient<ViewModels.Project.ProjectManagementViewModel>();
         services.AddTransient<ViewModels.Queue.JobQueueViewModel>();
         services.AddTransient<ViewModels.Import.VideoImportViewModel>();
+        services.AddTransient<ViewModels.Import.ImageImportViewModel>();
         services.AddTransient<ViewModels.Import.FrameExtractionViewModel>();
         services.AddTransient<ViewModels.Shot.ShotListViewModel>();
         services.AddTransient<ViewModels.Shot.BatchInsertShotViewModel>();
