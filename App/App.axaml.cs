@@ -44,7 +44,9 @@ public partial class App : Avalonia.Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.Exit += (_, __) => Log.CloseAndFlush();
+            // 注册退出事件处理器 - 确保资源被正确释放
+            desktop.Exit += OnApplicationExit;
+            desktop.ShutdownRequested += OnShutdownRequested;
 
             var mainWindow = new MainWindow
             {
@@ -59,6 +61,82 @@ public partial class App : Avalonia.Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// 处理应用程序关闭请求 - 确保所有资源被正确释放
+    /// </summary>
+    private void OnShutdownRequested(object? sender, Avalonia.Controls.ApplicationLifetimes.ShutdownRequestedEventArgs e)
+    {
+        try
+        {
+            var logger = Services.GetService<Microsoft.Extensions.Logging.ILogger<App>>();
+            logger?.LogInformation("应用程序正在关闭，开始清理资源...");
+
+            // 给一点时间让正在进行的操作完成
+            System.Threading.Thread.Sleep(100);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "关闭请求处理失败");
+        }
+    }
+
+    /// <summary>
+    /// 应用程序退出时的清理工作
+    /// </summary>
+    private void OnApplicationExit(object? sender, Avalonia.Controls.ApplicationLifetimes.ControlledApplicationLifetimeExitEventArgs e)
+    {
+        try
+        {
+            var logger = Services.GetService<Microsoft.Extensions.Logging.ILogger<App>>();
+            logger?.LogInformation("应用程序退出，清理资源...");
+
+            // 1. 停止所有后台任务
+            var jobQueue = Services.GetService<IJobQueueService>();
+            if (jobQueue != null)
+            {
+                logger?.LogInformation("停止任务队列...");
+                // 释放 JobQueueService 资源
+                if (jobQueue is IDisposable disposableQueue)
+                {
+                    disposableQueue.Dispose();
+                    logger?.LogInformation("任务队列已停止");
+                }
+            }
+
+            // 2. 确保所有数据库连接都已关闭
+            // EF Core 的 DbContext 会在 Dispose 时自动关闭连接
+            logger?.LogInformation("关闭数据库连接...");
+
+            // 给数据库和文件系统一点时间完成所有操作
+            System.Threading.Thread.Sleep(100);
+
+            // 3. 释放 ServiceProvider（会自动 Dispose 所有 IDisposable 服务）
+            // 这会释放：DbContext, LibVLC, 所有单例服务等
+            if (Services is IDisposable disposable)
+            {
+                logger?.LogInformation("释放服务容器...");
+                disposable.Dispose();
+                logger?.LogInformation("服务容器已释放");
+            }
+
+            // 给系统更多时间完成资源释放
+            System.Threading.Thread.Sleep(300);
+
+            // 4. 最后关闭日志系统
+            logger?.LogInformation("应用程序资源清理完成");
+            Log.CloseAndFlush();
+
+            // 最后再给系统一点时间确保所有清理工作完成
+            // 这对于 Velopack 更新非常重要
+            System.Threading.Thread.Sleep(200);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "应用程序退出清理失败");
+            Log.CloseAndFlush();
+        }
     }
 
     private async System.Threading.Tasks.Task MigrateProviderSchemaIfNeededAsync()

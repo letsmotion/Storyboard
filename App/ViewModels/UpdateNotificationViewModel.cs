@@ -132,8 +132,21 @@ public partial class UpdateNotificationViewModel : ObservableObject
                 // 等待 1 秒让用户看到完成消息
                 await Task.Delay(1000);
 
-                // 应用更新并重启
-                _updateService.ApplyUpdatesAndRestart(_updateInfo);
+                // 使用 WaitExitThenApplyUpdatesAsync 而不是 ApplyUpdatesAndRestart
+                // 这样更新程序会等待应用完全退出后再替换文件，避免文件占用问题
+                StatusMessage = "更新将在应用关闭后自动安装...";
+                await _updateService.ApplyUpdatesAsync(_updateInfo);
+
+                // 通知用户关闭应用
+                StatusMessage = "更新已准备就绪，请关闭应用以完成安装";
+                _logger.LogInformation("更新已准备就绪，等待应用退出");
+
+                // 可选：自动关闭应用
+                await Task.Delay(2000);
+                if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    desktop.Shutdown();
+                }
             }
             else
             {

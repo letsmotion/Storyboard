@@ -9,7 +9,7 @@ using Storyboard.Models;
 
 namespace Storyboard.Application.Services;
 
-public sealed class JobQueueService : IJobQueueService
+public sealed class JobQueueService : IJobQueueService, IDisposable
 {
     private readonly IUiDispatcher _ui;
     private readonly SemaphoreSlim _concurrency;
@@ -24,6 +24,7 @@ public sealed class JobQueueService : IJobQueueService
 
     private readonly string _historyFilePath;
     private volatile bool _workerStarted;
+    private volatile bool _disposed;
 
     public ObservableCollection<GenerationJob> Jobs { get; } = new();
 
@@ -333,6 +334,61 @@ public sealed class JobQueueService : IJobQueueService
     }
 
     private void OnUi(Action action) => _ui.Post(action);
+
+    /// <summary>
+    /// 释放所有资源 - 在应用退出时调用
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        try
+        {
+            // 1. 完成 Channel 写入（不再接受新任务）
+            _channel.Writer.Complete();
+
+            // 2. 取消所有正在运行的任务
+            foreach (var cts in _cancellations.Values)
+            {
+                try
+                {
+                    cts?.Cancel();
+                }
+                catch
+                {
+                    // 忽略取消失败
+                }
+            }
+
+            // 3. 给任务一点时间完成取消
+            System.Threading.Thread.Sleep(100);
+
+            // 4. 释放所有 CancellationTokenSource
+            foreach (var cts in _cancellations.Values)
+            {
+                try
+                {
+                    cts?.Dispose();
+                }
+                catch
+                {
+                    // 忽略释放失败
+                }
+            }
+
+            // 5. 清空字典
+            _cancellations.Clear();
+            _runners.Clear();
+
+            // 6. 释放信号量
+            _concurrency?.Dispose();
+        }
+        catch
+        {
+            // 确保 Dispose 不会抛出异常
+        }
+    }
 
     private sealed class GenerationJobSnapshot
     {

@@ -279,8 +279,10 @@ public class UpdateService
     }
 
     /// <summary>
-    /// 应用更新并重启应用
+    /// 应用更新并重启应用（已弃用 - 容易导致文件占用问题）
+    /// 建议使用 ApplyUpdatesAsync 代替
     /// </summary>
+    [Obsolete("此方法容易导致文件占用问题，请使用 ApplyUpdatesAsync 代替")]
     public void ApplyUpdatesAndRestart(UpdateInfo updateInfo)
     {
         if (_updateManager == null)
@@ -288,19 +290,32 @@ public class UpdateService
             return;
         }
 
+        _logger.LogWarning("使用了已弃用的 ApplyUpdatesAndRestart 方法，建议使用 ApplyUpdatesAsync");
+
         try
         {
             _logger.LogInformation("准备应用更新并重启...");
+
+            // 确保所有日志都已写入
+            _logger.LogInformation("正在关闭应用程序资源...");
+
+            // 给应用一点时间来清理资源
+            System.Threading.Thread.Sleep(500);
+
+            // 应用更新并重启（带重启参数）
+            // 注意：这个方法可能会在应用未完全退出时尝试替换文件，导致 "Failed to remove existing application directory" 错误
             _updateManager.ApplyUpdatesAndRestart(updateInfo);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "应用更新失败");
+            throw; // 重新抛出异常，让调用者知道更新失败
         }
     }
 
     /// <summary>
-    /// 应用更新但不重启（下次启动时生效）
+    /// 应用更新但不重启（下次启动时生效）- 推荐使用此方法
+    /// 此方法会等待应用完全退出后再替换文件，避免文件占用问题
     /// </summary>
     public async Task<bool> ApplyUpdatesAsync(UpdateInfo updateInfo)
     {
@@ -311,13 +326,22 @@ public class UpdateService
 
         try
         {
-            _logger.LogInformation("准备应用更新（下次启动生效）...");
+            _logger.LogInformation("准备应用更新（应用退出后自动安装）...");
+
+            // WaitExitThenApplyUpdatesAsync 会：
+            // 1. 立即返回，不阻塞当前线程
+            // 2. 在后台启动更新程序
+            // 3. 更新程序会等待当前应用完全退出
+            // 4. 应用退出后，更新程序替换文件
+            // 5. 更新完成后自动重启应用
             await _updateManager.WaitExitThenApplyUpdatesAsync(updateInfo);
+
+            _logger.LogInformation("更新已准备就绪，将在应用退出后自动安装");
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "应用更新失败");
+            _logger.LogError(ex, "准备更新失败");
             return false;
         }
     }

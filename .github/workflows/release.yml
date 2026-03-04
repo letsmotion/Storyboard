@@ -195,7 +195,8 @@ jobs:
           "--icon", "./App/Assets/icon.ico",
           "--packTitle", "分镜大师",
           "--packAuthors", "BroderQi",
-          "--splashImage", "./App/Assets/icon.ico"
+          "--splashImage", "./App/Assets/icon.ico",
+          "--runtimeDependencies", "net8.0-x64-desktop"
         )
 
         # 如果启用增量包
