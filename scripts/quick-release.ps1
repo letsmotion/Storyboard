@@ -109,6 +109,16 @@ function Get-IncrementedVersion {
         }
         "patch" {
             $patch++
+            # 当 patch 达到 10 时，进位到 minor
+            if ($patch -ge 10) {
+                $minor++
+                $patch = 0
+            }
+            # 当 minor 达到 10 时，进位到 major
+            if ($minor -ge 10) {
+                $major++
+                $minor = 0
+            }
         }
     }
 
