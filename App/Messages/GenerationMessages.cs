@@ -3,7 +3,7 @@ using Storyboard.Models;
 namespace Storyboard.Messages;
 
 // AI 解析请求消息
-public record AiParseRequestedMessage(ShotItem Shot);
+public record AiParseRequestedMessage(ShotItem Shot, string? ContextSummary = null);
 
 // AI 解析完成消息
 public record AiParseCompletedMessage(ShotItem Shot, bool Success);

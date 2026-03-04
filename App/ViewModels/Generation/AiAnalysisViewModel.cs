@@ -76,6 +76,184 @@ public partial class AiAnalysisViewModel : ObservableObject
             }
         }
 
+        // 使用滑动窗口批量处理
+        await AIAnalyzeAllWithSlidingWindow(checkedShots, mode);
+    }
+
+    /// <summary>
+    /// 使用滑动窗口上下文进行批量AI分析
+    /// 3个镜头一组并行处理，每组携带前面镜头的分析结果作为上下文
+    /// </summary>
+    private async Task AIAnalyzeAllWithSlidingWindow(List<ShotItem> shots, AiWriteMode? mode)
+    {
+        const int batchSize = 3; // 每批处理3个镜头
+        const int contextSize = 3; // 携带前3个镜头的上下文
+
+        var validShots = shots.Where(s =>
+            !string.IsNullOrWhiteSpace(s.MaterialFilePath) &&
+            System.IO.File.Exists(s.MaterialFilePath) &&
+            !s.IsAiParsing).ToList();
+
+        if (validShots.Count == 0)
+        {
+            _logger.LogWarning("没有有效的镜头可分析");
+            return;
+        }
+
+        _logger.LogInformation("开始滑动窗口批量分析: {Total} 个镜头, 每批 {BatchSize} 个",
+            validShots.Count, batchSize);
+
+        // 存储已分析镜头的上下文摘要
+        var contextHistory = new System.Collections.Generic.Queue<string>();
+
+        // 分批处理
+        for (int i = 0; i < validShots.Count; i += batchSize)
+        {
+            var batch = validShots.Skip(i).Take(batchSize).ToList();
+
+            // 构建上下文摘要
+            var contextSummary = BuildContextSummary(contextHistory);
+
+            _logger.LogInformation("处理批次 {BatchIndex}: 镜头 {Start}-{End}, 上下文: {ContextCount} 个",
+                i / batchSize + 1, i + 1, Math.Min(i + batchSize, validShots.Count), contextHistory.Count);
+
+            // 并行处理当前批次
+            var tasks = batch.Select(shot =>
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        // 发送AI解析请求消息，携带上下文
+                        _messenger.Send(new AiParseRequestedMessage(shot, contextSummary));
+
+                        // 等待解析完成（通过轮询状态）
+                        await WaitForAnalysisComplete(shot);
+
+                        // 返回分析结果摘要
+                        return BuildShotSummary(shot);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "分析镜头 {ShotNumber} 失败", shot.ShotNumber);
+                        return null;
+                    }
+                })
+            ).ToList();
+
+            // 等待当前批次完成
+            var results = await Task.WhenAll(tasks);
+
+            // 更新上下文历史
+            foreach (var result in results.Where(r => r != null))
+            {
+                contextHistory.Enqueue(result!);
+
+                // 只保留最近N个镜头的上下文
+                if (contextHistory.Count > contextSize)
+                {
+                    contextHistory.Dequeue();
+                }
+            }
+
+            _logger.LogInformation("批次完成，当前上下文大小: {ContextSize}", contextHistory.Count);
+        }
+
+        _logger.LogInformation("滑动窗口批量分析完成");
+    }
+
+    /// <summary>
+    /// 构建上下文摘要
+    /// </summary>
+    private string BuildContextSummary(System.Collections.Generic.Queue<string> contextHistory)
+    {
+        if (contextHistory.Count == 0)
+        {
+            return "这是第一批镜头分析，请根据项目意图进行分析。";
+        }
+
+        var summary = "前面镜头的分析结果摘要（用于保持风格连贯）:\n\n";
+        summary += string.Join("\n\n", contextHistory);
+        summary += "\n\n请保持与上述镜头相似的风格、基调和描述方式。";
+
+        return summary;
+    }
+
+    /// <summary>
+    /// 构建单个镜头的分析摘要
+    /// </summary>
+    private string BuildShotSummary(ShotItem shot)
+    {
+        var summary = $"镜头 {shot.ShotNumber}:\n";
+
+        if (!string.IsNullOrWhiteSpace(shot.CoreContent))
+            summary += $"- 核心内容: {shot.CoreContent.Substring(0, Math.Min(100, shot.CoreContent.Length))}\n";
+
+        if (!string.IsNullOrWhiteSpace(shot.VideoPrompt))
+            summary += $"- 视频提示词: {shot.VideoPrompt.Substring(0, Math.Min(100, shot.VideoPrompt.Length))}\n";
+
+        if (!string.IsNullOrWhiteSpace(shot.ShotType))
+            summary += $"- 镜头类型: {shot.ShotType}\n";
+
+        return summary;
+    }
+
+    /// <summary>
+    /// 等待镜头分析完成
+    /// </summary>
+    private async Task WaitForAnalysisComplete(ShotItem shot, int maxWaitSeconds = 60)
+    {
+        var startTime = DateTime.Now;
+
+        while (shot.IsAiParsing && (DateTime.Now - startTime).TotalSeconds < maxWaitSeconds)
+        {
+            await Task.Delay(500); // 每500ms检查一次
+        }
+
+        if (shot.IsAiParsing)
+        {
+            _logger.LogWarning("镜头 {ShotNumber} 分析超时", shot.ShotNumber);
+        }
+    }
+
+    [RelayCommand]
+    private async Task AIAnalyzeAllLegacy()
+    {
+        _logger.LogInformation("开始传统批量 AI 分析（无上下文）");
+
+        // 查询所有镜头
+        var query = new GetAllShotsQuery();
+        _messenger.Send(query);
+        var shots = query.Shots;
+
+        if (shots == null || shots.Count == 0)
+        {
+            _logger.LogWarning("没有镜头可分析");
+            return;
+        }
+
+        // 只处理勾选的镜头
+        var checkedShots = shots.Where(s => s.IsChecked).ToList();
+
+        if (checkedShots.Count == 0)
+        {
+            _logger.LogWarning("没有勾选的镜头可分析");
+            return;
+        }
+
+        // 检查是否需要询问AI写入模式
+        var needMode = checkedShots.Any(NeedsAiWriteMode);
+        AiWriteMode? mode = null;
+
+        if (needMode)
+        {
+            mode = await RequestAiWriteModeAsync();
+            if (mode == null)
+            {
+                _logger.LogInformation("用户取消了批量AI分析");
+                return;
+            }
+        }
+
         var queuedCount = 0;
         var skippedCount = 0;
 
@@ -172,6 +350,7 @@ public partial class AiAnalysisViewModel : ObservableObject
     private async void OnAiParseRequested(object recipient, AiParseRequestedMessage message)
     {
         var shot = message.Shot;
+        var contextSummary = message.ContextSummary;
 
         try
         {
@@ -194,7 +373,7 @@ public partial class AiAnalysisViewModel : ObservableObject
                 {
                     try
                     {
-                        // 创建 AI 分析请求 - 使用素材图片进行分析
+                        // 创建 AI 分析请求 - 使用素材图片进行分析，携带上下文
                         var request = new AiShotAnalysisRequest(
                             MaterialImagePath: shot.MaterialFilePath,
                             ExistingShotType: shot.ShotType,
@@ -202,7 +381,8 @@ public partial class AiAnalysisViewModel : ObservableObject
                             ExistingActionCommand: shot.ActionCommand,
                             ExistingSceneSettings: shot.SceneSettings,
                             ExistingFirstFramePrompt: shot.FirstFramePrompt,
-                            ExistingLastFramePrompt: shot.LastFramePrompt
+                            ExistingLastFramePrompt: shot.LastFramePrompt,
+                            ContextSummary: contextSummary  // 传递上下文摘要
                         );
 
                         // 执行 AI 解析

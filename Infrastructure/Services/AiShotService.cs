@@ -149,12 +149,23 @@ public sealed class AiShotService : IAiShotService
     private static string BuildExistingContext(AiShotAnalysisRequest request)
     {
         var sb = new StringBuilder();
+
+        // 添加上下文摘要（如果有）
+        if (!string.IsNullOrWhiteSpace(request.ContextSummary))
+        {
+            sb.AppendLine("=== 前面镜头的上下文 ===");
+            sb.AppendLine(request.ContextSummary.Trim());
+            sb.AppendLine();
+            sb.AppendLine("=== 当前镜头的已有信息 ===");
+        }
+
         AppendIfPresent(sb, "镜头类型", request.ExistingShotType);
         AppendIfPresent(sb, "核心画面", request.ExistingCoreContent);
         AppendIfPresent(sb, "动作指令", request.ExistingActionCommand);
         AppendIfPresent(sb, "场景设定", request.ExistingSceneSettings);
         AppendIfPresent(sb, "首帧提示词", request.ExistingFirstFramePrompt);
         AppendIfPresent(sb, "尾帧提示词", request.ExistingLastFramePrompt);
+
         return sb.Length == 0 ? "无" : sb.ToString();
     }
 
