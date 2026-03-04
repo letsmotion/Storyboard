@@ -27,3 +27,6 @@ public record VideoImportedMessage(string VideoPath);
 
 // 同步模式变更消息
 public record SyncModeChangedMessage(SyncMode SyncMode);
+
+// 请求重新加载项目数据消息
+public record ReloadProjectDataRequestMessage();

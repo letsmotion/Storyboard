@@ -55,6 +55,9 @@ public partial class ProjectManagementViewModel : ObservableObject
         // 订阅查询消息 - 允许其他ViewModel查询当前项目ID
         _messenger.Register<GetCurrentProjectIdQuery>(this, (r, m) => m.ProjectId = CurrentProjectId);
 
+        // 订阅重新加载项目数据请求消息
+        _messenger.Register<ReloadProjectDataRequestMessage>(this, OnReloadProjectDataRequested);
+
         _ = ReloadProjectsAsync();
     }
 
@@ -263,5 +266,38 @@ public partial class ProjectManagementViewModel : ObservableObject
             return $"{(int)Math.Floor(diff.TotalDays)} 天前";
 
         return timestamp.LocalDateTime.ToString("yyyy/M/d");
+    }
+
+    /// <summary>
+    /// 处理重新加载项目数据请求
+    /// </summary>
+    private async void OnReloadProjectDataRequested(object recipient, ReloadProjectDataRequestMessage message)
+    {
+        if (!HasCurrentProject || string.IsNullOrWhiteSpace(CurrentProjectId))
+        {
+            _logger.LogWarning("无法重新加载项目数据: 没有打开的项目");
+            return;
+        }
+
+        _logger.LogInformation("收到重新加载项目数据请求: {ProjectId}", CurrentProjectId);
+
+        try
+        {
+            var state = await _projectStore.LoadAsync(CurrentProjectId);
+            if (state != null)
+            {
+                // 发送项目数据加载完成消息，让其他 ViewModel 接收并处理
+                _messenger.Send(new ProjectDataLoadedMessage(state));
+                _logger.LogInformation("项目数据重新加载成功: {ShotCount} 个镜头", state.Shots.Count);
+            }
+            else
+            {
+                _logger.LogWarning("项目数据重新加载失败: 返回 null");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "重新加载项目数据失败: {ProjectId}", CurrentProjectId);
+        }
     }
 }

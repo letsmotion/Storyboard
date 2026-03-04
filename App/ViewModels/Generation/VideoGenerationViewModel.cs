@@ -99,6 +99,9 @@ public partial class VideoGenerationViewModel : ObservableObject
 
         try
         {
+            // 自动检测并启用参考图
+            AutoDetectAndEnableReferenceImages(shot);
+
             shot.VideoGenerationMessage = null;
             shot.IsVideoGenerating = true;
 
@@ -201,6 +204,47 @@ public partial class VideoGenerationViewModel : ObservableObject
 
             // 异常时重置生成状态
             shot.IsVideoGenerating = false;
+        }
+    }
+
+    /// <summary>
+    /// 自动检测可用的参考图并启用对应的标志
+    /// </summary>
+    private void AutoDetectAndEnableReferenceImages(ShotItem shot)
+    {
+        var hasFirstFrame = !string.IsNullOrWhiteSpace(shot.FirstFrameImagePath)
+            && File.Exists(shot.FirstFrameImagePath);
+        var hasLastFrame = !string.IsNullOrWhiteSpace(shot.LastFrameImagePath)
+            && File.Exists(shot.LastFrameImagePath);
+
+        _logger.LogInformation("参考图检测: Shot {ShotNumber}, 首帧={HasFirst}, 尾帧={HasLast}",
+            shot.ShotNumber, hasFirstFrame, hasLastFrame);
+
+        // 如果有首帧图片且用户没有明确禁用，则自动启用
+        if (hasFirstFrame && !shot.UseFirstFrameReference)
+        {
+            _logger.LogInformation("自动启用首帧参考: Shot {ShotNumber}", shot.ShotNumber);
+            shot.UseFirstFrameReference = true;
+        }
+
+        // 如果有尾帧图片且用户没有明确禁用，则自动启用
+        if (hasLastFrame && !shot.UseLastFrameReference)
+        {
+            _logger.LogInformation("自动启用尾帧参考: Shot {ShotNumber}", shot.ShotNumber);
+            shot.UseLastFrameReference = true;
+        }
+
+        // 如果没有对应的参考图，确保标志为 false
+        if (!hasFirstFrame && shot.UseFirstFrameReference)
+        {
+            _logger.LogWarning("首帧参考已启用但首帧图片不存在，自动禁用: Shot {ShotNumber}", shot.ShotNumber);
+            shot.UseFirstFrameReference = false;
+        }
+
+        if (!hasLastFrame && shot.UseLastFrameReference)
+        {
+            _logger.LogWarning("尾帧参考已启用但尾帧图片不存在，自动禁用: Shot {ShotNumber}", shot.ShotNumber);
+            shot.UseLastFrameReference = false;
         }
     }
 

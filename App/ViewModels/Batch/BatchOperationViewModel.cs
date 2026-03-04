@@ -22,6 +22,8 @@ public partial class BatchOperationViewModel : ObservableObject
     private readonly ILogger<BatchOperationViewModel> _logger;
     private readonly Dictionary<(GenerationJobType, int), Queue<BatchJobItem>> _pendingByKey = new();
     private DateTimeOffset? _batchStartedAt;
+    private string? _currentProjectId;
+    private string? _batchProjectId;  // 记录批量操作开始时的项目 ID
 
     public ObservableCollection<ShotItem> Shots { get; } = new();
     public ObservableCollection<BatchJobItem> BatchJobs { get; } = new();
@@ -80,11 +82,36 @@ public partial class BatchOperationViewModel : ObservableObject
         _jobQueue.Jobs.CollectionChanged += OnJobsCollectionChanged;
         BatchJobs.CollectionChanged += OnBatchJobsCollectionChanged;
         SkippedItems.CollectionChanged += OnSkippedItemsCollectionChanged;
+
+        // 监听项目切换消息
+        _messenger.Register<ProjectOpenedMessage>(this, OnProjectChanged);
+        _messenger.Register<ProjectClosedMessage>(this, OnProjectChanged);
+        _messenger.Register<ProjectCreatedMessage>(this, OnProjectChanged);
     }
 
     public void RefreshShots()
     {
         _logger.LogInformation("批量操作: 刷新分镜列表");
+
+        // 获取当前项目 ID
+        var projectQuery = new GetCurrentProjectIdQuery();
+        _messenger.Send(projectQuery);
+        _currentProjectId = projectQuery.ProjectId;
+
+        if (string.IsNullOrWhiteSpace(_currentProjectId))
+        {
+            _logger.LogWarning("批量操作: 没有打开的项目");
+            foreach (var shot in Shots)
+            {
+                shot.PropertyChanged -= OnShotPropertyChanged;
+            }
+            Shots.Clear();
+            UpdateSelectionState();
+            return;
+        }
+
+        _logger.LogInformation("批量操作: 当前项目 ID = {ProjectId}", _currentProjectId);
+
         foreach (var shot in Shots)
         {
             shot.PropertyChanged -= OnShotPropertyChanged;
@@ -101,6 +128,7 @@ public partial class BatchOperationViewModel : ObservableObject
             return;
         }
 
+        // 添加所有分镜（GetAllShotsQuery 已经过滤了当前项目）
         foreach (var shot in query.Shots)
         {
             Shots.Add(shot);
@@ -134,6 +162,13 @@ public partial class BatchOperationViewModel : ObservableObject
             return;
         }
 
+        // 验证项目 ID
+        if (string.IsNullOrWhiteSpace(_currentProjectId))
+        {
+            _logger.LogError("批量操作: 无法执行，没有打开的项目");
+            return;
+        }
+
         var selectedShots = Shots.Where(s => s.IsChecked).ToList();
         if (selectedShots.Count == 0)
         {
@@ -141,7 +176,9 @@ public partial class BatchOperationViewModel : ObservableObject
             return;
         }
 
-        _logger.LogInformation("批量操作开始: 选中 {Count} 个分镜", selectedShots.Count);
+        // 记录批量操作的项目 ID
+        _batchProjectId = _currentProjectId;
+        _logger.LogInformation("批量操作开始: 项目 ID = {ProjectId}, 选中 {Count} 个分镜", _batchProjectId, selectedShots.Count);
 
         BatchJobs.Clear();
         SkippedItems.Clear();
@@ -416,10 +453,30 @@ public partial class BatchOperationViewModel : ObservableObject
     {
         if (shot.IsVideoGenerating)
             return (false, "正在生成视频");
+
         if (!string.IsNullOrWhiteSpace(shot.GeneratedVideoPath) && File.Exists(shot.GeneratedVideoPath))
             return (false, "已生成视频");
+
         if (string.IsNullOrWhiteSpace(shot.VideoPrompt))
             return (false, "缺少视频提示词");
+
+        // 检查参考图可用性（如果启用了参考图）
+        if (shot.UseFirstFrameReference)
+        {
+            var hasFirstFrame = !string.IsNullOrWhiteSpace(shot.FirstFrameImagePath)
+                && File.Exists(shot.FirstFrameImagePath);
+            if (!hasFirstFrame)
+                return (false, "启用了首帧参考但首帧图片不存在");
+        }
+
+        if (shot.UseLastFrameReference)
+        {
+            var hasLastFrame = !string.IsNullOrWhiteSpace(shot.LastFrameImagePath)
+                && File.Exists(shot.LastFrameImagePath);
+            if (!hasLastFrame)
+                return (false, "启用了尾帧参考但尾帧图片不存在");
+        }
+
         return (true, null);
     }
 
@@ -438,6 +495,50 @@ public partial class BatchOperationViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(HasOperationsSelected));
         OnPropertyChanged(nameof(CanExecute));
+    }
+
+    /// <summary>
+    /// 处理项目切换事件
+    /// </summary>
+    private void OnProjectChanged(object recipient, object message)
+    {
+        if (IsRunning)
+        {
+            _logger.LogWarning("批量操作: 项目已切换，但批量任务仍在执行 (当前项目: {CurrentProject}, 批量项目: {BatchProject})",
+                _currentProjectId, _batchProjectId);
+            // 注意：不自动取消任务，因为任务可能已经在执行中
+            // 用户应该等待任务完成或手动取消
+        }
+
+        // 更新当前项目 ID
+        if (message is ProjectOpenedMessage openedMsg)
+        {
+            _currentProjectId = openedMsg.ProjectId;
+            _logger.LogInformation("批量操作: 项目已打开 - {ProjectId}", _currentProjectId);
+        }
+        else if (message is ProjectCreatedMessage createdMsg)
+        {
+            _currentProjectId = createdMsg.ProjectId;
+            _logger.LogInformation("批量操作: 项目已创建 - {ProjectId}", _currentProjectId);
+        }
+        else if (message is ProjectClosedMessage)
+        {
+            _currentProjectId = null;
+            _logger.LogInformation("批量操作: 项目已关闭");
+        }
+
+        // 清空当前列表（如果不在执行中）
+        if (!IsRunning)
+        {
+            foreach (var shot in Shots)
+            {
+                shot.PropertyChanged -= OnShotPropertyChanged;
+            }
+            Shots.Clear();
+            BatchJobs.Clear();
+            SkippedItems.Clear();
+            UpdateSelectionState();
+        }
     }
 
     public void SetOperationSelection(bool aiAnalysis, bool firstFrame, bool lastFrame, bool video)

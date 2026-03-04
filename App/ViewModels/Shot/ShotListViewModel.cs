@@ -784,10 +784,12 @@ public partial class ShotListViewModel : ObservableObject
 
     private void OnShotsCreatedFromImages(object recipient, ShotsCreatedFromImagesMessage message)
     {
-        _logger.LogInformation("从图片创建了 {Count} 个分镜", message.SuccessCount);
+        _logger.LogInformation("从图片创建了 {Count} 个分镜，正在刷新列表", message.SuccessCount);
 
-        // 简单地记录日志,实际的刷新会由ProjectManagement触发
-        // 用户需要重新打开项目或刷新来看到新分镜
+        // 发送重新加载项目数据的请求
+        _messenger.Send(new ReloadProjectDataRequestMessage());
+
+        _logger.LogInformation("已请求重新加载项目数据");
     }
 
     private void OnClipTrimmed(object recipient, ClipTrimmedMessage message)
