@@ -267,6 +267,8 @@ public partial class App : Avalonia.Application
         services.AddTransient<ViewModels.Generation.AiAnalysisViewModel>();
         services.AddTransient<ViewModels.Generation.ImageGenerationViewModel>();
         services.AddTransient<ViewModels.Generation.VideoGenerationViewModel>();
+        services.AddTransient<ViewModels.Generation.AudioGenerationViewModel>();
+        services.AddTransient<ViewModels.Generation.BatchAudioGenerationViewModel>();
         services.AddTransient<ViewModels.Generation.ExportViewModel>();
         services.AddTransient<ViewModels.Shared.HistoryViewModel>();
         services.AddTransient<ViewModels.Batch.BatchOperationViewModel>();
@@ -291,6 +293,8 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IVideoGenerationProvider, VolcengineVideoGenerationProvider>();
         services.AddSingleton<IVideoGenerationProvider, NewApiVideoGenerationProvider>();
         services.AddSingleton<IVideoGenerationService, VideoGenerationService>();
+        services.AddSingleton<ITtsProvider, NewApiTtsProvider>();
+        services.AddSingleton<ITtsService, TtsService>();
         services.AddSingleton<IFinalRenderService, FinalRenderService>();
         services.AddSingleton<ICapCutExportService, CapCutExportService>();
         services.AddSingleton<IDraftManager, DraftManager>();

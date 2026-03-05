@@ -1571,6 +1571,199 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- Audio Generation (TTS) -->
+            <TabItem Header="配音生成">
+                <ScrollViewer Padding="16" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="16" MaxWidth="600">
+
+                        <!-- Audio Text Input -->
+                        <Border Background="#18181b"
+                                BorderBrush="#27272a"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="配音文本"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Foreground="#f5f5f5" />
+                                <TextBox Text="{Binding AudioText}"
+                                         Watermark="输入配音文本..."
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         MinHeight="120"
+                                         MaxHeight="300"
+                                         VerticalContentAlignment="Top"
+                                         Background="#0f0f0f"
+                                         BorderBrush="#27272a"
+                                         Foreground="#f5f5f5" />
+                                <TextBlock Text="{Binding AudioText.Length, StringFormat='字符数：{0}'}"
+                                           FontSize="11"
+                                           Foreground="#71717a" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- TTS Settings -->
+                        <Border Background="#18181b"
+                                BorderBrush="#27272a"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="语音设置"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Foreground="#f5f5f5" />
+
+                                <!-- Voice Selection -->
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="音色"
+                                               FontSize="12"
+                                               Foreground="#a1a1aa" />
+                                    <ComboBox ItemsSource="{Binding TtsVoiceOptions}"
+                                              SelectedItem="{Binding TtsVoice}"
+                                              HorizontalAlignment="Stretch"
+                                              Background="#0f0f0f"
+                                              BorderBrush="#27272a" />
+                                    <TextBlock FontSize="11" Foreground="#71717a" TextWrapping="Wrap">
+                                        <Run Text="• alloy: 中性、平衡" />
+                                        <LineBreak />
+                                        <Run Text="• echo: 男性、沉稳" />
+                                        <LineBreak />
+                                        <Run Text="• fable: 英式、优雅" />
+                                        <LineBreak />
+                                        <Run Text="• onyx: 男性、深沉" />
+                                        <LineBreak />
+                                        <Run Text="• nova: 女性、活泼" />
+                                        <LineBreak />
+                                        <Run Text="• shimmer: 女性、温柔" />
+                                    </TextBlock>
+                                </StackPanel>
+
+                                <!-- Speed Control -->
+                                <StackPanel Spacing="6">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="语速"
+                                                   FontSize="12"
+                                                   Foreground="#a1a1aa" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding TtsSpeed, StringFormat='{}{0:F2}x'}"
+                                                   FontSize="12"
+                                                   Foreground="#f5f5f5" />
+                                    </Grid>
+                                    <Slider Value="{Binding TtsSpeed}"
+                                            Minimum="0.25"
+                                            Maximum="4.0"
+                                            TickFrequency="0.25"
+                                            IsSnapToTickEnabled="True" />
+                                    <TextBlock Text="0.25x (最慢) - 1.0x (正常) - 4.0x (最快)"
+                                               FontSize="11"
+                                               Foreground="#71717a" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Audio Preview -->
+                        <Border Background="#18181b"
+                                BorderBrush="#27272a"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16"
+                                IsVisible="{Binding HasGeneratedAudio}">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="已生成音频"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Foreground="#f5f5f5" />
+
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                    <Border Grid.Column="0"
+                                            Background="#27272a"
+                                            CornerRadius="6"
+                                            Padding="12"
+                                            Width="60"
+                                            Height="60">
+                                        <PathIcon Data="M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"
+                                                  Width="24"
+                                                  Height="24"
+                                                  Foreground="#3b82f6" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding GeneratedAudioPath, Converter={StaticResource PathToFileNameConverter}}"
+                                                   FontSize="12"
+                                                   Foreground="#f5f5f5"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock FontSize="11" Foreground="#71717a">
+                                            <Run Text="时长：" />
+                                            <Run Text="{Binding AudioDuration, StringFormat='{}{0:F2}秒'}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Audio Actions -->
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                    <Button Grid.Column="0"
+                                            Classes="Secondary"
+                                            HorizontalAlignment="Stretch"
+                                            Command="{Binding PlayAudioCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                            <PathIcon Data="M8 5v14l11-7z" Width="12" Height="12" />
+                                            <TextBlock Text="播放" FontSize="11" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Column="1"
+                                            Classes="Ghost"
+                                            HorizontalAlignment="Stretch"
+                                            Command="{Binding DeleteAudioCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                            <PathIcon Data="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" Width="12" Height="12" />
+                                            <TextBlock Text="删除" FontSize="11" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Generate Button -->
+                        <Button Classes="Primary"
+                                HorizontalAlignment="Stretch"
+                                Height="40"
+                                IsEnabled="{Binding IsGeneratingAudio, Converter={StaticResource BoolNot}}"
+                                Command="{Binding RequestGenerateAudioCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                <PathIcon Data="M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"
+                                          Width="16"
+                                          Height="16"
+                                          IsVisible="{Binding IsGeneratingAudio, Converter={StaticResource BoolNot}}" />
+                                <ProgressBar IsIndeterminate="True"
+                                             Width="100"
+                                             Height="4"
+                                             IsVisible="{Binding IsGeneratingAudio}" />
+                                <TextBlock Text="{Binding IsGeneratingAudio, Converter={StaticResource GeneratingAudioTextConverter}, FallbackValue='生成配音'}"
+                                           FontSize="13"
+                                           FontWeight="SemiBold" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Status Message -->
+                        <Border Background="#18181b"
+                                BorderBrush="#27272a"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12"
+                                IsVisible="{Binding AudioStatusMessage, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
+                            <TextBlock Text="{Binding AudioStatusMessage}"
+                                       FontSize="12"
+                                       Foreground="#f5f5f5"
+                                       TextWrapping="Wrap" />
+                        </Border>
+
+                        <Border Height="80" Background="Transparent" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
         </TabControl>
     </Grid>
 

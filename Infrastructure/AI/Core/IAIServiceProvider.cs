@@ -18,7 +18,8 @@ public enum AIProviderCapability
 {
     TextUnderstanding = 1,
     ImageGeneration = 2,
-    VideoGeneration = 4
+    VideoGeneration = 4,
+    TextToSpeech = 8
 }
 
 public sealed record ProviderCapabilityDeclaration(

@@ -13,3 +13,10 @@ public enum VideoProviderType
     Volcengine,
     NewApi
 }
+
+public enum TtsProviderType
+{
+    Qwen,
+    Volcengine,
+    NewApi
+}

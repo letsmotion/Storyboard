@@ -1,0 +1,250 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Storyboard.ViewModels.Generation"
+        mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="700"
+        x:Class="Storyboard.Views.BatchAudioGenerationDialog"
+        x:DataType="vm:BatchAudioGenerationViewModel"
+        Title="批量配音生成"
+        Width="600" Height="700"
+        MinWidth="500" MinHeight="600"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        Background="#0f0f0f">
+
+    <Window.Styles>
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#e4e4e7"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+
+        <Style Selector="TextBlock.label">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="#a1a1aa"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <Style Selector="TextBlock.hint">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#71717a"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+        </Style>
+
+        <Style Selector="Border.section">
+            <Setter Property="Background" Value="#18181b"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
+        </Style>
+
+        <Style Selector="ComboBox">
+            <Setter Property="Background" Value="#27272a"/>
+            <Setter Property="Foreground" Value="#e4e4e7"/>
+            <Setter Property="BorderBrush" Value="#3f3f46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="MinHeight" Value="40"/>
+        </Style>
+
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#3b82f6"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style Selector="Button.primary:pointerover">
+            <Setter Property="Background" Value="#2563eb"/>
+        </Style>
+
+        <Style Selector="Button.primary:disabled">
+            <Setter Property="Background" Value="#27272a"/>
+            <Setter Property="Foreground" Value="#71717a"/>
+            <Setter Property="Cursor" Value="Arrow"/>
+        </Style>
+
+        <Style Selector="Button.secondary">
+            <Setter Property="Background" Value="#27272a"/>
+            <Setter Property="Foreground" Value="#e4e4e7"/>
+            <Setter Property="BorderBrush" Value="#3f3f46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style Selector="Button.secondary:pointerover">
+            <Setter Property="Background" Value="#3f3f46"/>
+        </Style>
+    </Window.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24" Spacing="0">
+
+            <!-- 选中的镜头 -->
+            <Border Classes="section">
+                <StackPanel Spacing="8">
+                    <TextBlock Classes="section-title" Text="选中的镜头"/>
+                    <TextBlock FontSize="13" Foreground="#e4e4e7">
+                        <Run Text="已选择"/>
+                        <Run Text="{Binding SelectedShotsCount}" FontWeight="SemiBold"/>
+                        <Run Text="个镜头"/>
+                    </TextBlock>
+                    <TextBlock Classes="hint" Text="将为所有选中的镜头生成配音"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 语音设置 -->
+            <Border Classes="section">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="section-title" Text="语音设置"/>
+
+                    <!-- 音色选择 -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="label" Text="音色"/>
+                        <ComboBox ItemsSource="{Binding VoiceOptions}"
+                                  SelectedItem="{Binding SelectedVoice}"
+                                  HorizontalAlignment="Stretch"/>
+                        <TextBlock Classes="hint">
+                            <Run Text="alloy: 中性 | echo: 男性 | fable: 英式 | onyx: 深沉 | nova: 女性 | shimmer: 柔和"/>
+                        </TextBlock>
+                    </StackPanel>
+
+                    <!-- 语速调节 -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="label">
+                            <Run Text="语速: "/>
+                            <Run Text="{Binding Speed, StringFormat={}{0:F2}x}" FontWeight="SemiBold" Foreground="#3b82f6"/>
+                        </TextBlock>
+                        <Slider Minimum="0.25" Maximum="4.0"
+                                Value="{Binding Speed}"
+                                TickFrequency="0.25"
+                                IsSnapToTickEnabled="True"
+                                HorizontalAlignment="Stretch"/>
+                        <TextBlock Classes="hint" Text="范围: 0.25x - 4.0x (默认 1.0x)"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 生成选项 -->
+            <Border Classes="section">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="section-title" Text="生成选项"/>
+
+                    <CheckBox IsChecked="{Binding SkipExistingAudio}"
+                              Content="跳过已有配音的镜头"
+                              Foreground="#e4e4e7"
+                              FontSize="13"/>
+
+                    <CheckBox IsChecked="{Binding UseExistingText}"
+                              Content="使用镜头现有的配音文本"
+                              Foreground="#e4e4e7"
+                              FontSize="13"/>
+
+                    <TextBlock Classes="hint"
+                               Text="如果镜头已有配音文本，将使用该文本；否则使用镜头描述"
+                               IsVisible="{Binding UseExistingText}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 生成进度 -->
+            <Border Classes="section" IsVisible="{Binding IsGenerating}">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="section-title" Text="生成进度"/>
+
+                    <ProgressBar Value="{Binding Progress}"
+                                 Maximum="100"
+                                 Height="8"
+                                 Foreground="#3b82f6"
+                                 Background="#27272a"
+                                 CornerRadius="4"/>
+
+                    <TextBlock FontSize="13" Foreground="#a1a1aa" HorizontalAlignment="Center">
+                        <Run Text="{Binding CompletedCount}"/>
+                        <Run Text="/"/>
+                        <Run Text="{Binding TotalCount}"/>
+                        <Run Text="已完成"/>
+                    </TextBlock>
+
+                    <TextBlock Text="{Binding CurrentStatus}"
+                               FontSize="12"
+                               Foreground="#71717a"
+                               HorizontalAlignment="Center"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 生成结果 -->
+            <Border Classes="section" IsVisible="{Binding ShowResults}">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="section-title" Text="生成结果"/>
+
+                    <StackPanel Spacing="8">
+                        <TextBlock FontSize="13" Foreground="#22c55e">
+                            <Run Text="✓ 成功: "/>
+                            <Run Text="{Binding SuccessCount}" FontWeight="SemiBold"/>
+                        </TextBlock>
+
+                        <TextBlock FontSize="13" Foreground="#ef4444"
+                                   IsVisible="{Binding HasFailures}">
+                            <Run Text="✗ 失败: "/>
+                            <Run Text="{Binding FailureCount}" FontWeight="SemiBold"/>
+                        </TextBlock>
+
+                        <TextBlock FontSize="13" Foreground="#a1a1aa"
+                                   IsVisible="{Binding HasSkipped}">
+                            <Run Text="○ 跳过: "/>
+                            <Run Text="{Binding SkippedCount}" FontWeight="SemiBold"/>
+                        </TextBlock>
+                    </StackPanel>
+
+                    <!-- 失败详情 -->
+                    <ScrollViewer MaxHeight="150"
+                                  IsVisible="{Binding HasFailures}"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding FailureMessages}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}"
+                                               FontSize="12"
+                                               Foreground="#ef4444"
+                                               TextWrapping="Wrap"
+                                               Margin="0,2"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
+            </Border>
+
+            <!-- 按钮区域 -->
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="12"
+                        Margin="0,8,0,0">
+
+                <Button Classes="secondary"
+                        Content="{Binding CancelButtonText}"
+                        Command="{Binding CancelCommand}"
+                        Width="120"/>
+
+                <Button Classes="primary"
+                        Content="{Binding GenerateButtonText}"
+                        Command="{Binding GenerateCommand}"
+                        IsEnabled="{Binding CanGenerate}"
+                        Width="120"/>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+
+</Window>

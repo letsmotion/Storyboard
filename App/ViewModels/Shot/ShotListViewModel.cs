@@ -300,6 +300,9 @@ public partial class ShotListViewModel : ObservableObject
         shot.GenerateLastFrameRequested += OnShotGenerateLastFrameRequestedEvent;
         shot.GenerateVideoRequested += OnShotGenerateVideoRequestedEvent;
         shot.EditCoreContentRequested += OnShotEditCoreContentRequestedEvent;
+        shot.GenerateAudioRequested += OnShotGenerateAudioRequestedEvent;
+        shot.PlayAudioRequested += OnShotPlayAudioRequestedEvent;
+        shot.DeleteAudioRequested += OnShotDeleteAudioRequestedEvent;
         shot.PropertyChanged += Shot_PropertyChanged;
     }
 
@@ -316,6 +319,9 @@ public partial class ShotListViewModel : ObservableObject
         shot.GenerateLastFrameRequested -= OnShotGenerateLastFrameRequestedEvent;
         shot.GenerateVideoRequested -= OnShotGenerateVideoRequestedEvent;
         shot.EditCoreContentRequested -= OnShotEditCoreContentRequestedEvent;
+        shot.GenerateAudioRequested -= OnShotGenerateAudioRequestedEvent;
+        shot.PlayAudioRequested -= OnShotPlayAudioRequestedEvent;
+        shot.DeleteAudioRequested -= OnShotDeleteAudioRequestedEvent;
         shot.PropertyChanged -= Shot_PropertyChanged;
     }
 
@@ -409,6 +415,33 @@ public partial class ShotListViewModel : ObservableObject
         {
             _logger.LogInformation("镜头请求生成视频: Shot {ShotNumber}", shot.ShotNumber);
             _messenger.Send(new VideoGenerationRequestedMessage(shot));
+        }
+    }
+
+    private void OnShotGenerateAudioRequestedEvent(object? sender, EventArgs e)
+    {
+        if (sender is ShotItem shot)
+        {
+            _logger.LogInformation("镜头请求生成配音: Shot {ShotNumber}", shot.ShotNumber);
+            _messenger.Send(new AudioGenerationRequestedMessage(shot));
+        }
+    }
+
+    private void OnShotPlayAudioRequestedEvent(object? sender, EventArgs e)
+    {
+        if (sender is ShotItem shot)
+        {
+            _logger.LogInformation("镜头请求播放配音: Shot {ShotNumber}", shot.ShotNumber);
+            _messenger.Send(new AudioPlayRequestedMessage(shot));
+        }
+    }
+
+    private void OnShotDeleteAudioRequestedEvent(object? sender, EventArgs e)
+    {
+        if (sender is ShotItem shot)
+        {
+            _logger.LogInformation("镜头请求删除配音: Shot {ShotNumber}", shot.ShotNumber);
+            _messenger.Send(new AudioDeleteRequestedMessage(shot));
         }
     }
 
@@ -1017,5 +1050,14 @@ public partial class ShotListViewModel : ObservableObject
                 IsSelected = asset.IsSelected
             });
         }
+    }
+
+    /// <summary>
+    /// 批量配音生成命令
+    /// </summary>
+    [RelayCommand]
+    private void BatchGenerateAudio()
+    {
+        _messenger.Send(new BatchAudioGenerationRequestedMessage());
     }
 }

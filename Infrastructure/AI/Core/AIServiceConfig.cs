@@ -16,6 +16,7 @@ public sealed class AIProviderModelDefaults
     public string Text { get; set; } = string.Empty;
     public string Image { get; set; } = string.Empty;
     public string Video { get; set; } = string.Empty;
+    public string Tts { get; set; } = string.Empty;
 }
 
 public sealed class AIProviderConfiguration
@@ -45,6 +46,7 @@ public sealed class AIServiceDefaults
     public AIServiceDefaultSelection Text { get; set; } = new();
     public AIServiceDefaultSelection Image { get; set; } = new();
     public AIServiceDefaultSelection Video { get; set; } = new();
+    public AIServiceDefaultSelection Tts { get; set; } = new();
 }
 
 public sealed class AIServicesConfiguration
@@ -54,6 +56,7 @@ public sealed class AIServicesConfiguration
 
     public ImageServicesConfiguration Image { get; set; } = new();
     public VideoServicesConfiguration Video { get; set; } = new();
+    public TtsServicesConfiguration Tts { get; set; } = new();
 }
 
 public sealed class VolcengineImageConfig
@@ -138,4 +141,18 @@ public sealed class NewApiVideoConfig
     public bool Watermark { get; set; }
     public bool ReturnLastFrame { get; set; }
     public string? ProviderHint { get; set; }
+}
+
+public sealed class NewApiTtsConfig
+{
+    public string Voice { get; set; } = "alloy";
+    public double Speed { get; set; } = 1.0;
+    public string ResponseFormat { get; set; } = "mp3";
+    public string? ProviderHint { get; set; }
+}
+
+public class TtsServicesConfiguration
+{
+    public TtsProviderType DefaultProvider { get; set; } = TtsProviderType.NewApi;
+    public NewApiTtsConfig NewApi { get; set; } = new();
 }

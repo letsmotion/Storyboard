@@ -46,6 +46,7 @@ public partial class MainViewModel : ObservableObject
     public AiAnalysisViewModel AiAnalysis { get; }
     public ImageGenerationViewModel ImageGeneration { get; }
     public VideoGenerationViewModel VideoGeneration { get; }
+    public AudioGenerationViewModel AudioGeneration { get; }
     public ExportViewModel Export { get; }
     public JobQueueViewModel JobQueue { get; }
     public HistoryViewModel History { get; }
@@ -309,6 +310,7 @@ public partial class MainViewModel : ObservableObject
         AiAnalysisViewModel aiAnalysis,
         ImageGenerationViewModel imageGeneration,
         VideoGenerationViewModel videoGeneration,
+        AudioGenerationViewModel audioGeneration,
         ExportViewModel export,
         JobQueueViewModel jobQueue,
         HistoryViewModel history,
@@ -330,6 +332,7 @@ public partial class MainViewModel : ObservableObject
         AiAnalysis = aiAnalysis;
         ImageGeneration = imageGeneration;
         VideoGeneration = videoGeneration;
+        AudioGeneration = audioGeneration;
         Export = export;
         JobQueue = jobQueue;
         History = history;
@@ -424,6 +427,7 @@ public partial class MainViewModel : ObservableObject
         _messenger.Register<BatchInsertShotRequestedMessage>(this, OnBatchInsertShotRequested);
         _messenger.Register<EditCoreContentRequestedMessage>(this, OnEditCoreContentRequested);
         _messenger.Register<ExportCompletedMessage>(this, OnExportCompleted);
+        _messenger.Register<BatchAudioGenerationRequestedMessage>(this, OnBatchAudioGenerationRequested);
 
         // 订阅时间轴片段选中消息
         _messenger.Register<ClipSelectedMessage>(this, OnClipSelected);
@@ -1422,5 +1426,30 @@ public partial class MainViewModel : ObservableObject
             StatusMessage = $"✗ 视频导出失败：{errorMsg}";
             _logger.LogWarning("视频导出失败: {Error}", errorMsg);
         }
+    }
+
+    private async void OnBatchAudioGenerationRequested(object recipient, BatchAudioGenerationRequestedMessage message)
+    {
+        var selectedShots = ShotList.Shots.Where(s => s.IsChecked).ToList();
+        if (selectedShots.Count == 0)
+        {
+            StatusMessage = "请先选择要生成配音的镜头";
+            return;
+        }
+
+        var viewModel = new ViewModels.Generation.BatchAudioGenerationViewModel(
+            _serviceProvider.GetRequiredService<ITtsService>(),
+            _messenger,
+            _serviceProvider.GetRequiredService<ILogger<ViewModels.Generation.BatchAudioGenerationViewModel>>()
+        );
+
+        viewModel.SetShots(selectedShots);
+
+        var dialog = new Views.BatchAudioGenerationDialog
+        {
+            DataContext = viewModel
+        };
+
+        await dialog.ShowDialog(GetMainWindow());
     }
 }

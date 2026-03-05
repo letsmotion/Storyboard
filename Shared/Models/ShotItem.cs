@@ -1074,4 +1074,69 @@ public partial class ShotItem : ObservableObject
             // 确保不会因为异常导致状态不一致
         }
     }
+
+    // ========== TTS Audio Properties ==========
+
+    [ObservableProperty]
+    private string _audioText = string.Empty;
+
+    [ObservableProperty]
+    private string? _generatedAudioPath;
+
+    [ObservableProperty]
+    private string _ttsVoice = "alloy";
+
+    [ObservableProperty]
+    private double _ttsSpeed = 1.0;
+
+    [ObservableProperty]
+    private string _ttsModel = string.Empty;
+
+    [ObservableProperty]
+    private double _audioDuration;
+
+    [ObservableProperty]
+    private bool _generateAudioEnabled;
+
+    [ObservableProperty]
+    private bool _isGeneratingAudio;
+
+    [ObservableProperty]
+    private string _audioStatusMessage = string.Empty;
+
+    // TTS voice options
+    public ObservableCollection<string> TtsVoiceOptions { get; } = new()
+    {
+        "alloy",
+        "echo",
+        "fable",
+        "onyx",
+        "nova",
+        "shimmer"
+    };
+
+    // Events for TTS
+    public event EventHandler? GenerateAudioRequested;
+    public event EventHandler? PlayAudioRequested;
+    public event EventHandler? DeleteAudioRequested;
+
+    [RelayCommand]
+    private void RequestGenerateAudio()
+    {
+        GenerateAudioRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void PlayAudio()
+    {
+        PlayAudioRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void DeleteAudio()
+    {
+        DeleteAudioRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    public bool HasGeneratedAudio => !string.IsNullOrWhiteSpace(GeneratedAudioPath) && File.Exists(GeneratedAudioPath);
 }

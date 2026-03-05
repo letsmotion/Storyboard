@@ -25,3 +25,18 @@ public record ExportRequestedMessage(string OutputPath);
 
 // 导出完成消息
 public record ExportCompletedMessage(bool Success, string? OutputPath, string? ErrorMessage = null);
+
+// 音频生成请求消息
+public record AudioGenerationRequestedMessage(ShotItem Shot);
+
+// 音频生成完成消息
+public record AudioGenerationCompletedMessage(ShotItem Shot, bool Success, string? AudioPath);
+
+// 音频播放请求消息
+public record AudioPlayRequestedMessage(ShotItem Shot);
+
+// 音频删除请求消息
+public record AudioDeleteRequestedMessage(ShotItem Shot);
+
+// 批量音频生成请求消息
+public record BatchAudioGenerationRequestedMessage();

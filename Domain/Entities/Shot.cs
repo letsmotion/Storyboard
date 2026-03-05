@@ -378,6 +378,42 @@ public sealed class Shot
     /// </summary>
     public int? LastFrameSeed { get; set; }
 
+    // Audio/TTS parameters
+    /// <summary>
+    /// 配音文本
+    /// </summary>
+    public string AudioText { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 生成的音频文件路径
+    /// </summary>
+    public string? GeneratedAudioPath { get; set; }
+
+    /// <summary>
+    /// TTS 音色
+    /// </summary>
+    public string TtsVoice { get; set; } = "alloy";
+
+    /// <summary>
+    /// TTS 语速
+    /// </summary>
+    public double TtsSpeed { get; set; } = 1.0;
+
+    /// <summary>
+    /// TTS 模型
+    /// </summary>
+    public string TtsModel { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 音频时长（秒）
+    /// </summary>
+    public double AudioDuration { get; set; }
+
+    /// <summary>
+    /// 是否生成音频
+    /// </summary>
+    public bool GenerateAudio { get; set; }
+
     /// <summary>
     /// 镜头下的素材列表
     /// </summary>

@@ -40,7 +40,9 @@
       "Bash(git checkout:*)",
       "Bash(ping:*)",
       "Read(//c/Users/Administrator/AppData/Local/Storyboard/**)",
-      "WebFetch(domain:docs.newapi.pro)"
+      "WebFetch(domain:docs.newapi.pro)",
+      "Bash(xargs grep:*)",
+      "WebSearch"
     ],
     "additionalDirectories": [
       "d:\\project\\分镜大师"

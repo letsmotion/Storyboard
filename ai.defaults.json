@@ -27,7 +27,8 @@
         "DefaultModels": {
             "Text": "doubao-seed-1-6-251015",
             "Image": "doubao-seedream-4-5-251128",
-            "Video": "doubao-seedance-1-0-lite-i2v-250428"
+            "Video": "doubao-seedance-1-0-lite-i2v-250428",
+            "Tts": "tts-1"
         }
     }
   },
@@ -88,6 +89,17 @@
         "DurationSeconds": 12,
         "Watermark": false,
         "ReturnLastFrame": false,
+        "ProviderHint": ""
+      }
+    }
+  },
+  "Tts": {
+    "DefaultProvider": "NewApi",
+    "Providers": {
+      "NewApi": {
+        "Voice": "alloy",
+        "Speed": 1.0,
+        "ResponseFormat": "mp3",
         "ProviderHint": ""
       }
     }
