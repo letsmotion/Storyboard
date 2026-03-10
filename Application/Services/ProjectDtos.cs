@@ -112,7 +112,14 @@ public sealed record ShotState(
     long ActualDurationTick = 0,
     ShotTimingSource TimingSource = ShotTimingSource.ShotPlanned,
     bool IsSyncedToTimeline = true,
-    bool IsDurationLocked = false);
+    bool IsDurationLocked = false,
+    // TTS fields
+    string AudioText = "",
+    string? GeneratedAudioPath = null,
+    string TtsVoice = "alloy",
+    double TtsSpeed = 1.0,
+    string TtsModel = "",
+    double AudioDuration = 0);
 
 public sealed record ShotAssetState(
     Domain.Entities.ShotAssetType Type,

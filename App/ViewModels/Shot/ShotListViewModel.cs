@@ -258,7 +258,13 @@ public partial class ShotListViewModel : ObservableObject
             UseLastFrameReference = original.UseLastFrameReference,
             Seed = original.Seed,
             CameraFixed = original.CameraFixed,
-            Watermark = original.Watermark
+            Watermark = original.Watermark,
+            AudioText = original.AudioText,
+            GeneratedAudioPath = original.GeneratedAudioPath,
+            TtsVoice = original.TtsVoice,
+            TtsSpeed = original.TtsSpeed,
+            TtsModel = original.TtsModel,
+            AudioDuration = original.AudioDuration
         };
 
         AttachShotEventHandlers(duplicate);
@@ -725,7 +731,13 @@ public partial class ShotListViewModel : ObservableObject
                 UseLastFrameReference = shotState.UseLastFrameReference,
                 Seed = shotState.Seed,
                 CameraFixed = shotState.CameraFixed,
-                Watermark = shotState.Watermark
+                Watermark = shotState.Watermark,
+                AudioText = shotState.AudioText,
+                GeneratedAudioPath = shotState.GeneratedAudioPath,
+                TtsVoice = shotState.TtsVoice,
+                TtsSpeed = shotState.TtsSpeed,
+                TtsModel = shotState.TtsModel,
+                AudioDuration = shotState.AudioDuration
             };
 
             // 加载资产到对应的集合
@@ -1014,6 +1026,12 @@ public partial class ShotListViewModel : ObservableObject
             Seed = original.Seed,
             CameraFixed = original.CameraFixed,
             Watermark = original.Watermark,
+            AudioText = original.AudioText,
+            GeneratedAudioPath = original.GeneratedAudioPath,
+            TtsVoice = original.TtsVoice,
+            TtsSpeed = original.TtsSpeed,
+            TtsModel = original.TtsModel,
+            AudioDuration = original.AudioDuration,
             FirstFrameImagePath = original.FirstFrameImagePath,
             LastFrameImagePath = original.LastFrameImagePath,
             GeneratedVideoPath = original.GeneratedVideoPath,

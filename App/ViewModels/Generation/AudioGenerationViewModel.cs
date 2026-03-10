@@ -1,10 +1,13 @@
 using System;
+using System.Globalization;
 using System.IO;
+using System.Text.Json;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Storyboard.Application.Abstractions;
+using Storyboard.Infrastructure.Media;
 using Storyboard.Messages;
 using Storyboard.Models;
 
@@ -61,6 +64,7 @@ public partial class AudioGenerationViewModel : ObservableObject
 
             // 更新镜头信息
             shot.GeneratedAudioPath = audioPath;
+            shot.AudioDuration = await TryGetAudioDurationAsync(audioPath);
             shot.AudioStatusMessage = $"配音生成成功！";
             shot.OnPropertyChanged(nameof(shot.HasGeneratedAudio));
 
@@ -145,5 +149,51 @@ public partial class AudioGenerationViewModel : ObservableObject
             _logger.LogError(ex, "删除音频失败: {AudioPath}", shot.GeneratedAudioPath);
             shot.AudioStatusMessage = $"删除失败：{ex.Message}";
         }
+    }
+
+    private async Task<double> TryGetAudioDurationAsync(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return 0;
+
+        try
+        {
+            var ffprobePath = FfmpegLocator.GetFfprobePath();
+            var startInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = ffprobePath,
+                Arguments = $"-v error -print_format json -show_format \"{path}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            using var process = System.Diagnostics.Process.Start(startInfo);
+            if (process == null)
+                return 0;
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            var stdout = await stdoutTask;
+
+            if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(stdout))
+                return 0;
+
+            using var doc = JsonDocument.Parse(stdout);
+            if (doc.RootElement.TryGetProperty("format", out var format) &&
+                format.TryGetProperty("duration", out var durationElement) &&
+                double.TryParse(durationElement.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var duration) &&
+                duration > 0)
+            {
+                return duration;
+            }
+        }
+        catch
+        {
+            // Ignore duration probing failures and keep fallback 0.
+        }
+
+        return 0;
     }
 }

@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -9,6 +12,7 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Storyboard.Application.Abstractions;
+using Storyboard.Infrastructure.Media;
 using Storyboard.Messages;
 using Storyboard.Models;
 
@@ -167,6 +171,7 @@ public partial class BatchAudioGenerationViewModel : ObservableObject
 
                     // 更新镜头信息
                     shot.GeneratedAudioPath = audioPath;
+                    shot.AudioDuration = await TryGetAudioDurationAsync(audioPath);
                     shot.TtsVoice = SelectedVoice;
                     shot.TtsSpeed = Speed;
                     if (UseExistingText || string.IsNullOrWhiteSpace(shot.AudioText))
@@ -257,5 +262,51 @@ public partial class BatchAudioGenerationViewModel : ObservableObject
         OnPropertyChanged(nameof(CanGenerate));
         OnPropertyChanged(nameof(GenerateButtonText));
         OnPropertyChanged(nameof(CancelButtonText));
+    }
+
+    private static async Task<double> TryGetAudioDurationAsync(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return 0;
+
+        try
+        {
+            var ffprobePath = FfmpegLocator.GetFfprobePath();
+            var startInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = ffprobePath,
+                Arguments = $"-v error -print_format json -show_format \"{path}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            using var process = System.Diagnostics.Process.Start(startInfo);
+            if (process == null)
+                return 0;
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            var stdout = await stdoutTask;
+
+            if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(stdout))
+                return 0;
+
+            using var doc = JsonDocument.Parse(stdout);
+            if (doc.RootElement.TryGetProperty("format", out var format) &&
+                format.TryGetProperty("duration", out var durationElement) &&
+                double.TryParse(durationElement.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var duration) &&
+                duration > 0)
+            {
+                return duration;
+            }
+        }
+        catch
+        {
+            // Ignore probing failures and keep duration as 0.
+        }
+
+        return 0;
     }
 }

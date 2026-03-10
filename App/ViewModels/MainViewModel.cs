@@ -1163,7 +1163,13 @@ public partial class MainViewModel : ObservableObject
             shot.UseLastFrameReference,
             shot.Seed,
             shot.CameraFixed,
-            shot.Watermark
+            shot.Watermark,
+            AudioText: shot.AudioText,
+            GeneratedAudioPath: shot.GeneratedAudioPath,
+            TtsVoice: shot.TtsVoice,
+            TtsSpeed: shot.TtsSpeed,
+            TtsModel: shot.TtsModel,
+            AudioDuration: shot.AudioDuration
         )).ToList();
 
         return new ProjectState(

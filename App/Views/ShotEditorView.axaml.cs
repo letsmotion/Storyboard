@@ -8,9 +8,12 @@ using Storyboard.Application.Services;
 using Storyboard.Domain.Entities;
 using Storyboard.Infrastructure.Media;
 using Microsoft.Extensions.DependencyInjection;
+using Storyboard.ViewModels;
 using System;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
+using System.Text.Json;
 using LibVLCSharp.Shared;
 using LibVLCSharp.Avalonia;
 using System.Threading;
@@ -27,6 +30,11 @@ public partial class ShotEditorView : UserControl, IDisposable
     private MediaPlayer? _mediaPlayer;
     private Media? _currentMedia;
     private string? _currentVideoPath;
+    private LibVLC? _audioLibVLC;
+    private MediaPlayer? _audioPlayer;
+    private Media? _currentAudioMedia;
+    private string? _currentAudioPath;
+    private DispatcherTimer? _audioProgressTimer;
     private bool _isDisposed = false;
     private bool _isInitialized = false;
     private bool _viewReady = false;
@@ -52,6 +60,284 @@ public partial class ShotEditorView : UserControl, IDisposable
 
         AttachedToVisualTree += OnAttachedToVisualTree;
         DetachedFromVisualTree += OnDetachedFromVisualTree;
+
+        ResetAudioPlaybackUi();
+    }
+
+    private void EnsureAudioPlayerInitialized()
+    {
+        if (_audioPlayer != null)
+            return;
+
+        _audioLibVLC = new LibVLC(
+            "--no-video-title-show",
+            "--no-video",
+            "--quiet");
+
+        _audioPlayer = new MediaPlayer(_audioLibVLC);
+        _audioPlayer.EndReached += OnAudioPlaybackEnded;
+        _audioPlayer.EncounteredError += OnAudioPlaybackError;
+
+        _audioProgressTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(200)
+        };
+        _audioProgressTimer.Tick += OnAudioProgressTimerTick;
+    }
+
+    private void OnToggleAudioPlayClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShotItem shot)
+            return;
+
+        var path = shot.GeneratedAudioPath;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            shot.AudioStatusMessage = "音频文件不存在";
+            StopAudioPlayback(resetProgress: true, clearMedia: true);
+            return;
+        }
+
+        try
+        {
+            lock (_playerLock)
+            {
+                EnsureAudioPlayerInitialized();
+                if (_audioPlayer == null)
+                {
+                    shot.AudioStatusMessage = "内置播放器初始化失败";
+                    return;
+                }
+
+                var normalizedPath = Path.GetFullPath(path);
+                if (!string.Equals(_currentAudioPath, normalizedPath, StringComparison.OrdinalIgnoreCase) ||
+                    _audioPlayer.Media == null)
+                {
+                    if (!TryLoadAudio(normalizedPath))
+                    {
+                        shot.AudioStatusMessage = "音频加载失败";
+                        return;
+                    }
+                }
+
+                if (_audioPlayer.IsPlaying)
+                {
+                    _audioPlayer.Pause();
+                    StopAudioProgressTimer();
+                    SetAudioPlayPauseUi(isPlaying: false);
+                    shot.AudioStatusMessage = "已暂停播放";
+                }
+                else
+                {
+                    var played = _audioPlayer.Play();
+                    if (!played)
+                    {
+                        shot.AudioStatusMessage = "播放失败：无法启动播放器";
+                        return;
+                    }
+
+                    StartAudioProgressTimer();
+                    SetAudioPlayPauseUi(isPlaying: true);
+                    shot.AudioStatusMessage = "正在播放音频...";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            shot.AudioStatusMessage = $"播放失败：{ex.Message}";
+        }
+    }
+
+    private void OnStopAudioClicked(object? sender, RoutedEventArgs e)
+    {
+        StopAudioPlayback(resetProgress: true, clearMedia: false);
+        if (DataContext is ShotItem shot)
+            shot.AudioStatusMessage = "已停止播放";
+    }
+
+    private bool TryLoadAudio(string normalizedPath)
+    {
+        if (_audioPlayer == null || _audioLibVLC == null || !File.Exists(normalizedPath))
+            return false;
+
+        _audioPlayer.Stop();
+        _audioPlayer.Media = null;
+        SafeDisposeCurrentAudioMedia();
+
+        _currentAudioMedia = new Media(_audioLibVLC, normalizedPath, FromType.FromPath);
+        _audioPlayer.Media = _currentAudioMedia;
+        _currentAudioPath = normalizedPath;
+
+        UpdateAudioPlaybackUi();
+        return true;
+    }
+
+    private void OnAudioProgressTimerTick(object? sender, EventArgs e)
+    {
+        UpdateAudioPlaybackUi();
+    }
+
+    private void OnAudioPlaybackEnded(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            StopAudioProgressTimer();
+            SetAudioPlayPauseUi(isPlaying: false);
+            UpdateAudioPlaybackUi(forceToEnd: true);
+
+            if (DataContext is ShotItem shot)
+                shot.AudioStatusMessage = "播放完成";
+        });
+    }
+
+    private void OnAudioPlaybackError(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            StopAudioProgressTimer();
+            SetAudioPlayPauseUi(isPlaying: false);
+
+            if (DataContext is ShotItem shot)
+                shot.AudioStatusMessage = "播放失败：内置播放器遇到错误";
+        });
+    }
+
+    private void StartAudioProgressTimer()
+    {
+        if (_audioProgressTimer != null && !_audioProgressTimer.IsEnabled)
+            _audioProgressTimer.Start();
+    }
+
+    private void StopAudioProgressTimer()
+    {
+        if (_audioProgressTimer != null && _audioProgressTimer.IsEnabled)
+            _audioProgressTimer.Stop();
+    }
+
+    private void StopAudioPlayback(bool resetProgress, bool clearMedia)
+    {
+        lock (_playerLock)
+        {
+            try
+            {
+                _audioPlayer?.Stop();
+            }
+            catch
+            {
+                // Ignore stop failures so UI can still recover.
+            }
+
+            StopAudioProgressTimer();
+            SetAudioPlayPauseUi(isPlaying: false);
+
+            if (clearMedia && _audioPlayer != null)
+            {
+                _audioPlayer.Media = null;
+                SafeDisposeCurrentAudioMedia();
+                _currentAudioPath = null;
+            }
+        }
+
+        if (resetProgress)
+            ResetAudioPlaybackUi();
+        else
+            UpdateAudioPlaybackUi();
+    }
+
+    private void SafeDisposeCurrentAudioMedia()
+    {
+        try
+        {
+            if (_currentAudioMedia == null)
+                return;
+
+            if (_audioPlayer != null && _audioPlayer.Media == _currentAudioMedia)
+            {
+                _audioPlayer.Stop();
+                _audioPlayer.Media = null;
+            }
+
+            _currentAudioMedia.Dispose();
+            _currentAudioMedia = null;
+        }
+        catch
+        {
+            _currentAudioMedia = null;
+        }
+    }
+
+    private void UpdateAudioPlaybackUi(bool forceToEnd = false)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => UpdateAudioPlaybackUi(forceToEnd));
+            return;
+        }
+
+        if (AudioPlaybackProgressBar == null || AudioPlaybackTimeText == null)
+            return;
+
+        var currentMs = Math.Max(0L, _audioPlayer?.Time ?? 0);
+        var lengthMs = Math.Max(0L, _audioPlayer?.Length ?? 0);
+
+        if (lengthMs <= 0 && DataContext is ShotItem shotByDuration && shotByDuration.AudioDuration > 0)
+            lengthMs = (long)(shotByDuration.AudioDuration * 1000);
+
+        if (forceToEnd && lengthMs > 0)
+            currentMs = lengthMs;
+
+        var progress = lengthMs > 0 ? Math.Clamp((double)currentMs / lengthMs, 0d, 1d) : 0d;
+        AudioPlaybackProgressBar.Value = progress;
+        AudioPlaybackTimeText.Text = $"{FormatTime(currentMs)} / {FormatTime(lengthMs)}";
+    }
+
+    private void ResetAudioPlaybackUi()
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(ResetAudioPlaybackUi);
+            return;
+        }
+
+        if (AudioPlaybackProgressBar != null)
+            AudioPlaybackProgressBar.Value = 0;
+
+        SetAudioPlayPauseUi(isPlaying: false);
+
+        var totalMs = 0L;
+        if (DataContext is ShotItem shot && shot.AudioDuration > 0)
+            totalMs = (long)(shot.AudioDuration * 1000);
+
+        if (AudioPlaybackTimeText != null)
+            AudioPlaybackTimeText.Text = $"00:00 / {FormatTime(totalMs)}";
+    }
+
+    private void SetAudioPlayPauseUi(bool isPlaying)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => SetAudioPlayPauseUi(isPlaying));
+            return;
+        }
+
+        if (AudioPlayPauseText != null)
+            AudioPlayPauseText.Text = isPlaying ? "暂停" : "播放";
+
+        if (AudioPlayPauseIcon != null)
+            AudioPlayPauseIcon.Data = isPlaying
+                ? "M6 4h4v16H6zm8 0h4v16h-4z"
+                : "M8 5v14l11-7z";
+    }
+
+    private static string FormatTime(long milliseconds)
+    {
+        if (milliseconds <= 0)
+            return "00:00";
+
+        var time = TimeSpan.FromMilliseconds(milliseconds);
+        return time.TotalHours >= 1
+            ? $"{(int)time.TotalHours:D2}:{time.Minutes:D2}:{time.Seconds:D2}"
+            : $"{time.Minutes:D2}:{time.Seconds:D2}";
     }
 
     private void HookLayoutEvents()
@@ -237,6 +523,7 @@ public partial class ShotEditorView : UserControl, IDisposable
 
         SafeDisposeCurrentMedia();
         _currentVideoPath = null;
+        StopAudioPlayback(resetProgress: false, clearMedia: false);
 
         System.Diagnostics.Debug.WriteLine("[ShotEditorView] View detached, playback stopped but player kept alive");
     }
@@ -267,6 +554,30 @@ public partial class ShotEditorView : UserControl, IDisposable
                 // 最后释放 LibVLC
                 _libVLC?.Dispose();
                 _libVLC = null;
+
+                // 释放音频播放器
+                if (_audioProgressTimer != null)
+                {
+                    _audioProgressTimer.Tick -= OnAudioProgressTimerTick;
+                    _audioProgressTimer.Stop();
+                    _audioProgressTimer = null;
+                }
+
+                if (_audioPlayer != null)
+                {
+                    _audioPlayer.EndReached -= OnAudioPlaybackEnded;
+                    _audioPlayer.EncounteredError -= OnAudioPlaybackError;
+                    _audioPlayer.Stop();
+                    _audioPlayer.Media = null;
+                    _audioPlayer.Dispose();
+                    _audioPlayer = null;
+                }
+
+                SafeDisposeCurrentAudioMedia();
+
+                _audioLibVLC?.Dispose();
+                _audioLibVLC = null;
+                _currentAudioPath = null;
 
                 _isInitialized = false;
 
@@ -314,6 +625,7 @@ public partial class ShotEditorView : UserControl, IDisposable
 
                 // 立即清空当前视频路径
                 _currentVideoPath = null;
+                StopAudioPlayback(resetProgress: true, clearMedia: true);
 
                 // 如果播放器未初始化，设置标记稍后加载
                 if (!_isInitialized)
@@ -425,10 +737,13 @@ public partial class ShotEditorView : UserControl, IDisposable
 
     private void OnShotPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (_isDisposed || !_isInitialized) return;
+        if (_isDisposed) return;
 
         if (e.PropertyName == nameof(ShotItem.GeneratedVideoPath))
         {
+            if (!_isInitialized)
+                return;
+
             lock (_playerLock)
             {
                 var videoPath = _shot?.GeneratedVideoPath;
@@ -454,6 +769,14 @@ public partial class ShotEditorView : UserControl, IDisposable
                     }
                 });
             }
+        }
+        else if (e.PropertyName == nameof(ShotItem.GeneratedAudioPath))
+        {
+            StopAudioPlayback(resetProgress: true, clearMedia: true);
+        }
+        else if (e.PropertyName == nameof(ShotItem.AudioDuration))
+        {
+            UpdateAudioPlaybackUi();
         }
     }
 
@@ -1097,6 +1420,29 @@ public partial class ShotEditorView : UserControl, IDisposable
         System.Diagnostics.Debug.WriteLine("[ShotEditorView] Video upload complete");
     }
 
+    private async void OnUploadAudioClicked(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShotItem shot)
+            return;
+
+        var path = await PickAudioPathAsync("选择音频文件");
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        var importedPath = await ImportAudioForShotAsync(shot, path);
+        if (string.IsNullOrWhiteSpace(importedPath))
+        {
+            shot.AudioStatusMessage = "音频上传失败";
+            return;
+        }
+
+        shot.GeneratedAudioPath = importedPath;
+        shot.AudioDuration = await TryGetAudioDurationAsync(importedPath);
+        shot.AudioStatusMessage = $"已上传音频：{Path.GetFileName(importedPath)}";
+        shot.OnPropertyChanged(nameof(shot.HasGeneratedAudio));
+        StopAudioPlayback(resetProgress: true, clearMedia: true);
+    }
+
     private async void OnPickVideoFromLibraryClicked(object? sender, RoutedEventArgs e)
     {
         System.Diagnostics.Debug.WriteLine("[ShotEditorView] OnPickVideoFromLibraryClicked called");
@@ -1154,6 +1500,135 @@ public partial class ShotEditorView : UserControl, IDisposable
         });
 
         return files?.FirstOrDefault()?.Path.LocalPath;
+    }
+
+    private async Task<string?> PickAudioPathAsync(string title)
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.StorageProvider == null)
+            return null;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("音频文件")
+                {
+                    Patterns = new[] { "*.mp3", "*.wav", "*.m4a", "*.aac", "*.flac", "*.opus", "*.ogg", "*.wma", "*.pcm" }
+                },
+                new FilePickerFileType("所有文件")
+                {
+                    Patterns = new[] { "*.*" }
+                }
+            }
+        });
+
+        return files?.FirstOrDefault()?.Path.LocalPath;
+    }
+
+    private async Task<string?> ImportAudioForShotAsync(ShotItem shot, string sourcePath)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+                return null;
+
+            var targetDir = ResolveProjectAudioDirectory();
+            Directory.CreateDirectory(targetDir);
+
+            var ext = Path.GetExtension(sourcePath);
+            var fileName = $"shot_{shot.ShotNumber}_upload_{DateTime.Now:yyyyMMdd_HHmmssfff}{ext}";
+            var destinationPath = Path.Combine(targetDir, fileName);
+
+            if (string.Equals(sourcePath, destinationPath, StringComparison.OrdinalIgnoreCase))
+                return sourcePath;
+
+            await Task.Run(() => File.Copy(sourcePath, destinationPath, overwrite: false));
+            return destinationPath;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private string ResolveProjectAudioDirectory()
+    {
+        var projectId = TryGetCurrentProjectId();
+        if (!string.IsNullOrWhiteSpace(projectId))
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "Storyboard",
+                "output",
+                "projects",
+                projectId,
+                "audio");
+        }
+
+        return Path.Combine(GetResourceLibraryDirectory(), "audio");
+    }
+
+    private string? TryGetCurrentProjectId()
+    {
+        if (TopLevel.GetTopLevel(this) is Window window &&
+            window.DataContext is MainViewModel mainViewModel &&
+            !string.IsNullOrWhiteSpace(mainViewModel.CurrentProjectId))
+        {
+            return mainViewModel.CurrentProjectId;
+        }
+
+        return null;
+    }
+
+    private async Task<double> TryGetAudioDurationAsync(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return 0;
+
+        try
+        {
+            var ffprobePath = FfmpegLocator.GetFfprobePath();
+            var args = $"-v error -print_format json -show_format \"{path}\"";
+
+            var startInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = ffprobePath,
+                Arguments = args,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            using var process = System.Diagnostics.Process.Start(startInfo);
+            if (process == null)
+                return 0;
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            var stdout = await stdoutTask;
+
+            if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(stdout))
+                return 0;
+
+            using var doc = JsonDocument.Parse(stdout);
+            if (doc.RootElement.TryGetProperty("format", out var format) &&
+                format.TryGetProperty("duration", out var durationElement) &&
+                double.TryParse(durationElement.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var duration) &&
+                duration > 0)
+            {
+                return duration;
+            }
+        }
+        catch
+        {
+            // Ignore probing failures and keep duration as 0.
+        }
+
+        return 0;
     }
 
     private async Task<string?> GenerateVideoThumbnailAsync(string videoPath)

@@ -136,7 +136,13 @@ public sealed class ProjectStore : IProjectStore
                 ResolveActualDurationTick(s),
                 s.TimingSource,
                 s.IsSyncedToTimeline,
-                s.IsDurationLocked))
+                s.IsDurationLocked,
+                AudioText: s.AudioText,
+                GeneratedAudioPath: s.GeneratedAudioPath,
+                TtsVoice: s.TtsVoice,
+                TtsSpeed: s.TtsSpeed,
+                TtsModel: s.TtsModel,
+                AudioDuration: s.AudioDuration))
             .ToList();
 
         return new ProjectState(
@@ -359,6 +365,12 @@ public sealed class ProjectStore : IProjectStore
                 TimingSource = s.TimingSource,
                 IsSyncedToTimeline = s.IsSyncedToTimeline,
                 IsDurationLocked = s.IsDurationLocked,
+                AudioText = s.AudioText,
+                GeneratedAudioPath = s.GeneratedAudioPath,
+                TtsVoice = s.TtsVoice,
+                TtsSpeed = s.TtsSpeed,
+                TtsModel = s.TtsModel,
+                AudioDuration = s.AudioDuration,
                 Assets = s.Assets
                     .Select(a => new ShotAsset
                     {

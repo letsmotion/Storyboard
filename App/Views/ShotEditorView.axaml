@@ -1701,18 +1701,44 @@
                                     </StackPanel>
                                 </Grid>
 
+                                <!-- Audio Playback -->
+                                <StackPanel Spacing="6">
+                                    <ProgressBar x:Name="AudioPlaybackProgressBar"
+                                                 Minimum="0"
+                                                 Maximum="1"
+                                                 Value="0"
+                                                 Height="6" />
+                                    <TextBlock x:Name="AudioPlaybackTimeText"
+                                               Text="00:00 / 00:00"
+                                               FontSize="11"
+                                               Foreground="#71717a"
+                                               HorizontalAlignment="Right" />
+                                </StackPanel>
+
                                 <!-- Audio Actions -->
-                                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
                                     <Button Grid.Column="0"
                                             Classes="Secondary"
                                             HorizontalAlignment="Stretch"
-                                            Command="{Binding PlayAudioCommand}">
+                                            Click="OnToggleAudioPlayClicked">
                                         <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                                            <PathIcon Data="M8 5v14l11-7z" Width="12" Height="12" />
-                                            <TextBlock Text="播放" FontSize="11" />
+                                            <PathIcon x:Name="AudioPlayPauseIcon"
+                                                      Data="M8 5v14l11-7z"
+                                                      Width="12"
+                                                      Height="12" />
+                                            <TextBlock x:Name="AudioPlayPauseText" Text="播放" FontSize="11" />
                                         </StackPanel>
                                     </Button>
                                     <Button Grid.Column="1"
+                                            Classes="Secondary"
+                                            HorizontalAlignment="Stretch"
+                                            Click="OnStopAudioClicked">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                            <PathIcon Data="M6 6h12v12H6z" Width="12" Height="12" />
+                                            <TextBlock Text="停止" FontSize="11" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Column="2"
                                             Classes="Ghost"
                                             HorizontalAlignment="Stretch"
                                             Command="{Binding DeleteAudioCommand}">
@@ -1725,26 +1751,45 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Generate Button -->
-                        <Button Classes="Primary"
-                                HorizontalAlignment="Stretch"
-                                Height="40"
-                                IsEnabled="{Binding IsGeneratingAudio, Converter={StaticResource BoolNot}}"
-                                Command="{Binding RequestGenerateAudioCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                                <PathIcon Data="M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"
-                                          Width="16"
-                                          Height="16"
-                                          IsVisible="{Binding IsGeneratingAudio, Converter={StaticResource BoolNot}}" />
-                                <ProgressBar IsIndeterminate="True"
-                                             Width="100"
-                                             Height="4"
-                                             IsVisible="{Binding IsGeneratingAudio}" />
-                                <TextBlock Text="{Binding IsGeneratingAudio, Converter={StaticResource GeneratingAudioTextConverter}, FallbackValue='生成配音'}"
-                                           FontSize="13"
-                                           FontWeight="SemiBold" />
-                            </StackPanel>
-                        </Button>
+                        <!-- Audio Actions -->
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <!-- Generate Button -->
+                            <Button Grid.Column="0"
+                                    Classes="Primary"
+                                    HorizontalAlignment="Stretch"
+                                    Height="40"
+                                    IsEnabled="{Binding IsGeneratingAudio, Converter={StaticResource BoolNot}}"
+                                    Command="{Binding RequestGenerateAudioCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                    <PathIcon Data="M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"
+                                              Width="16"
+                                              Height="16"
+                                              IsVisible="{Binding IsGeneratingAudio, Converter={StaticResource BoolNot}}" />
+                                    <ProgressBar IsIndeterminate="True"
+                                                 Width="100"
+                                                 Height="4"
+                                                 IsVisible="{Binding IsGeneratingAudio}" />
+                                    <TextBlock Text="{Binding IsGeneratingAudio, Converter={StaticResource GeneratingAudioTextConverter}, FallbackValue='生成配音'}"
+                                               FontSize="13"
+                                               FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Upload Audio -->
+                            <Button Grid.Column="1"
+                                    Classes="Secondary"
+                                    HorizontalAlignment="Stretch"
+                                    Height="40"
+                                    IsEnabled="{Binding IsGeneratingAudio, Converter={StaticResource BoolNot}}"
+                                    Click="OnUploadAudioClicked">
+                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                    <PathIcon Data="M19 9h-4V3H9v6H5l7 7 7-7zm-14 9h14v2H5z"
+                                              Width="14"
+                                              Height="14" />
+                                    <TextBlock Text="上传音频" FontSize="12" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
 
                         <!-- Status Message -->
                         <Border Background="#18181b"
