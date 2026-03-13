@@ -294,6 +294,8 @@ public partial class App : Avalonia.Application
         services.AddSingleton<IVideoGenerationProvider, NewApiVideoGenerationProvider>();
         services.AddSingleton<IVideoGenerationService, VideoGenerationService>();
         services.AddSingleton<ITtsProvider, NewApiTtsProvider>();
+        services.AddSingleton<ITtsProvider, QwenTtsProvider>();
+        services.AddSingleton<ITtsProvider, VolcengineTtsProvider>();
         services.AddSingleton<ITtsService, TtsService>();
         services.AddSingleton<IFinalRenderService, FinalRenderService>();
         services.AddSingleton<ICapCutExportService, CapCutExportService>();

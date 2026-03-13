@@ -34,6 +34,8 @@ public partial class MainViewModel : ObservableObject
     private readonly ILogger<MainViewModel> _logger;
     private readonly IProjectStore _projectStore;
     private readonly UserSettingsStore _userSettingsStore;
+    private readonly ITtsService _ttsService;
+    private readonly ILogger<ViewModels.Generation.BatchAudioGenerationViewModel> _batchAudioLogger;
     private System.Threading.Timer? _layoutSaveTimer;
     private Action? _debouncedSaveLayoutSettings;
 
@@ -322,7 +324,9 @@ public partial class MainViewModel : ObservableObject
         IProjectStore projectStore,
         UserSettingsStore userSettingsStore,
         IMessenger messenger,
-        ILogger<MainViewModel> logger)
+        ILogger<MainViewModel> logger,
+        ITtsService ttsService,
+        ILogger<ViewModels.Generation.BatchAudioGenerationViewModel> batchAudioLogger)
     {
         ProjectManagement = projectManagement;
         ShotList = shotList;
@@ -345,6 +349,8 @@ public partial class MainViewModel : ObservableObject
         _userSettingsStore = userSettingsStore;
         _messenger = messenger;
         _logger = logger;
+        _ttsService = ttsService;
+        _batchAudioLogger = batchAudioLogger;
 
         // 设置版本号（从程序集读取）
         VersionText = GetVersionText();
@@ -1444,9 +1450,9 @@ public partial class MainViewModel : ObservableObject
         }
 
         var viewModel = new ViewModels.Generation.BatchAudioGenerationViewModel(
-            _serviceProvider.GetRequiredService<ITtsService>(),
+            _ttsService,
             _messenger,
-            _serviceProvider.GetRequiredService<ILogger<ViewModels.Generation.BatchAudioGenerationViewModel>>()
+            _batchAudioLogger
         );
 
         viewModel.SetShots(selectedShots);
@@ -1456,6 +1462,9 @@ public partial class MainViewModel : ObservableObject
             DataContext = viewModel
         };
 
-        await dialog.ShowDialog(GetMainWindow());
+        if (Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            await dialog.ShowDialog(desktop.MainWindow!);
+        }
     }
 }

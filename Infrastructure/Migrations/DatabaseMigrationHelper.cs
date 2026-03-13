@@ -88,7 +88,15 @@ public static class DatabaseMigrationHelper
                 { "UseLastFrameReference", "INTEGER NOT NULL DEFAULT 0" },
                 { "Seed", "INTEGER" },
                 { "CameraFixed", "INTEGER NOT NULL DEFAULT 0" },
-                { "Watermark", "INTEGER NOT NULL DEFAULT 0" }
+                { "Watermark", "INTEGER NOT NULL DEFAULT 0" },
+                // 音频/TTS 参数
+                { "AudioText", "TEXT NOT NULL DEFAULT ''" },
+                { "GeneratedAudioPath", "TEXT" },
+                { "TtsVoice", "TEXT NOT NULL DEFAULT 'alloy'" },
+                { "TtsSpeed", "REAL NOT NULL DEFAULT 1.0" },
+                { "TtsModel", "TEXT NOT NULL DEFAULT ''" },
+                { "AudioDuration", "REAL NOT NULL DEFAULT 0.0" },
+                { "GenerateAudio", "INTEGER NOT NULL DEFAULT 0" }
             };
 
             foreach (var (columnName, columnType) in columnsToAdd)

@@ -151,8 +151,26 @@ public sealed class NewApiTtsConfig
     public string? ProviderHint { get; set; }
 }
 
+public sealed class QwenTtsConfig
+{
+    public string Voice { get; set; } = "Cherry";
+    public double Speed { get; set; } = 1.0;
+    public string ResponseFormat { get; set; } = "mp3";
+    public string? LanguageType { get; set; } = "Chinese";
+}
+
+public sealed class VolcengineTtsConfig
+{
+    public string Voice { get; set; } = "zh_female_vv_yingjian_soungis"; 
+    public double Speed { get; set; } = 1.0;
+    public string ResponseFormat { get; set; } = "mp3";
+    public string? AppId { get; set; }
+}
+
 public class TtsServicesConfiguration
 {
     public TtsProviderType DefaultProvider { get; set; } = TtsProviderType.NewApi;
     public NewApiTtsConfig NewApi { get; set; } = new();
+    public QwenTtsConfig Qwen { get; set; } = new();
+    public VolcengineTtsConfig Volcengine { get; set; } = new();
 }

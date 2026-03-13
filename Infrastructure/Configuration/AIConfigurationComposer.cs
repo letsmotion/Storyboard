@@ -333,6 +333,7 @@ public class AIConfigurationComposer
         var textProviderName = ResolveProviderName(userSettings.DefaultProviders.TextProvider, "Qwen");
         var imageProviderName = ResolveProviderName(userSettings.DefaultProviders.ImageProvider, "Volcengine");
         var videoProviderName = ResolveProviderName(userSettings.DefaultProviders.VideoProvider, "Volcengine");
+        var ttsProviderName = ResolveProviderName(userSettings.DefaultProviders.TtsProvider, "NewApi");
 
         config.Defaults = new AIServiceDefaults
         {
@@ -350,6 +351,11 @@ public class AIConfigurationComposer
             {
                 Provider = ParseProviderType(videoProviderName),
                 Model = ResolveDefaultModel(userSettings.DefaultProviders.VideoModel, videoProviderName, "Video", userOverrides)
+            },
+            Tts = new AIServiceDefaultSelection
+            {
+                Provider = ParseProviderType(ttsProviderName),
+                Model = ResolveDefaultModel(userSettings.DefaultProviders.TtsModel, ttsProviderName, "Tts", userOverrides)
             }
         };
 
@@ -358,6 +364,11 @@ public class AIConfigurationComposer
         config.Video = ComposeVideoConfiguration();
         config.Image.DefaultProvider = MapImageProviderType(config.Defaults.Image.Provider);
         config.Video.DefaultProvider = MapVideoProviderType(config.Defaults.Video.Provider);
+
+        config.Tts = new TtsServicesConfiguration
+        {
+            DefaultProvider = MapTtsProviderType(config.Defaults.Tts.Provider)
+        };
 
         return config;
     }
@@ -627,6 +638,17 @@ public class AIConfigurationComposer
             AIProviderType.Volcengine => VideoProviderType.Volcengine,
             AIProviderType.NewApi => VideoProviderType.NewApi,
             _ => VideoProviderType.Volcengine
+        };
+    }
+
+    private static TtsProviderType MapTtsProviderType(AIProviderType providerType)
+    {
+        return providerType switch
+        {
+            AIProviderType.Qwen => TtsProviderType.Qwen,
+            AIProviderType.Volcengine => TtsProviderType.Volcengine,
+            AIProviderType.NewApi => TtsProviderType.NewApi,
+            _ => TtsProviderType.NewApi
         };
     }
 }

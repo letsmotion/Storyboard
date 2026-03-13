@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.Platform.Storage;
 using Storyboard.Models;
@@ -324,9 +325,9 @@ public partial class ShotEditorView : UserControl, IDisposable
             AudioPlayPauseText.Text = isPlaying ? "暂停" : "播放";
 
         if (AudioPlayPauseIcon != null)
-            AudioPlayPauseIcon.Data = isPlaying
+            AudioPlayPauseIcon.Data = Geometry.Parse(isPlaying
                 ? "M6 4h4v16H6zm8 0h4v16h-4z"
-                : "M8 5v14l11-7z";
+                : "M8 5v14l11-7z");
     }
 
     private static string FormatTime(long milliseconds)
@@ -1439,7 +1440,7 @@ public partial class ShotEditorView : UserControl, IDisposable
         shot.GeneratedAudioPath = importedPath;
         shot.AudioDuration = await TryGetAudioDurationAsync(importedPath);
         shot.AudioStatusMessage = $"已上传音频：{Path.GetFileName(importedPath)}";
-        shot.OnPropertyChanged(nameof(shot.HasGeneratedAudio));
+        shot.NotifyPropertyChanged(nameof(shot.HasGeneratedAudio));
         StopAudioPlayback(resetProgress: true, clearMedia: true);
     }
 

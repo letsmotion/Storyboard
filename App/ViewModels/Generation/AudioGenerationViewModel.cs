@@ -56,8 +56,9 @@ public partial class AudioGenerationViewModel : ObservableObject
 
             // 生成配音
             var audioPath = await _ttsService.GenerateForShotAsync(
-                shotId: shot.Id,
+                shotId: (long)shot.ShotNumber,
                 text: shot.AudioText,
+                model: shot.TtsModel,
                 voice: shot.TtsVoice,
                 speed: shot.TtsSpeed
             );
@@ -66,7 +67,7 @@ public partial class AudioGenerationViewModel : ObservableObject
             shot.GeneratedAudioPath = audioPath;
             shot.AudioDuration = await TryGetAudioDurationAsync(audioPath);
             shot.AudioStatusMessage = $"配音生成成功！";
-            shot.OnPropertyChanged(nameof(shot.HasGeneratedAudio));
+            shot.NotifyPropertyChanged(nameof(shot.HasGeneratedAudio));
 
             _logger.LogInformation("镜头 {ShotNumber} 配音生成成功: {AudioPath}", shot.ShotNumber, audioPath);
 
@@ -140,7 +141,7 @@ public partial class AudioGenerationViewModel : ObservableObject
             shot.GeneratedAudioPath = null;
             shot.AudioDuration = 0;
             shot.AudioStatusMessage = "音频已删除";
-            shot.OnPropertyChanged(nameof(shot.HasGeneratedAudio));
+            shot.NotifyPropertyChanged(nameof(shot.HasGeneratedAudio));
 
             _messenger.Send(new MarkUndoableChangeMessage());
         }

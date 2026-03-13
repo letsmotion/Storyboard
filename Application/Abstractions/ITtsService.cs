@@ -30,6 +30,7 @@ public interface ITtsService
     Task<string> GenerateForShotAsync(
         long shotId,
         string text,
+        string? model = null,
         string? voice = null,
         double speed = 1.0,
         TtsProviderType? providerType = null,

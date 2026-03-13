@@ -7,7 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Storyboard.Application.Abstractions;
 using Storyboard.AI.Core;
 
-namespace Storyboard.App.ViewModels.Audio;
+namespace Storyboard.ViewModels.Audio;
 
 /// <summary>
 /// TTS 配音 ViewModel 示例

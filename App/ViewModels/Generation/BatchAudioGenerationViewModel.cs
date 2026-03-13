@@ -142,9 +142,9 @@ public partial class BatchAudioGenerationViewModel : ObservableObject
                     {
                         text = shot.AudioText;
                     }
-                    else if (!string.IsNullOrWhiteSpace(shot.Description))
+                    else if (!string.IsNullOrWhiteSpace(shot.SceneDescription))
                     {
-                        text = shot.Description;
+                        text = shot.SceneDescription;
                     }
                     else
                     {
@@ -162,7 +162,7 @@ public partial class BatchAudioGenerationViewModel : ObservableObject
 
                     // 生成配音
                     var audioPath = await _ttsService.GenerateForShotAsync(
-                        shotId: shot.Id,
+                        shotId: (long)shot.ShotNumber,
                         text: text,
                         voice: SelectedVoice,
                         speed: Speed,
@@ -179,7 +179,7 @@ public partial class BatchAudioGenerationViewModel : ObservableObject
                         shot.AudioText = text;
                     }
                     shot.AudioStatusMessage = "配音生成成功";
-                    shot.OnPropertyChanged(nameof(shot.HasGeneratedAudio));
+                    shot.NotifyPropertyChanged(nameof(shot.HasGeneratedAudio));
 
                     SuccessCount++;
                     _logger.LogInformation("镜头 {ShotNumber} 配音生成成功", shot.ShotNumber);

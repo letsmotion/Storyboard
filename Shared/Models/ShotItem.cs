@@ -486,6 +486,30 @@ public partial class ShotItem : ObservableObject
         Duration = 3.5;
         SelectedModel = string.Empty;
         AttachAssetCollectionHandlers();
+        InitializeTtsVoiceOptions();
+    }
+
+    private void InitializeTtsVoiceOptions()
+    {
+        var modelLower = (TtsModel ?? "").ToLowerInvariant();
+        string[] voices;
+        if (modelLower.Contains("qwen") || modelLower.Contains("千问"))
+            voices = QwenVoices;
+        else if (modelLower.Contains("volc") || modelLower.Contains("火山"))
+            voices = VolcengineVoices;
+        else if (QwenVoices.Contains(TtsVoice))
+            voices = QwenVoices;
+        else if (VolcengineVoices.Contains(TtsVoice))
+            voices = VolcengineVoices;
+        else
+            voices = OpenAiVoices;
+        
+        TtsVoiceOptions.Clear();
+        foreach (var v in voices)
+            TtsVoiceOptions.Add(v);
+        
+        if (!voices.Contains(TtsVoice))
+            TtsVoice = voices.FirstOrDefault() ?? "alloy";
     }
 
     [RelayCommand]
@@ -965,6 +989,11 @@ public partial class ShotItem : ObservableObject
     }
 
     /// <summary>
+    /// 公开触发属性变更通知
+    /// </summary>
+    public void NotifyPropertyChanged(string propertyName) => OnPropertyChanged(propertyName);
+
+    /// <summary>
     /// 批量更新 AI 解析结果，避免多次触发 PropertyChanged 事件
     /// </summary>
     public void ApplyAiAnalysisResult(AiShotDescription result)
@@ -1104,16 +1133,72 @@ public partial class ShotItem : ObservableObject
     [ObservableProperty]
     private string _audioStatusMessage = string.Empty;
 
-    // TTS voice options
-    public ObservableCollection<string> TtsVoiceOptions { get; } = new()
+    // TTS voice options - dynamic based on model
+    private static readonly string[] OpenAiVoices = { "alloy", "echo", "fable", "onyx", "nova", "shimmer" };
+    private static readonly string[] QwenVoices = { "Cherry", "alexa", "arwen", "bethany", "daniel", "donna", "elisabeth", "emily", "emma", "erika", "gabriel", "geralt", "giulia", "hani", "heather", "helen", "jacob", "jessica", "jiaxi", "jinli", "julie", "kanying", "lily", "lucas", "marc", "maria", "mason", "meng", "michael", "mila", "ray", "rachel", "richard", "riley", "rose", "sarah", "seth", "shawn", "sophia", "stefan", "stella", "summer", "taylor", "thomas", "tom", "xiaobing", "xiaoxiao", "xiaoyi", "yating", "yunjian", "yunxi", "yunxia", "yunyang", "zhenda", "zhuoming" };
+    private static readonly string[] VolcengineVoices = { "zh_female_vv_yingjian_soungis", "zh_male_vv_yingjian_soungis", "zh_female_vv_shengcheng_jingying", "zh_male_vv_shengcheng_jingying", "zh_female_vv_shichang_jingying", "zh_male_vv_shichang_jingying", "zh_female_vv_xiaoyuan_jingying", "zh_male_vv_xiaoyuan_jingying", "zh_female_vv_badao_jingying", "zh_male_vv_badao_jingying", "zh_female_vv_changjiang_jingying", "zh_male_vv_changjiang_jingying", "zh_female_vv_zhongjiao_jingying", "zh_male_vv_zhongjiao_jingying", "zh_female_vv_yujie_jingying", "zh_male_vv_yujie_jingying" };
+
+    public static IReadOnlyList<string> TtsModelOptions { get; } = new[]
     {
-        "alloy",
-        "echo",
-        "fable",
-        "onyx",
-        "nova",
-        "shimmer"
+        "gpt-4o-mini-tts",
+        "gpt-4o-tts-2024-05-13",
+        "qwen3-tts-instruct-flash",
+        "qwen3-tts-instruct-flash-2026-01-26",
+        "qwen-tts",
+        "qwen-tts-latest",
+        "volcengine-tts"
     };
+
+    public static IReadOnlyList<string> GetVoiceOptionsForModel(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model)) return OpenAiVoices;
+        var modelLower = model.ToLowerInvariant();
+        if (modelLower.Contains("qwen") || modelLower.Contains("千问")) return QwenVoices;
+        if (modelLower.Contains("volc") || modelLower.Contains("火山")) return VolcengineVoices;
+        return OpenAiVoices;
+    }
+
+    public static string GetVoiceDescription(string voice, string? model)
+    {
+        var voices = GetVoiceOptionsForModel(model);
+        if (!voices.Contains(voice)) return voice;
+        return voice;
+    }
+
+    public string VoiceHelpText
+    {
+        get
+        {
+            var modelLower = (TtsModel ?? "").ToLowerInvariant();
+            if (modelLower.Contains("qwen") || modelLower.Contains("千问"))
+                return "千问 TTS 支持多种音色，如 alexa, emily, jessica 等";
+            if (modelLower.Contains("volc") || modelLower.Contains("火山"))
+                return "火山引擎 TTS 支持多种音色，如 zh_female_vv_yingjian_soungis 等";
+            return "OpenAI TTS 支持音色：alloy, echo, fable, onyx, nova, shimmer";
+        }
+    }
+
+    partial void OnTtsModelChanged(string value)
+    {
+        var newOptions = GetVoiceOptionsForModel(value);
+        TtsVoiceOptions.Clear();
+        foreach (var opt in newOptions)
+        {
+            TtsVoiceOptions.Add(opt);
+        }
+        if (!string.IsNullOrEmpty(TtsVoice) && !newOptions.Contains(TtsVoice))
+        {
+            TtsVoice = newOptions.FirstOrDefault() ?? "alloy";
+        }
+        OnPropertyChanged(nameof(VoiceHelpText));
+    }
+
+    partial void OnTtsVoiceChanged(string value)
+    {
+        OnPropertyChanged(nameof(VoiceHelpText));
+    }
+
+    public ObservableCollection<string> TtsVoiceOptions { get; } = new(OpenAiVoices);
 
     // Events for TTS
     public event EventHandler? GenerateAudioRequested;

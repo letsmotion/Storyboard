@@ -1615,6 +1615,18 @@
                                            FontWeight="SemiBold"
                                            Foreground="#f5f5f5" />
 
+                                <!-- Model Selection -->
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="模型"
+                                               FontSize="12"
+                                               Foreground="#a1a1aa" />
+                                    <ComboBox ItemsSource="{Binding TtsModelOptions}"
+                                              SelectedItem="{Binding TtsModel}"
+                                              HorizontalAlignment="Stretch"
+                                              Background="#0f0f0f"
+                                              BorderBrush="#27272a" />
+                                </StackPanel>
+
                                 <!-- Voice Selection -->
                                 <StackPanel Spacing="6">
                                     <TextBlock Text="音色"
@@ -1625,19 +1637,10 @@
                                               HorizontalAlignment="Stretch"
                                               Background="#0f0f0f"
                                               BorderBrush="#27272a" />
-                                    <TextBlock FontSize="11" Foreground="#71717a" TextWrapping="Wrap">
-                                        <Run Text="• alloy: 中性、平衡" />
-                                        <LineBreak />
-                                        <Run Text="• echo: 男性、沉稳" />
-                                        <LineBreak />
-                                        <Run Text="• fable: 英式、优雅" />
-                                        <LineBreak />
-                                        <Run Text="• onyx: 男性、深沉" />
-                                        <LineBreak />
-                                        <Run Text="• nova: 女性、活泼" />
-                                        <LineBreak />
-                                        <Run Text="• shimmer: 女性、温柔" />
-                                    </TextBlock>
+                                    <TextBlock FontSize="11" 
+                                               Foreground="#71717a" 
+                                               TextWrapping="Wrap"
+                                               Text="{Binding VoiceHelpText}" />
                                 </StackPanel>
 
                                 <!-- Speed Control -->

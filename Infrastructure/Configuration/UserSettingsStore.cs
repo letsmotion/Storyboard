@@ -92,5 +92,6 @@ public class UserSettingsStore
         settings.DefaultProviders.TextModel ??= string.Empty;
         settings.DefaultProviders.ImageModel ??= string.Empty;
         settings.DefaultProviders.VideoModel ??= string.Empty;
+        settings.DefaultProviders.TtsModel ??= string.Empty;
     }
 }

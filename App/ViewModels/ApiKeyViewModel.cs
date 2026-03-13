@@ -68,6 +68,12 @@ public partial class ApiKeyViewModel : ObservableObject
     private string _defaultVideoModel = string.Empty;
 
     [ObservableProperty]
+    private AIProviderType _defaultTtsProvider = AIProviderType.Qwen;
+
+    [ObservableProperty]
+    private string _defaultTtsModel = string.Empty;
+
+    [ObservableProperty]
     private AIProviderType _selectedProvider = AIProviderType.NewApi;
 
     [ObservableProperty] private bool _qwenEnabled;
@@ -99,6 +105,8 @@ public partial class ApiKeyViewModel : ObservableObject
         DefaultImageModel = cfg.Defaults.Image.Model;
         DefaultVideoProvider = cfg.Defaults.Video.Provider;
         DefaultVideoModel = cfg.Defaults.Video.Model;
+        DefaultTtsProvider = cfg.Defaults.Tts.Provider;
+        DefaultTtsModel = cfg.Defaults.Tts.Model;
 
         SelectedProvider = AIProviderType.NewApi;
 
@@ -143,6 +151,11 @@ public partial class ApiKeyViewModel : ObservableObject
         DefaultVideoModel = GetProviderDefaultModel(value, "Video");
     }
 
+    partial void OnDefaultTtsProviderChanged(AIProviderType value)
+    {
+        DefaultTtsModel = GetProviderDefaultModel(value, "Tts");
+    }
+
     private string GetProviderDefaultModel(AIProviderType providerType, string modelType)
     {
         var cfg = _configComposer.LoadConfiguration();
@@ -159,6 +172,7 @@ public partial class ApiKeyViewModel : ObservableObject
             "Text" => providerConfig.DefaultModels.Text,
             "Image" => providerConfig.DefaultModels.Image,
             "Video" => providerConfig.DefaultModels.Video,
+            "Tts" => providerConfig.DefaultModels.Tts,
             _ => string.Empty
         };
     }
@@ -213,9 +227,11 @@ public partial class ApiKeyViewModel : ObservableObject
             userSettings.DefaultProviders.TextProvider = DefaultTextProvider.ToString();
             userSettings.DefaultProviders.ImageProvider = DefaultImageProvider.ToString();
             userSettings.DefaultProviders.VideoProvider = DefaultVideoProvider.ToString();
+            userSettings.DefaultProviders.TtsProvider = DefaultTtsProvider.ToString();
             userSettings.DefaultProviders.TextModel = DefaultTextModel?.Trim() ?? string.Empty;
             userSettings.DefaultProviders.ImageModel = DefaultImageModel?.Trim() ?? string.Empty;
             userSettings.DefaultProviders.VideoModel = DefaultVideoModel?.Trim() ?? string.Empty;
+            userSettings.DefaultProviders.TtsModel = DefaultTtsModel?.Trim() ?? string.Empty;
             _userSettingsStore.Save(userSettings);
 
             error = null;
