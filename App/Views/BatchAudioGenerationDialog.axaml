@@ -108,15 +108,21 @@
                 <StackPanel Spacing="12">
                     <TextBlock Classes="section-title" Text="语音设置"/>
 
+                    <!-- 模型选择 -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="label" Text="模型"/>
+                        <ComboBox ItemsSource="{Binding ModelOptions}"
+                                  SelectedItem="{Binding SelectedModel}"
+                                  HorizontalAlignment="Stretch"/>
+                    </StackPanel>
+
                     <!-- 音色选择 -->
                     <StackPanel Spacing="6">
                         <TextBlock Classes="label" Text="音色"/>
                         <ComboBox ItemsSource="{Binding VoiceOptions}"
                                   SelectedItem="{Binding SelectedVoice}"
                                   HorizontalAlignment="Stretch"/>
-                        <TextBlock Classes="hint">
-                            <Run Text="alloy: 中性 | echo: 男性 | fable: 英式 | onyx: 深沉 | nova: 女性 | shimmer: 柔和"/>
-                        </TextBlock>
+                        <TextBlock Classes="hint" Text="{Binding VoiceHint}"/>
                     </StackPanel>
 
                     <!-- 语速调节 -->

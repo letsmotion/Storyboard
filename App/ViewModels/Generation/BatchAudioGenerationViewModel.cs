@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Storyboard.Application.Abstractions;
+using Storyboard.AI.Core;
 using Storyboard.Infrastructure.Media;
 using Storyboard.Messages;
 using Storyboard.Models;
@@ -28,16 +29,31 @@ public partial class BatchAudioGenerationViewModel : ObservableObject
     private readonly ILogger<BatchAudioGenerationViewModel> _logger;
     private CancellationTokenSource? _cancellationTokenSource;
 
+    private static readonly string[] OpenAiVoices = { "alloy", "echo", "fable", "onyx", "nova", "shimmer" };
+    private static readonly string[] QwenVoices = { "Cherry", "alexa", "arwen", "bethany", "daniel", "donna", "emily", "emma", "erika", "gabriel", "geralt", "giulia", "hani", "heather", "helen", "jacob", "jessica", "jiaxi", "jinli", "julie", "kanying", "lily", "lucas", "marc", "maria", "mason", "meng", "michael", "mila", "ray", "rachel", "richard", "riley", "rose", "sarah", "seth", "shawn", "sophia", "stefan", "stella", "summer", "taylor", "thomas", "tom", "xiaobing", "xiaoxiao", "xiaoyi", "yating", "yunjian", "yunxi", "yunxia", "yunyang", "zhenda", "zhuoming" };
+    private static readonly string[] VolcengineVoices = { "zh_female_vv_yingjian_soungis", "zh_male_vv_yingjian_soungis", "zh_female_vv_shengcheng_jingying", "zh_male_vv_shengcheng_jingying", "zh_female_vv_shichang_jingying", "zh_male_vv_shichang_jingying", "zh_female_vv_xiaoyuan_jingying", "zh_male_vv_xiaoyuan_jingying", "zh_female_vv_badao_jingying", "zh_male_vv_badao_jingying", "zh_female_vv_changjiang_jingying", "zh_male_vv_changjiang_jingying", "zh_female_vv_zhongjiao_jingying", "zh_male_vv_zhongjiao_jingying", "zh_female_vv_yujie_jingying", "zh_male_vv_yujie_jingying" };
+
     // 选中的镜头
     private List<ShotItem> _selectedShots = new();
 
     // 语音选项
-    [ObservableProperty] private ObservableCollection<string> _voiceOptions = new()
-    {
-        "alloy", "echo", "fable", "onyx", "nova", "shimmer"
-    };
-
+    [ObservableProperty] private ObservableCollection<string> _voiceOptions = new(OpenAiVoices);
     [ObservableProperty] private string _selectedVoice = "alloy";
+    [ObservableProperty] private ObservableCollection<string> _modelOptions = new(ShotItem.TtsModelOptions);
+    [ObservableProperty] private string _selectedModel = string.Empty;
+
+    public string VoiceHint
+    {
+        get
+        {
+            var m = SelectedModel?.ToLowerInvariant() ?? "";
+            if (m.Contains("qwen") || m.Contains("千问")) return "千问音色，如 Cherry, alexa, emily 等";
+            if (m.Contains("volc") || m.Contains("火山") || m.Contains("doubao")) return "火山引擎音色 ID，如 zh_female_vv_yingjian_soungis";
+            return "alloy: 中性 | echo: 男性 | fable: 英式 | onyx: 深沉 | nova: 女性 | shimmer: 柔和";
+        }
+    }
+
+    private TtsProviderType _currentProvider = TtsProviderType.NewApi;
     [ObservableProperty] private double _speed = 1.0;
 
     // 生成选项
@@ -77,13 +93,44 @@ public partial class BatchAudioGenerationViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 设置要生成配音的镜头列表
+    /// 设置要生成配音的镜头列表，并根据当前默认 TTS provider 更新音色列表
     /// </summary>
     public void SetShots(IEnumerable<ShotItem> shots)
     {
         _selectedShots = shots.ToList();
         OnPropertyChanged(nameof(SelectedShotsCount));
         OnPropertyChanged(nameof(CanGenerate));
+
+        // 用第一个镜头的 model 初始化，或用默认 provider 的 model
+        var firstShot = _selectedShots.FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(firstShot?.TtsModel))
+        {
+            SelectedModel = firstShot.TtsModel;
+        }
+        else
+        {
+            var provider = _ttsService.GetDefaultProvider();
+            _currentProvider = provider.ProviderType;
+            SelectedModel = _currentProvider switch
+            {
+                TtsProviderType.Volcengine => "doubao-e2-audio-160k",
+                TtsProviderType.Qwen => "qwen3-tts-instruct-flash",
+                _ => "gpt-4o-mini-tts"
+            };
+        }
+    }
+
+    partial void OnSelectedModelChanged(string value)
+    {
+        var voices = ShotItem.GetVoiceOptionsForModel(value);
+        VoiceOptions.Clear();
+        foreach (var v in voices)
+            VoiceOptions.Add(v);
+
+        if (!VoiceOptions.Contains(SelectedVoice))
+            SelectedVoice = VoiceOptions.FirstOrDefault() ?? "alloy";
+
+        OnPropertyChanged(nameof(VoiceHint));
     }
 
     /// <summary>
@@ -164,6 +211,7 @@ public partial class BatchAudioGenerationViewModel : ObservableObject
                     var audioPath = await _ttsService.GenerateForShotAsync(
                         shotId: (long)shot.ShotNumber,
                         text: text,
+                        model: SelectedModel,
                         voice: SelectedVoice,
                         speed: Speed,
                         cancellationToken: token
@@ -173,6 +221,7 @@ public partial class BatchAudioGenerationViewModel : ObservableObject
                     shot.GeneratedAudioPath = audioPath;
                     shot.AudioDuration = await TryGetAudioDurationAsync(audioPath);
                     shot.TtsVoice = SelectedVoice;
+                    shot.TtsModel = SelectedModel;
                     shot.TtsSpeed = Speed;
                     if (UseExistingText || string.IsNullOrWhiteSpace(shot.AudioText))
                     {

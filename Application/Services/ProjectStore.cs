@@ -367,7 +367,7 @@ public sealed class ProjectStore : IProjectStore
                 IsDurationLocked = s.IsDurationLocked,
                 AudioText = s.AudioText,
                 GeneratedAudioPath = s.GeneratedAudioPath,
-                TtsVoice = s.TtsVoice,
+                TtsVoice = string.IsNullOrWhiteSpace(s.TtsVoice) ? "alloy" : s.TtsVoice,
                 TtsSpeed = s.TtsSpeed,
                 TtsModel = s.TtsModel,
                 AudioDuration = s.AudioDuration,

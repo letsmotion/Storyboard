@@ -41,6 +41,12 @@ public sealed class StoryboardDbContext : DbContext
             b.Property(s => s.SceneSettings);
             b.Property(s => s.SelectedModel);
 
+            b.Property(s => s.AudioText).HasDefaultValue(string.Empty);
+            b.Property(s => s.TtsVoice).HasDefaultValue("alloy");
+            b.Property(s => s.TtsSpeed).HasDefaultValue(1.0);
+            b.Property(s => s.TtsModel).HasDefaultValue(string.Empty);
+            b.Property(s => s.AudioDuration).HasDefaultValue(0.0);
+
             b.HasMany(s => s.Assets)
                 .WithOne(a => a.Shot)
                 .HasForeignKey(a => a.ShotId)

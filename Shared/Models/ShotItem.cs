@@ -495,7 +495,7 @@ public partial class ShotItem : ObservableObject
         string[] voices;
         if (modelLower.Contains("qwen") || modelLower.Contains("千问"))
             voices = QwenVoices;
-        else if (modelLower.Contains("volc") || modelLower.Contains("火山"))
+        else if (modelLower.Contains("volc") || modelLower.Contains("火山") || modelLower.Contains("doubao"))
             voices = VolcengineVoices;
         else if (QwenVoices.Contains(TtsVoice))
             voices = QwenVoices;
@@ -1146,7 +1146,8 @@ public partial class ShotItem : ObservableObject
         "qwen3-tts-instruct-flash-2026-01-26",
         "qwen-tts",
         "qwen-tts-latest",
-        "volcengine-tts"
+        "doubao-e2-audio-160k",
+        "doubao-e2-audio-32k"
     };
 
     public static IReadOnlyList<string> GetVoiceOptionsForModel(string? model)
@@ -1154,7 +1155,7 @@ public partial class ShotItem : ObservableObject
         if (string.IsNullOrWhiteSpace(model)) return OpenAiVoices;
         var modelLower = model.ToLowerInvariant();
         if (modelLower.Contains("qwen") || modelLower.Contains("千问")) return QwenVoices;
-        if (modelLower.Contains("volc") || modelLower.Contains("火山")) return VolcengineVoices;
+        if (modelLower.Contains("volc") || modelLower.Contains("火山") || modelLower.Contains("doubao")) return VolcengineVoices;
         return OpenAiVoices;
     }
 
@@ -1172,7 +1173,7 @@ public partial class ShotItem : ObservableObject
             var modelLower = (TtsModel ?? "").ToLowerInvariant();
             if (modelLower.Contains("qwen") || modelLower.Contains("千问"))
                 return "千问 TTS 支持多种音色，如 alexa, emily, jessica 等";
-            if (modelLower.Contains("volc") || modelLower.Contains("火山"))
+            if (modelLower.Contains("volc") || modelLower.Contains("火山") || modelLower.Contains("doubao"))
                 return "火山引擎 TTS 支持多种音色，如 zh_female_vv_yingjian_soungis 等";
             return "OpenAI TTS 支持音色：alloy, echo, fable, onyx, nova, shimmer";
         }
