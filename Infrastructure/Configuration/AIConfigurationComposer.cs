@@ -115,11 +115,25 @@ public class AIConfigurationComposer
             diffConfig.TimeoutSeconds = userConfig.TimeoutSeconds;
         }
 
+        if (IsAllowedField(allowedFields, "AppId") &&
+            !string.IsNullOrWhiteSpace(userConfig.AppId))
+        {
+            diffConfig.AppId = userConfig.AppId.Trim();
+        }
+
+        if (IsAllowedField(allowedFields, "Cluster") &&
+            !string.IsNullOrWhiteSpace(userConfig.Cluster))
+        {
+            diffConfig.Cluster = userConfig.Cluster.Trim();
+        }
+
         // 如果所有字段都为空（除了 ApiKey），则完全移除该 Provider 配置
         if (string.IsNullOrWhiteSpace(diffConfig.ApiKey) &&
             !diffConfig.Enabled.HasValue &&
             string.IsNullOrWhiteSpace(diffConfig.Endpoint) &&
-            !diffConfig.TimeoutSeconds.HasValue)
+            !diffConfig.TimeoutSeconds.HasValue &&
+            string.IsNullOrWhiteSpace(diffConfig.AppId) &&
+            string.IsNullOrWhiteSpace(diffConfig.Cluster))
         {
             overrides.Providers.Remove(providerName);
             _logger.LogInformation("用户配置已移除 (无差异): {Provider}", providerName);
@@ -230,10 +244,30 @@ public class AIConfigurationComposer
                 changed = true;
             }
 
+            if (!allowedFields.Contains("AppId") || string.IsNullOrWhiteSpace(userConfig.AppId))
+            {
+                if (userConfig.AppId != null)
+                {
+                    userConfig.AppId = null;
+                    changed = true;
+                }
+            }
+
+            if (!allowedFields.Contains("Cluster") || string.IsNullOrWhiteSpace(userConfig.Cluster))
+            {
+                if (userConfig.Cluster != null)
+                {
+                    userConfig.Cluster = null;
+                    changed = true;
+                }
+            }
+
             if (string.IsNullOrWhiteSpace(userConfig.ApiKey) &&
                 !userConfig.Enabled.HasValue &&
                 string.IsNullOrWhiteSpace(userConfig.Endpoint) &&
-                !userConfig.TimeoutSeconds.HasValue)
+                !userConfig.TimeoutSeconds.HasValue &&
+                string.IsNullOrWhiteSpace(userConfig.AppId) &&
+                string.IsNullOrWhiteSpace(userConfig.Cluster))
             {
                 userOverrides.Providers.Remove(providerName);
                 changed = true;
@@ -364,11 +398,8 @@ public class AIConfigurationComposer
         config.Video = ComposeVideoConfiguration();
         config.Image.DefaultProvider = MapImageProviderType(config.Defaults.Image.Provider);
         config.Video.DefaultProvider = MapVideoProviderType(config.Defaults.Video.Provider);
-
-        config.Tts = new TtsServicesConfiguration
-        {
-            DefaultProvider = MapTtsProviderType(config.Defaults.Tts.Provider)
-        };
+        config.Tts = ComposeTtsConfiguration(userOverrides);
+        config.Tts.DefaultProvider = MapTtsProviderType(config.Defaults.Tts.Provider);
 
         return config;
     }
@@ -435,7 +466,8 @@ public class AIConfigurationComposer
             {
                 Text = defaultConfig.DefaultModels.TryGetValue("Text", out var text) ? text : "",
                 Image = defaultConfig.DefaultModels.TryGetValue("Image", out var image) ? image : "",
-                Video = defaultConfig.DefaultModels.TryGetValue("Video", out var video) ? video : ""
+                Video = defaultConfig.DefaultModels.TryGetValue("Video", out var video) ? video : "",
+                Tts = defaultConfig.DefaultModels.TryGetValue("Tts", out var tts) ? tts : ""
             };
         }
 
@@ -552,6 +584,59 @@ public class AIConfigurationComposer
                 ReturnLastFrame = newApiDefaults.ReturnLastFrame,
                 ProviderHint = newApiDefaults.ProviderHint
             };
+        }
+
+        return config;
+    }
+
+    /// <summary>
+    /// 鍚堟垚 TTS 閰嶇疆
+    /// </summary>
+    private TtsServicesConfiguration ComposeTtsConfiguration(UserAIOverrides userOverrides)
+    {
+        var config = new TtsServicesConfiguration();
+
+        if (_defaults?.Tts?.Providers.TryGetValue("NewApi", out var newApiDefaults) == true)
+        {
+            config.NewApi = new NewApiTtsConfig
+            {
+                Voice = string.IsNullOrWhiteSpace(newApiDefaults.Voice) ? config.NewApi.Voice : newApiDefaults.Voice,
+                Speed = newApiDefaults.Speed,
+                ResponseFormat = string.IsNullOrWhiteSpace(newApiDefaults.ResponseFormat) ? config.NewApi.ResponseFormat : newApiDefaults.ResponseFormat,
+                ProviderHint = string.IsNullOrWhiteSpace(newApiDefaults.ProviderHint) ? config.NewApi.ProviderHint : newApiDefaults.ProviderHint
+            };
+        }
+
+        if (_defaults?.Tts?.Providers.TryGetValue("Qwen", out var qwenDefaults) == true)
+        {
+            config.Qwen = new QwenTtsConfig
+            {
+                Voice = string.IsNullOrWhiteSpace(qwenDefaults.Voice) ? config.Qwen.Voice : qwenDefaults.Voice,
+                Speed = qwenDefaults.Speed,
+                ResponseFormat = string.IsNullOrWhiteSpace(qwenDefaults.ResponseFormat) ? config.Qwen.ResponseFormat : qwenDefaults.ResponseFormat,
+                LanguageType = string.IsNullOrWhiteSpace(qwenDefaults.LanguageType) ? config.Qwen.LanguageType : qwenDefaults.LanguageType
+            };
+        }
+
+        if (_defaults?.Tts?.Providers.TryGetValue("Volcengine", out var volcDefaults) == true)
+        {
+            config.Volcengine = new VolcengineTtsConfig
+            {
+                Voice = string.IsNullOrWhiteSpace(volcDefaults.Voice) ? config.Volcengine.Voice : volcDefaults.Voice,
+                Speed = volcDefaults.Speed,
+                ResponseFormat = string.IsNullOrWhiteSpace(volcDefaults.ResponseFormat) ? config.Volcengine.ResponseFormat : volcDefaults.ResponseFormat,
+                AppId = string.IsNullOrWhiteSpace(volcDefaults.AppId) ? config.Volcengine.AppId : volcDefaults.AppId,
+                Cluster = string.IsNullOrWhiteSpace(volcDefaults.Cluster) ? config.Volcengine.Cluster : volcDefaults.Cluster
+            };
+        }
+
+        if (userOverrides.Providers.TryGetValue("Volcengine", out var volcOverride))
+        {
+            if (!string.IsNullOrWhiteSpace(volcOverride.AppId))
+                config.Volcengine.AppId = volcOverride.AppId.Trim();
+
+            if (!string.IsNullOrWhiteSpace(volcOverride.Cluster))
+                config.Volcengine.Cluster = volcOverride.Cluster.Trim();
         }
 
         return config;

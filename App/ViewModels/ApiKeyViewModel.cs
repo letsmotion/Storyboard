@@ -85,6 +85,8 @@ public partial class ApiKeyViewModel : ObservableObject
     [ObservableProperty] private string _volcengineApiKey = string.Empty;
     [ObservableProperty] private string _volcengineEndpoint = string.Empty;
     [ObservableProperty] private int _volcengineTimeoutSeconds = 120;
+    [ObservableProperty] private string _volcengineTtsAppId = string.Empty;
+    [ObservableProperty] private string _volcengineTtsCluster = "volcano_tts";
 
     [ObservableProperty] private bool _newApiEnabled;
     [ObservableProperty] private string _newApiApiKey = string.Empty;
@@ -121,6 +123,8 @@ public partial class ApiKeyViewModel : ObservableObject
         VolcengineApiKey = volc.ApiKey;
         VolcengineEndpoint = volc.Endpoint;
         VolcengineTimeoutSeconds = volc.TimeoutSeconds;
+        VolcengineTtsAppId = cfg.Tts.Volcengine.AppId ?? string.Empty;
+        VolcengineTtsCluster = string.IsNullOrWhiteSpace(cfg.Tts.Volcengine.Cluster) ? "volcano_tts" : cfg.Tts.Volcengine.Cluster;
 
         var newApi = cfg.Providers.NewApi;
         NewApiEnabled = newApi.Enabled;
@@ -211,7 +215,9 @@ public partial class ApiKeyViewModel : ObservableObject
                 VolcengineApiKey,
                 VolcengineEnabled,
                 VolcengineEndpoint,
-                VolcengineTimeoutSeconds);
+                VolcengineTimeoutSeconds,
+                VolcengineTtsAppId,
+                VolcengineTtsCluster);
 
             var newApiConfig = BuildProviderUserConfig(
                 NewApiApiKey,
@@ -248,14 +254,18 @@ public partial class ApiKeyViewModel : ObservableObject
         string apiKey,
         bool enabled,
         string endpoint,
-        int timeoutSeconds)
+        int timeoutSeconds,
+        string? appId = null,
+        string? cluster = null)
     {
         return new ProviderUserConfig
         {
             ApiKey = string.IsNullOrWhiteSpace(apiKey) ? null : apiKey.Trim(),
             Enabled = enabled,
             Endpoint = string.IsNullOrWhiteSpace(endpoint) ? null : endpoint.Trim(),
-            TimeoutSeconds = timeoutSeconds
+            TimeoutSeconds = timeoutSeconds,
+            AppId = string.IsNullOrWhiteSpace(appId) ? null : appId.Trim(),
+            Cluster = string.IsNullOrWhiteSpace(cluster) ? null : cluster.Trim()
         };
     }
 

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -15,10 +14,15 @@ namespace Storyboard.Infrastructure.Media.Providers;
 
 public sealed class VolcengineTtsProvider : ITtsProvider
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private readonly IOptionsMonitor<AIServicesConfiguration> _configMonitor;
     private readonly ILogger<VolcengineTtsProvider> _logger;
 
-    private const string DefaultEndpoint = "https://ark.cn-beijing.volces.com/api/v3";
+    private const string DefaultEndpoint = "https://openspeech.bytedance.com/api/v1";
 
     public VolcengineTtsProvider(
         IOptionsMonitor<AIServicesConfiguration> configMonitor,
@@ -32,7 +36,7 @@ public sealed class VolcengineTtsProvider : ITtsProvider
     private VolcengineTtsConfig TtsConfig => _configMonitor.CurrentValue.Tts.Volcengine;
 
     public TtsProviderType ProviderType => TtsProviderType.Volcengine;
-    public string DisplayName => "火山引擎 (Volcengine)";
+    public string DisplayName => "Volcengine";
 
     public bool IsConfigured =>
         ProviderConfig.Enabled &&
@@ -74,7 +78,7 @@ public sealed class VolcengineTtsProvider : ITtsProvider
 
     public IReadOnlyList<ProviderCapabilityDeclaration> CapabilityDeclarations => new[]
     {
-        new ProviderCapabilityDeclaration(AIProviderCapability.TextToSpeech, "火山引擎豆包 TTS API", "audio/mpeg")
+        new ProviderCapabilityDeclaration(AIProviderCapability.TextToSpeech, "Volcengine TTS API", "audio/mpeg")
     };
 
     public async Task<TtsGenerationResult> GenerateAsync(
@@ -86,6 +90,9 @@ public sealed class VolcengineTtsProvider : ITtsProvider
 
         if (string.IsNullOrWhiteSpace(request.Text))
             throw new InvalidOperationException("TTS text is empty.");
+
+        if (string.IsNullOrWhiteSpace(TtsConfig.AppId))
+            throw new InvalidOperationException("Volcengine TTS requires Tts.Volcengine.AppId in configuration.");
 
         var model = string.IsNullOrWhiteSpace(request.Model)
             ? ProviderConfig.DefaultModels.Tts
@@ -104,22 +111,49 @@ public sealed class VolcengineTtsProvider : ITtsProvider
             ? TtsConfig.ResponseFormat
             : request.ResponseFormat;
 
-        var payload = new Dictionary<string, object>
+        var cluster = ResolveCluster();
+        var payload = new Dictionary<string, object?>
         {
-            ["model"] = model,
-            ["input"] = request.Text,
-            ["voice"] = voice,
-            ["speed"] = speed,
-            ["response_format"] = responseFormat
+            ["app"] = new Dictionary<string, object?>
+            {
+                ["appid"] = TtsConfig.AppId,
+                ["token"] = ProviderConfig.ApiKey,
+                ["cluster"] = cluster
+            },
+            ["user"] = new Dictionary<string, object?>
+            {
+                ["uid"] = "storyboard"
+            },
+            ["audio"] = new Dictionary<string, object?>
+            {
+                ["voice_type"] = voice,
+                ["encoding"] = ResolveEncoding(responseFormat),
+                ["rate"] = ResolveSampleRate(responseFormat),
+                ["speed_ratio"] = speed
+            },
+            ["request"] = new Dictionary<string, object?>
+            {
+                ["reqid"] = Guid.NewGuid().ToString("D"),
+                ["text"] = request.Text,
+                ["text_type"] = "plain",
+                ["operation"] = "query"
+            }
         };
 
         using var httpClient = CreateHttpClient();
-        _logger.LogInformation("Volcengine TTS request: Model={Model}, Voice={Voice}, Speed={Speed}, Format={Format}, TextLength={Length}, BaseAddress={BaseAddress}",
-            model, voice, speed, responseFormat, request.Text.Length, httpClient.BaseAddress);
+        _logger.LogInformation(
+            "Volcengine TTS request: Model={Model}, Voice={Voice}, Speed={Speed}, Format={Format}, Cluster={Cluster}, TextLength={Length}, BaseAddress={BaseAddress}",
+            model,
+            voice,
+            speed,
+            responseFormat,
+            cluster,
+            request.Text.Length,
+            httpClient.BaseAddress);
 
-        var requestMessage = new HttpRequestMessage(HttpMethod.Post, "audio/speech")
+        var requestMessage = new HttpRequestMessage(HttpMethod.Post, "tts")
         {
-            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, new MediaTypeHeaderValue("application/json"))
+            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
         };
 
         var response = await httpClient.SendAsync(requestMessage, cancellationToken).ConfigureAwait(false);
@@ -131,7 +165,21 @@ public sealed class VolcengineTtsProvider : ITtsProvider
             throw new InvalidOperationException($"Volcengine TTS failed with HTTP {response.StatusCode}: {errorBody}");
         }
 
-        var audioBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        var apiResponse = JsonSerializer.Deserialize<VolcengineTtsResponse>(responseBody, JsonOptions);
+        if (apiResponse == null)
+            throw new InvalidOperationException("Volcengine TTS returned an empty response.");
+
+        if (apiResponse.Code != 3000)
+        {
+            _logger.LogError("Volcengine TTS API error {Code}: {Message}", apiResponse.Code, apiResponse.Message);
+            throw new InvalidOperationException($"Volcengine TTS failed with code {apiResponse.Code}: {apiResponse.Message}");
+        }
+
+        if (string.IsNullOrWhiteSpace(apiResponse.Data))
+            throw new InvalidOperationException("Volcengine TTS returned empty audio data.");
+
+        var audioBytes = Convert.FromBase64String(apiResponse.Data);
         var extension = ResolveExtension(responseFormat);
 
         if (!string.IsNullOrWhiteSpace(request.OutputPath))
@@ -143,20 +191,24 @@ public sealed class VolcengineTtsProvider : ITtsProvider
             _logger.LogInformation("Volcengine TTS audio saved to {Path}, Size={Size} bytes", request.OutputPath, audioBytes.Length);
         }
 
-        return new TtsGenerationResult(audioBytes, extension, model, EstimateDuration(request.Text, speed));
+        var duration = TryResolveDurationSeconds(apiResponse.Addition?.Duration) ?? EstimateDuration(request.Text, speed);
+        return new TtsGenerationResult(audioBytes, extension, model, duration);
     }
 
     private HttpClient CreateHttpClient()
     {
         var baseAddress = ProviderConfig.Endpoint;
-        if (string.IsNullOrWhiteSpace(baseAddress))
+        if (string.IsNullOrWhiteSpace(baseAddress) ||
+            baseAddress.Contains("ark.", StringComparison.OrdinalIgnoreCase) ||
+            baseAddress.Contains("volces.com", StringComparison.OrdinalIgnoreCase))
+        {
             baseAddress = DefaultEndpoint;
+        }
 
         baseAddress = baseAddress.TrimEnd('/');
 
-        // Ensure /api/v3 suffix for ARK platform
-        if (!baseAddress.Contains("/v3") && !baseAddress.Contains("/v1"))
-            baseAddress += "/api/v3";
+        if (!baseAddress.Contains("/api/v1", StringComparison.OrdinalIgnoreCase))
+            baseAddress += "/api/v1";
 
         var client = new HttpClient
         {
@@ -164,11 +216,32 @@ public sealed class VolcengineTtsProvider : ITtsProvider
             Timeout = TimeSpan.FromSeconds(Math.Max(60, ProviderConfig.TimeoutSeconds))
         };
 
-        // ARK platform uses standard Bearer auth (space, not semicolon)
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ProviderConfig.ApiKey);
-        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer; {ProviderConfig.ApiKey}");
+        client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
 
         return client;
+    }
+
+    private string ResolveCluster()
+    {
+        return string.IsNullOrWhiteSpace(TtsConfig.Cluster) ? "volcano_tts" : TtsConfig.Cluster;
+    }
+
+    private static string ResolveEncoding(string format)
+    {
+        return format.ToLowerInvariant() switch
+        {
+            "mp3" => "mp3",
+            "wav" => "wav",
+            "pcm" => "pcm",
+            "opus" => "ogg_opus",
+            _ => "mp3"
+        };
+    }
+
+    private static int ResolveSampleRate(string format)
+    {
+        return format.Equals("pcm", StringComparison.OrdinalIgnoreCase) ? 16000 : 24000;
     }
 
     private static string ResolveExtension(string format)
@@ -178,8 +251,17 @@ public sealed class VolcengineTtsProvider : ITtsProvider
             "mp3" => ".mp3",
             "wav" => ".wav",
             "pcm" => ".pcm",
+            "opus" => ".opus",
             _ => ".mp3"
         };
+    }
+
+    private static double? TryResolveDurationSeconds(string? durationMilliseconds)
+    {
+        if (!double.TryParse(durationMilliseconds, out var milliseconds))
+            return null;
+
+        return milliseconds / 1000d;
     }
 
     private static double EstimateDuration(string text, double speed)
@@ -190,5 +272,18 @@ public sealed class VolcengineTtsProvider : ITtsProvider
         var charCount = text.Length;
         var baseDuration = charCount / 3.5;
         return baseDuration / speed;
+    }
+
+    private sealed class VolcengineTtsResponse
+    {
+        public int Code { get; set; }
+        public string? Message { get; set; }
+        public string? Data { get; set; }
+        public VolcengineTtsAddition? Addition { get; set; }
+    }
+
+    private sealed class VolcengineTtsAddition
+    {
+        public string? Duration { get; set; }
     }
 }

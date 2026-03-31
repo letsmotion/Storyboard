@@ -7,7 +7,8 @@
       "DefaultModels": {
         "Text": "doubao-seed-1-6-251015",
         "Image": "doubao-seedream-4-5-251128",
-        "Video": "doubao-seedance-1-0-lite-i2v-250428"
+        "Video": "doubao-seedance-1-0-lite-i2v-250428",
+        "Tts": "qwen-tts"
       }
     },
     "Volcengine": {
@@ -17,7 +18,8 @@
         "DefaultModels": {
             "Text": "doubao-seed-1-6-251015",
             "Image": "doubao-seedream-4-5-251128",
-            "Video": "doubao-seedance-1-0-lite-i2v-250428"
+            "Video": "doubao-seedance-1-0-lite-i2v-250428",
+            "Tts": "doubao-e2-audio-160k"
         }
     },
     "NewApi": {
@@ -96,6 +98,19 @@
   "Tts": {
     "DefaultProvider": "NewApi",
     "Providers": {
+      "Qwen": {
+        "Voice": "Cherry",
+        "Speed": 1.0,
+        "ResponseFormat": "mp3",
+        "LanguageType": "Chinese"
+      },
+      "Volcengine": {
+        "Voice": "zh_female_vv_yingjian_soungis",
+        "Speed": 1.0,
+        "ResponseFormat": "mp3",
+        "AppId": "",
+        "Cluster": "volcano_tts"
+      },
       "NewApi": {
         "Voice": "alloy",
         "Speed": 1.0,

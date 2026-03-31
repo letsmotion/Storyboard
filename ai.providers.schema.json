@@ -9,7 +9,7 @@
     "Volcengine": {
       "Supports": ["Text", "Image", "Video"],
       "RequiredFields": ["ApiKey", "Endpoint"],
-      "OptionalFields": ["Enabled", "TimeoutSeconds"]
+      "OptionalFields": ["Enabled", "TimeoutSeconds", "AppId", "Cluster"]
     },
     "NewApi": {
       "Supports": ["Text", "Image", "Video", "Audio", "Embeddings", "Rerank", "Realtime"],

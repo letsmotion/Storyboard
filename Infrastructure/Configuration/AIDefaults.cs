@@ -3,17 +3,18 @@ using System.Collections.Generic;
 namespace Storyboard.Infrastructure.Configuration;
 
 /// <summary>
-/// AI 默认参数配置（开发者维护）
+/// AI defaults maintained by the application.
 /// </summary>
 public class AIDefaults
 {
     public Dictionary<string, ProviderDefaultConfig> Providers { get; set; } = new();
     public ImageGenerationDefaults Image { get; set; } = new();
     public VideoGenerationDefaults Video { get; set; } = new();
+    public TtsGenerationDefaults Tts { get; set; } = new();
 }
 
 /// <summary>
-/// Provider 默认配置
+/// Provider defaults.
 /// </summary>
 public class ProviderDefaultConfig
 {
@@ -24,7 +25,7 @@ public class ProviderDefaultConfig
 }
 
 /// <summary>
-/// 图像生成默认参数
+/// Image generation defaults.
 /// </summary>
 public class ImageGenerationDefaults
 {
@@ -43,7 +44,7 @@ public class ImageProviderDefaults
 }
 
 /// <summary>
-/// 视频生成默认参数
+/// Video generation defaults.
 /// </summary>
 public class VideoGenerationDefaults
 {
@@ -64,4 +65,24 @@ public class VideoProviderDefaults
     public bool PromptExtend { get; set; } = true;
     public string ShotType { get; set; } = "single";
     public string? ProviderHint { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// TTS defaults.
+/// </summary>
+public class TtsGenerationDefaults
+{
+    public string DefaultProvider { get; set; } = "NewApi";
+    public Dictionary<string, TtsProviderDefaults> Providers { get; set; } = new();
+}
+
+public class TtsProviderDefaults
+{
+    public string Voice { get; set; } = string.Empty;
+    public double Speed { get; set; } = 1.0;
+    public string ResponseFormat { get; set; } = "mp3";
+    public string? ProviderHint { get; set; } = string.Empty;
+    public string? LanguageType { get; set; } = string.Empty;
+    public string? AppId { get; set; } = string.Empty;
+    public string Cluster { get; set; } = "volcano_tts";
 }

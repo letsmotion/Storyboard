@@ -165,6 +165,7 @@ public sealed class VolcengineTtsConfig
     public double Speed { get; set; } = 1.0;
     public string ResponseFormat { get; set; } = "mp3";
     public string? AppId { get; set; }
+    public string Cluster { get; set; } = "volcano_tts";
 }
 
 public class TtsServicesConfiguration
